@@ -791,7 +791,7 @@ windows-capture = { git = "https://github.com/zed-industries/windows-capture.git
 calloop = { git = "https://github.com/zed-industries/calloop" }
 
 # Uncomment for local gpui development:
-# [patch.'https://github.com/Obsydian-HQ/gpui.git']
+[patch.'https://github.com/Obsydian-HQ/gpui.git']
 # collections = { path = "../../Obsydian-HQ/gpui/crates/collections" }
 # gpui = { path = "../../Obsydian-HQ/gpui/crates/gpui" }
 # gpui_macros = { path = "../../Obsydian-HQ/gpui/crates/gpui_macros" }
@@ -802,7 +802,7 @@ calloop = { git = "https://github.com/zed-industries/calloop" }
 # http_client_tls = { path = "../../Obsydian-HQ/gpui/crates/http_client_tls" }
 # media = { path = "../../Obsydian-HQ/gpui/crates/media" }
 # sum_tree = { path = "../../Obsydian-HQ/gpui/crates/sum_tree" }
-# util = { path = "../../Obsydian-HQ/gpui/crates/util" }
+util = { path = "../../Obsydian-HQ/gpui/crates/util" }
 # scheduler = { path = "../../Obsydian-HQ/gpui/crates/scheduler" }
 # gpui_util = { path = "../../Obsydian-HQ/gpui/crates/gpui_util" }
 # refineable = { path = "../../Obsydian-HQ/gpui/crates/refineable" }
