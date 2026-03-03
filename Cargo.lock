@@ -13870,6 +13870,7 @@ dependencies = [
  "fs",
  "fuzzy",
  "gpui",
+ "log",
  "picker",
  "project",
  "recent_projects",
