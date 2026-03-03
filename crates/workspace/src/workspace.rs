@@ -115,7 +115,7 @@ use std::{
     rc::Rc,
     sync::{
         Arc, LazyLock, Weak,
-        atomic::{AtomicBool, AtomicUsize},
+        atomic::AtomicUsize,
     },
     time::Duration,
 };
@@ -1618,6 +1618,11 @@ impl Workspace {
             }),
             #[cfg(target_os = "macos")]
             cx.observe_in(&left_dock, window, |this, _, window, cx| {
+                // In multi-workspace mode, the NSSplitView controls the
+                // sidebar width. Don't let dock panel sizes override it.
+                if window.root::<MultiWorkspace>().flatten().is_some() {
+                    return;
+                }
                 let width = this
                     .left_dock
                     .read(cx)
@@ -5162,6 +5167,11 @@ impl Workspace {
         self.update_window_title(window, cx);
     }
 
+    pub fn invalidate_window_caches(&mut self, window: &mut Window, cx: &mut App) {
+        self.last_window_title = None;
+        self.update_window_title(window, cx);
+    }
+
     fn update_window_title(&mut self, window: &mut Window, cx: &mut App) {
         let project = self.project().read(cx);
         let mut title = String::new();
@@ -7048,10 +7058,6 @@ impl Render for DraggedDock {
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        static FIRST_PAINT: AtomicBool = AtomicBool::new(true);
-        if FIRST_PAINT.swap(false, std::sync::atomic::Ordering::Relaxed) {
-            log::info!("Rendered first frame");
-        }
         let centered_layout = self.centered_layout
             && self.center.panes().len() == 1
             && self.active_item(cx).is_some();

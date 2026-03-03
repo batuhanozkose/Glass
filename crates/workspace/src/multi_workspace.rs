@@ -245,7 +245,8 @@ impl MultiWorkspace {
     }
 
     /// Sync the shared unified sidebar to point at the active workspace's left dock,
-    /// mode, width, and browser view.
+    /// mode, and browser view. Width is NOT synced because the NSSplitView manages
+    /// its own divider position independently.
     #[cfg(target_os = "macos")]
     fn sync_unified_sidebar(&self, cx: &mut App) {
         let active_ws = self.workspace().clone();
@@ -257,14 +258,10 @@ impl MultiWorkspace {
                 workspace.unified_sidebar.clone(),
             )
         };
-        let (width, browser_view) = {
-            let per_ws = per_ws_sidebar.read(cx);
-            (per_ws.width(), per_ws.browser_sidebar_view().cloned())
-        };
+        let browser_view = per_ws_sidebar.read(cx).browser_sidebar_view().cloned();
         self.unified_sidebar.update(cx, |sidebar, cx| {
             sidebar.set_left_dock(left_dock, cx);
             sidebar.set_mode(mode, cx);
-            sidebar.set_width(width, cx);
             if let Some(view) = browser_view {
                 sidebar.set_browser_sidebar_view(view, cx);
             }
@@ -285,18 +282,7 @@ impl MultiWorkspace {
 
     pub fn activate(&mut self, workspace: Entity<Workspace>, cx: &mut Context<Self>) {
         let old_index = self.active_workspace_index;
-        log::info!(
-            "MultiWorkspace::activate: workspace={:?}, old_index={}, total={}",
-            workspace.entity_id(),
-            old_index,
-            self.workspaces.len(),
-        );
         let new_index = self.set_active_workspace(workspace, cx);
-        log::info!(
-            "MultiWorkspace::activate: new_index={}, changed={}",
-            new_index,
-            old_index != new_index,
-        );
         if old_index != new_index {
             self.serialize(cx);
         }
@@ -307,8 +293,10 @@ impl MultiWorkspace {
         workspace: Entity<Workspace>,
         cx: &mut Context<Self>,
     ) -> usize {
-        let index = self.add_workspace(workspace, cx);
+        let index = self.add_workspace(workspace.clone(), cx);
         self.active_workspace_index = index;
+        // Force the workspace to re-render when it becomes active.
+        workspace.update(cx, |_, cx| cx.notify());
         cx.notify();
         index
     }
@@ -336,12 +324,13 @@ impl MultiWorkspace {
             index < self.workspaces.len(),
             "workspace index out of bounds"
         );
-        let old_index = self.active_workspace_index;
-        log::info!(
-            "MultiWorkspace::activate_index: {} -> {}, total={}",
-            old_index, index, self.workspaces.len(),
-        );
         self.active_workspace_index = index;
+        // Force the workspace to re-render and push its window title/toolbar,
+        // which may be stale if this workspace was previously inactive.
+        self.workspace().update(cx, |workspace, cx| {
+            workspace.invalidate_window_caches(window, cx);
+            cx.notify();
+        });
         self.sync_unified_sidebar(cx);
         self.serialize(cx);
         self.focus_active_workspace(window, cx);

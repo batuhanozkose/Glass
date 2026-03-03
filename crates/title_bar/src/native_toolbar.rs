@@ -159,6 +159,7 @@ impl NativeToolbarController {
                     });
 
                     let platform_titlebar = platform_titlebar.clone();
+                    let toolbar_weak = this.clone();
                     let subscription = cx.observe(&multi_workspace, move |mw, cx| {
                         let is_open = mw.read(cx).is_sidebar_open();
                         let has_notifications = mw.read(cx).sidebar_has_notifications(cx);
@@ -166,6 +167,21 @@ impl NativeToolbarController {
                             titlebar.set_workspace_sidebar_open(is_open, cx);
                             titlebar.set_sidebar_has_notifications(has_notifications, cx);
                         });
+
+                        // When the active workspace changes, the new workspace's
+                        // toolbar controller must push its toolbar to the window
+                        // even if nothing in its project changed. Clear the cached
+                        // key so the next render forces a rebuild.
+                        if let Some(toolbar) = toolbar_weak.upgrade() {
+                            let is_active = toolbar.read(cx).workspace.upgrade().map(|ws| {
+                                mw.read(cx).workspace().entity_id() == ws.entity_id()
+                            }).unwrap_or(false);
+                            if is_active {
+                                toolbar.update(cx, |toolbar, cx| {
+                                    toolbar.invalidate_toolbar(cx);
+                                });
+                            }
+                        }
                     });
 
                     if let Some(this) = this.upgrade() {
@@ -246,6 +262,11 @@ impl NativeToolbarController {
             item.set_active_pane_item(active_pane_item.as_deref(), window, cx);
         }
         self.refresh_status_data(window, cx);
+    }
+
+    pub fn invalidate_toolbar(&mut self, cx: &mut Context<Self>) {
+        self.last_toolbar_key.clear();
+        cx.notify();
     }
 
     pub fn toggle_update_simulation(&mut self, cx: &mut Context<Self>) {

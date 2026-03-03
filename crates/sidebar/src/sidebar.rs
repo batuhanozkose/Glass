@@ -531,7 +531,6 @@ impl PickerDelegate for WorkspacePickerDelegate {
 
     fn confirm(&mut self, _secondary: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
         let Some(selected_match) = self.matches.get(self.selected_index) else {
-            log::warn!("Sidebar::confirm: no selected match at index {}", self.selected_index);
             return;
         };
 
