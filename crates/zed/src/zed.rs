@@ -374,9 +374,9 @@ pub fn initialize_workspace(
         let sidebar = cx.new(|cx| Sidebar::new(multi_workspace_handle.clone(), window, cx));
         multi_workspace.register_sidebar(sidebar, window, cx);
 
-        let handle = multi_workspace_handle.downgrade();
+        let multi_workspace_handle = multi_workspace_handle.downgrade();
         window.on_window_should_close(cx, move |window, cx| {
-            handle
+            multi_workspace_handle
                 .update(cx, |multi_workspace, cx| {
                     multi_workspace.close_window(&CloseWindow, window, cx);
                     false

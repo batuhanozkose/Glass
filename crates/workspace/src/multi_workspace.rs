@@ -182,6 +182,10 @@ impl MultiWorkspace {
             .map_or(false, |s| s.has_notifications(cx))
     }
 
+    pub fn multi_workspace_enabled(&self, _cx: &App) -> bool {
+        true
+    }
+
     pub fn toggle_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.sidebar_open {
             self.close_sidebar(window, cx);
@@ -238,6 +242,41 @@ impl MultiWorkspace {
         window.focus(&pane_focus, cx);
         self.serialize(cx);
         cx.notify();
+    }
+
+    pub fn close_window(&mut self, _: &CloseWindow, window: &mut Window, cx: &mut Context<Self>) {
+        cx.spawn_in(window, async move |this, cx| {
+            let workspaces = this.update(cx, |multi_workspace, _cx| {
+                multi_workspace.workspaces().to_vec()
+            })?;
+
+            for workspace in workspaces {
+                let should_continue = workspace
+                    .update_in(cx, |workspace, window, cx| {
+                        workspace.prepare_to_close(CloseIntent::CloseWindow, window, cx)
+                    })?
+                    .await?;
+                if !should_continue {
+                    return anyhow::Ok(());
+                }
+            }
+
+            cx.update(|window, _cx| {
+                window.remove_window();
+            })?;
+
+            anyhow::Ok(())
+        })
+        .detach_and_log_err(cx);
+    }
+
+    fn subscribe_to_workspace(workspace: &Entity<Workspace>, cx: &mut Context<Self>) {
+        cx.subscribe(workspace, |this, workspace, event, cx| {
+            if let WorkspaceEvent::Activate = event {
+                this.activate(workspace, cx);
+            }
+        })
+        .detach();
     }
 
     pub fn is_sidebar_open(&self) -> bool {
@@ -627,46 +666,14 @@ impl MultiWorkspace {
         })
     }
 
-    fn subscribe_to_workspace(workspace: &Entity<Workspace>, cx: &mut Context<Self>) {
-        cx.subscribe(workspace, |this, workspace, event, cx| {
-            if let WorkspaceEvent::Activate = event {
-                this.activate(workspace, cx);
-            }
-        })
-        .detach();
-    }
-
-    pub fn close_window(&mut self, _: &CloseWindow, window: &mut Window, cx: &mut Context<Self>) {
-        cx.spawn_in(window, async move |this, cx| {
-            let workspaces = this.update(cx, |multi_workspace, _cx| {
-                multi_workspace.workspaces().to_vec()
-            })?;
-
-            for workspace in workspaces {
-                let should_continue = workspace
-                    .update_in(cx, |workspace, window, cx| {
-                        workspace.prepare_to_close(CloseIntent::CloseWindow, window, cx)
-                    })?
-                    .await?;
-                if !should_continue {
-                    return anyhow::Ok(());
-                }
-            }
-
-            cx.update(|window, _cx| {
-                window.remove_window();
-            })?;
-
-            anyhow::Ok(())
-        })
-        .detach_and_log_err(cx);
-    }
 }
 
 impl Render for MultiWorkspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         #[cfg(target_os = "macos")]
         self.sync_unified_sidebar(cx);
+        let multi_workspace_enabled = self.multi_workspace_enabled(cx);
+        let is_zoomed = self.workspace().read(cx).zoomed_item().is_some();
 
         let workspace = self.workspace().clone();
         let workspace_key_context =
@@ -709,13 +716,12 @@ impl Render for MultiWorkspace {
                         .flex_1()
                         .size_full()
                         .overflow_hidden()
+                        .when(is_zoomed, |this| this.absolute().inset_0())
                         .child(self.workspace().clone());
 
                     #[cfg(target_os = "macos")]
                     let workspace_content = {
                         let ws = self.workspace().read(cx);
-                        // Use visible_panel() instead of has_visible_content() to avoid
-                        // reading MultiWorkspace (which is already being updated in render).
                         let sidebar_collapsed =
                             ws.left_dock().read(cx).visible_panel().is_none();
                         let sidebar_width = self.unified_sidebar.read(cx).width();
@@ -738,7 +744,7 @@ impl Render for MultiWorkspace {
                                     .max_sidebar_width(480.0)
                                     .manage_window_chrome(false)
                                     .manage_toolbar(false)
-                                    .collapsed(sidebar_collapsed)
+                                    .collapsed(sidebar_collapsed || is_zoomed)
                                     .sidebar_background_color(sidebar_titlebar_fill)
                                     .size_full(),
                             )
@@ -751,7 +757,7 @@ impl Render for MultiWorkspace {
             window,
             cx,
             Tiling {
-                left: self.sidebar_open(),
+                left: self.sidebar_open() && !is_zoomed,
                 ..Tiling::default()
             },
         )

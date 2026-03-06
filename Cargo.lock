@@ -2877,7 +2877,7 @@ dependencies = [
 [[package]]
 name = "collections"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#6f39efa07cc54463ab8fb8662456335d62360e25"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#463238cbc89e9040c171c227dc7b3d9915784b0b"
 dependencies = [
  "indexmap",
  "rustc-hash 2.1.1",
@@ -4175,7 +4175,7 @@ dependencies = [
 [[package]]
 name = "derive_refineable"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#6f39efa07cc54463ab8fb8662456335d62360e25"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#463238cbc89e9040c171c227dc7b3d9915784b0b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4339,7 +4339,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5078,7 +5078,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6509,6 +6509,7 @@ dependencies = [
  "ctor",
  "db",
  "editor",
+ "feature_flags",
  "futures",
  "fuzzy",
  "git",
@@ -6706,7 +6707,7 @@ dependencies = [
 [[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#6f39efa07cc54463ab8fb8662456335d62360e25"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#463238cbc89e9040c171c227dc7b3d9915784b0b"
 dependencies = [
  "anyhow",
  "as-raw-xcb-connection",
@@ -6806,7 +6807,7 @@ dependencies = [
 [[package]]
 name = "gpui_macros"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#6f39efa07cc54463ab8fb8662456335d62360e25"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#463238cbc89e9040c171c227dc7b3d9915784b0b"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -6817,7 +6818,7 @@ dependencies = [
 [[package]]
 name = "gpui_tokio"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#6f39efa07cc54463ab8fb8662456335d62360e25"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#463238cbc89e9040c171c227dc7b3d9915784b0b"
 dependencies = [
  "anyhow",
  "gpui",
@@ -7201,7 +7202,7 @@ dependencies = [
 [[package]]
 name = "http_client"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#6f39efa07cc54463ab8fb8662456335d62360e25"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#463238cbc89e9040c171c227dc7b3d9915784b0b"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -7226,7 +7227,7 @@ dependencies = [
 [[package]]
 name = "http_client_tls"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#6f39efa07cc54463ab8fb8662456335d62360e25"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#463238cbc89e9040c171c227dc7b3d9915784b0b"
 dependencies = [
  "rustls 0.23.33",
  "rustls-platform-verifier",
@@ -9048,7 +9049,7 @@ dependencies = [
 [[package]]
 name = "media"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#6f39efa07cc54463ab8fb8662456335d62360e25"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#463238cbc89e9040c171c227dc7b3d9915784b0b"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -9330,7 +9331,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "536bfad37a309d62069485248eeaba1e8d9853aaf951caaeaed0585a95346f08"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9763,7 +9764,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -12401,7 +12402,7 @@ dependencies = [
 [[package]]
 name = "refineable"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#6f39efa07cc54463ab8fb8662456335d62360e25"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#463238cbc89e9040c171c227dc7b3d9915784b0b"
 dependencies = [
  "derive_refineable",
 ]
@@ -13019,7 +13020,7 @@ dependencies = [
  "errno 0.3.14",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -13249,7 +13250,7 @@ dependencies = [
 [[package]]
 name = "scheduler"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#6f39efa07cc54463ab8fb8662456335d62360e25"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#463238cbc89e9040c171c227dc7b3d9915784b0b"
 dependencies = [
  "async-task",
  "backtrace",
@@ -14379,7 +14380,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 [[package]]
 name = "sum_tree"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#6f39efa07cc54463ab8fb8662456335d62360e25"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#463238cbc89e9040c171c227dc7b3d9915784b0b"
 dependencies = [
  "arrayvec",
  "log",
@@ -15039,7 +15040,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.2",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -15861,7 +15862,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fb391ac70462b3097a755618fbf9c8f95ecc1eb379a414f7b46f202ed10db1f"
 dependencies = [
  "cc",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -16529,7 +16530,7 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 [[package]]
 name = "util"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#6f39efa07cc54463ab8fb8662456335d62360e25"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#463238cbc89e9040c171c227dc7b3d9915784b0b"
 dependencies = [
  "anyhow",
  "async-fs",
@@ -17816,7 +17817,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
