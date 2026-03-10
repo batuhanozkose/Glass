@@ -30,7 +30,7 @@ use gpui::{
     px,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
-use workspace_modes::{BrowserSidebarState, ModeId, ModeViewRegistry};
+use workspace_modes::{ModeId, ModeViewRegistry, set_mode_sidebar_visible};
 
 const MAX_CLOSED_TABS: usize = 20;
 
@@ -258,15 +258,17 @@ impl BrowserView {
         // Non-tab-owner BrowserViews keep the default mode and must not
         // overwrite the owner's state.
         if this.is_tab_owner {
-            this.sync_browser_sidebar_state(cx);
+            this.sync_mode_sidebar_state(cx);
         }
         this
     }
 
-    pub(crate) fn sync_browser_sidebar_state(&self, cx: &mut App) {
-        cx.set_global(BrowserSidebarState {
-            sidebar_active: self.tab_bar_mode == TabBarMode::Sidebar,
-        });
+    pub(crate) fn sync_mode_sidebar_state(&self, cx: &mut App) {
+        set_mode_sidebar_visible(
+            cx,
+            ModeId::BROWSER,
+            self.tab_bar_mode == TabBarMode::Sidebar,
+        );
     }
 
     /// Tell CEF to release focus on the active tab.
@@ -393,8 +395,7 @@ impl BrowserView {
         let entries = self.history.read(cx).entries().to_vec();
         let executor = cx.background_executor().clone();
         cx.spawn(async move |this, cx| {
-            let matches =
-                crate::history::BrowserHistory::search(entries, query, 8, executor).await;
+            let matches = crate::history::BrowserHistory::search(entries, query, 8, executor).await;
             let _ = cx.update(|cx| {
                 let _ = this.update(cx, |this, cx| {
                     this.new_tab_suggestions = matches;
@@ -513,17 +514,12 @@ impl BrowserView {
 
         let win_bounds = window.bounds();
         let viewport = window.viewport_size();
-        let titlebar_height =
-            f64::from(win_bounds.size.height) - f64::from(viewport.height);
-        let sidebar_offset =
-            f64::from(win_bounds.size.width) - f64::from(viewport.width);
+        let titlebar_height = f64::from(win_bounds.size.height) - f64::from(viewport.height);
+        let sidebar_offset = f64::from(win_bounds.size.width) - f64::from(viewport.width);
 
-        let panel_x = f64::from(win_bounds.origin.x)
-            + sidebar_offset
-            + search_center_x
-            - panel_width / 2.0;
-        let panel_y =
-            f64::from(win_bounds.origin.y) + titlebar_height + search_bottom_y + 4.0;
+        let panel_x =
+            f64::from(win_bounds.origin.x) + sidebar_offset + search_center_x - panel_width / 2.0;
+        let panel_y = f64::from(win_bounds.origin.y) + titlebar_height + search_bottom_y + 4.0;
 
         let panel = NativePanel::new(panel_width, panel_height)
             .style(NativePanelStyle::Borderless)
@@ -535,7 +531,13 @@ impl BrowserView {
             .on_close(|_, _, _| {})
             .items(items);
 
-        window.show_native_panel(panel, NativePanelAnchor::Point { x: panel_x, y: panel_y });
+        window.show_native_panel(
+            panel,
+            NativePanelAnchor::Point {
+                x: panel_x,
+                y: panel_y,
+            },
+        );
     }
 
     fn request_context_for_new_tab(&self) -> Option<cef::RequestContext> {

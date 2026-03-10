@@ -659,7 +659,7 @@ impl RenderOnce for ButtonLike {
             })
             .when(is_outlined, |this| this.border_1())
             .when_some(self.rounding, |this, rounding| {
-                let radius = cx.theme().border_radius().small;
+                let radius = cx.theme().component_radius().button.unwrap_or(px(4.0));
                 this.when(rounding.top_left, |this| this.rounded_tl(radius))
                     .when(rounding.top_right, |this| this.rounded_tr(radius))
                     .when(rounding.bottom_right, |this| this.rounded_br(radius))

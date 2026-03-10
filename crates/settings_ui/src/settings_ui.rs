@@ -2441,7 +2441,7 @@ impl SettingsWindow {
             .px_1p5()
             .mb_3()
             .gap_1p5()
-            .theme_rounded_sm(cx)
+            .rounded_sm()
             .bg(cx.theme().colors().editor_background)
             .border_1()
             .border_color(cx.theme().colors().border)

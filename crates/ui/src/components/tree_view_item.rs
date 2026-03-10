@@ -156,7 +156,7 @@ impl RenderOnce for TreeViewItem {
                     .cursor_pointer()
                     .size_full()
                     .h(item_size)
-                    .theme_rounded_sm(cx)
+                    .rounded_sm()
                     .border_1()
                     .border_color(transparent_border)
                     .focus_visible(|s| s.border_color(focused_border))

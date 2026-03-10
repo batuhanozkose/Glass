@@ -75,7 +75,7 @@ impl BrowserView {
             .bg(theme.colors().elevated_surface_background)
             .border_1()
             .border_color(theme.colors().border)
-            .theme_rounded_md(cx)
+            .rounded_md()
             .shadow_md()
             .p_1()
             .flex()
@@ -295,7 +295,7 @@ impl BrowserView {
             .bg(theme.colors().elevated_surface_background)
             .border_1()
             .border_color(theme.colors().border)
-            .theme_rounded_md(cx)
+            .rounded_md()
             .shadow_md()
             .child(
                 div()

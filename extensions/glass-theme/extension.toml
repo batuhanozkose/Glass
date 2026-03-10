@@ -1,0 +1,8 @@
+id = "glass-theme"
+name = "Glass Radius Test Theme"
+description = "Development theme extension used to validate component_radius overrides without changing bundled themes."
+version = "0.1.0"
+schema_version = 1
+authors = ["Glass HQ <team@glass.dev>"]
+repository = "https://github.com/Glass-HQ/Glass"
+themes = ["themes/glass.json"]

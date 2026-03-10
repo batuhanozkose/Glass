@@ -536,10 +536,10 @@ impl StackFrameList {
     fn render_label_entry(
         &self,
         stack_frame: &dap::StackFrame,
-        cx: &mut Context<Self>,
+        _cx: &mut Context<Self>,
     ) -> AnyElement {
         h_flex()
-            .theme_rounded_md(cx)
+            .rounded_md()
             .justify_between()
             .w_full()
             .group("")
@@ -594,7 +594,7 @@ impl StackFrameList {
             )
         );
         h_flex()
-            .theme_rounded_md(cx)
+            .rounded_md()
             .justify_between()
             .w_full()
             .group("")
@@ -633,7 +633,7 @@ impl StackFrameList {
                             .absolute()
                             .right_2()
                             .overflow_hidden()
-                            .theme_rounded_md(cx)
+                            .rounded_md()
                             .border_1()
                             .border_color(cx.theme().colors().element_selected)
                             .bg(cx.theme().colors().element_background)
@@ -697,7 +697,7 @@ impl StackFrameList {
         let is_selected = Some(ix) == self.selected_ix;
 
         h_flex()
-            .theme_rounded_md(cx)
+            .rounded_md()
             .justify_between()
             .w_full()
             .group("")

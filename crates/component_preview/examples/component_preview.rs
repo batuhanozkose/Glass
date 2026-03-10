@@ -23,7 +23,7 @@ fn quit(_: &Quit, cx: &mut App) {
 }
 
 fn main() {
-    gpui::Application::new().run(|cx| {
+    gpui_platform::application().run(|cx| {
         component::init();
 
         cx.on_action(quit);

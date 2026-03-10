@@ -9727,7 +9727,7 @@ impl Editor {
                     .border(BORDER_WIDTH)
                     .shadow_xs()
                     .border_color(cx.theme().colors().border)
-                    .rounded_l(cx.theme().border_radius().large)
+                    .rounded_l_lg()
                     .when(line_count > 1, |el| el.rounded_br_lg())
                     .pr_1()
                     .child(styled_text),
@@ -9748,7 +9748,7 @@ impl Editor {
                     .bg(Editor::edit_prediction_line_popover_bg_color(cx))
                     .border(BORDER_WIDTH)
                     .border_color(cx.theme().colors().border)
-                    .rounded_r(cx.theme().border_radius().large)
+                    .rounded_r_lg()
                     .id("edit_prediction_diff_popover_keybind")
                     .when(!has_keybind, |el| {
                         let status_colors = cx.theme().status();
@@ -9847,7 +9847,7 @@ impl Editor {
 
         origin.x -= BORDER_WIDTH;
 
-        window.defer_draw(element, origin, 1);
+        window.defer_draw(element, origin, 1, Some(window.content_mask()));
 
         // Do not return an element, since it will already be drawn due to defer_draw.
         None
@@ -9929,7 +9929,7 @@ impl Editor {
             .pl_1()
             .pr(padding_right)
             .gap_1()
-            .theme_rounded_md(cx)
+            .rounded_md()
             .border_1()
             .bg(Self::edit_prediction_line_popover_bg_color(cx))
             .border_color(Self::edit_prediction_callout_popover_border_color(cx))
@@ -9992,7 +9992,7 @@ impl Editor {
             .py_1()
             .px_2()
             .gap_1()
-            .theme_rounded_md(cx)
+            .rounded_md()
             .border_1()
             .bg(Self::edit_prediction_line_popover_bg_color(cx))
             .border_color(Self::edit_prediction_callout_popover_border_color(cx))
@@ -10221,7 +10221,7 @@ impl Editor {
                         h_flex()
                             .h_full()
                             .border_l_1()
-                            .rounded_r(cx.theme().border_radius().large)
+                            .rounded_r_lg()
                             .border_color(cx.theme().colors().border)
                             .bg(Self::edit_prediction_line_popover_bg_color(cx))
                             .gap_1()
@@ -21457,7 +21457,7 @@ impl Editor {
             .w(width - px(1.))
             .h(relative(0.9))
             .justify_center()
-            .theme_rounded_sm(cx)
+            .rounded_sm()
             .border_1()
             .border_color(text_color.opacity(0.1))
             .bg(text_color.opacity(0.15))
@@ -22408,7 +22408,7 @@ impl Editor {
                     .gap_2()
                     .px_2()
                     .py_1p5()
-                    .theme_rounded_md(cx)
+                    .rounded_md()
                     .bg(colors.surface_background)
                     .child(
                         div()
@@ -22432,7 +22432,7 @@ impl Editor {
                             .flex_1()
                             .border_1()
                             .border_color(colors.border)
-                            .theme_rounded_md(cx)
+                            .rounded_md()
                             .bg(colors.editor_background)
                             .px_2()
                             .py_1()
@@ -22503,7 +22503,7 @@ impl Editor {
                     .px_2()
                     .py_1()
                     .cursor_pointer()
-                    .theme_rounded_md(cx)
+                    .rounded_md()
                     .hover(|style| style.bg(colors.ghost_element_hover))
                     .on_click(|_, window: &mut Window, cx| {
                         window.dispatch_action(
@@ -22554,7 +22554,7 @@ impl Editor {
         avatar_size: Pixels,
         _action_icon_size: IconSize,
         colors: &theme::ThemeColors,
-        cx: &App,
+        _cx: &App,
     ) -> impl IntoElement {
         let comment_id = comment.id;
         let is_editing = inline_editor.is_some();
@@ -22565,7 +22565,7 @@ impl Editor {
             .gap_2()
             .px_2()
             .py_1p5()
-            .theme_rounded_md(cx)
+            .rounded_md()
             .bg(colors.surface_background)
             .child(
                 div()
@@ -22590,7 +22590,7 @@ impl Editor {
                     .flex_1()
                     .border_1()
                     .border_color(colors.border)
-                    .theme_rounded_md(cx)
+                    .rounded_md()
                     .bg(colors.editor_background)
                     .px_2()
                     .py_1()
@@ -22611,9 +22611,7 @@ impl Editor {
                     .gap_1()
                     .child(
                         native_icon_button(
-                            SharedString::from(format!(
-                                "diff-review-cancel-edit-{comment_id}"
-                            )),
+                            SharedString::from(format!("diff-review-cancel-edit-{comment_id}")),
                             "xmark",
                         )
                         .tooltip("Cancel")
@@ -22628,9 +22626,7 @@ impl Editor {
                     )
                     .child(
                         native_icon_button(
-                            SharedString::from(format!(
-                                "diff-review-confirm-edit-{comment_id}"
-                            )),
+                            SharedString::from(format!("diff-review-confirm-edit-{comment_id}")),
                             "return",
                         )
                         .tooltip("Confirm")
@@ -28969,39 +28965,37 @@ fn render_diff_hunk_controls(
         .border_x_1()
         .border_b_1()
         .border_color(cx.theme().colors().border_variant)
-        .theme_rounded_b_lg(cx)
+        .rounded_b_lg()
         .bg(cx.theme().colors().editor_background)
         .gap_1()
         .block_mouse_except_scroll()
         .shadow_md()
         .child(if status.has_secondary_hunk() {
-            native_button(SharedString::from(format!("stage-{row}")), "Stage")
-                .on_click({
-                    let editor = editor.clone();
-                    move |_event, _window, cx| {
-                        editor.update(cx, |editor, cx| {
-                            editor.stage_or_unstage_diff_hunks(
-                                true,
-                                vec![hunk_range.start..hunk_range.start],
-                                cx,
-                            );
-                        });
-                    }
-                })
+            native_button(SharedString::from(format!("stage-{row}")), "Stage").on_click({
+                let editor = editor.clone();
+                move |_event, _window, cx| {
+                    editor.update(cx, |editor, cx| {
+                        editor.stage_or_unstage_diff_hunks(
+                            true,
+                            vec![hunk_range.start..hunk_range.start],
+                            cx,
+                        );
+                    });
+                }
+            })
         } else {
-            native_button(SharedString::from(format!("unstage-{row}")), "Unstage")
-                .on_click({
-                    let editor = editor.clone();
-                    move |_event, _window, cx| {
-                        editor.update(cx, |editor, cx| {
-                            editor.stage_or_unstage_diff_hunks(
-                                false,
-                                vec![hunk_range.start..hunk_range.start],
-                                cx,
-                            );
-                        });
-                    }
-                })
+            native_button(SharedString::from(format!("unstage-{row}")), "Unstage").on_click({
+                let editor = editor.clone();
+                move |_event, _window, cx| {
+                    editor.update(cx, |editor, cx| {
+                        editor.stage_or_unstage_diff_hunks(
+                            false,
+                            vec![hunk_range.start..hunk_range.start],
+                            cx,
+                        );
+                    });
+                }
+            })
         })
         .child(
             native_button(SharedString::from(format!("restore-{row}")), "Restore")
@@ -29031,8 +29025,7 @@ fn render_diff_hunk_controls(
                         move |_event, window, cx| {
                             editor.update(cx, |editor, cx| {
                                 let snapshot = editor.snapshot(window, cx);
-                                let position =
-                                    hunk_range.end.to_point(&snapshot.buffer_snapshot());
+                                let position = hunk_range.end.to_point(&snapshot.buffer_snapshot());
                                 editor.go_to_hunk_before_or_after_position(
                                     &snapshot,
                                     position,
@@ -29056,8 +29049,7 @@ fn render_diff_hunk_controls(
                         move |_event, window, cx| {
                             editor.update(cx, |editor, cx| {
                                 let snapshot = editor.snapshot(window, cx);
-                                let point =
-                                    hunk_range.start.to_point(&snapshot.buffer_snapshot());
+                                let point = hunk_range.start.to_point(&snapshot.buffer_snapshot());
                                 editor.go_to_hunk_before_or_after_position(
                                     &snapshot,
                                     point,

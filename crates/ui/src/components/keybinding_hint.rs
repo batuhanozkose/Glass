@@ -243,7 +243,7 @@ impl RenderOnce for KeybindingHint {
             .children(self.prefix)
             .child(
                 h_flex()
-                    .theme_rounded_sm(cx)
+                    .rounded_sm()
                     .px_0p5()
                     .mr_0p5()
                     .border_1()

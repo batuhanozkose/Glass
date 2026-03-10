@@ -197,7 +197,11 @@ impl BrowserView {
             let url = new_tab.read(cx).url().to_string();
             log::trace!(
                 "[browser::tabs] switch_to_tab: index={}, url={}, new_tab_page={}, browser={}, suspended={}",
-                index, url, is_new_tab_page, has_browser, is_suspended,
+                index,
+                url,
+                is_new_tab_page,
+                has_browser,
+                is_suspended,
             );
 
             if is_suspended {
@@ -543,7 +547,7 @@ impl BrowserView {
                 self.sidebar_collapsed = false;
             }
         }
-        self.sync_browser_sidebar_state(cx);
+        self.sync_mode_sidebar_state(cx);
         self.hovered_top_tab_index = None;
         self.hovered_top_tab_close_index = None;
         self.hovered_top_new_tab_button = false;

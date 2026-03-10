@@ -449,7 +449,7 @@ impl ComponentPreview {
             v_flex()
                 .border_1()
                 .border_color(cx.theme().colors().border)
-                .theme_rounded_sm(cx)
+                .rounded_sm()
                 .w_full()
                 .gap_4()
                 .py_4()
@@ -914,7 +914,7 @@ impl ComponentPreviewPage {
                     .child(
                         div()
                             .px_1p5()
-                            .theme_rounded_sm(cx)
+                            .rounded_sm()
                             .bg(color.color(cx).alpha(0.12))
                             .child(
                                 Label::new(status.to_string())

@@ -125,7 +125,7 @@ fn main() -> Result<(), anyhow::Error> {
             None,
         )
     }?;
-    gpui::Application::headless().run(|cx| {
+    gpui_platform::headless().run(|cx| {
         release_channel::init_test(semver::Version::new(0, 0, 0), ReleaseChannel::Dev, cx);
         settings::init(cx);
         let client = Client::production(cx);

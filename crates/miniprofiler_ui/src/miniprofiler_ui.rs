@@ -9,8 +9,8 @@ use gpui::{
     App, AppContext, ClipboardItem, Context, Div, Entity, Hsla, InteractiveElement,
     ParentElement as _, ProfilingCollector, Render, SerializedLocation, SerializedTaskTiming,
     SerializedThreadTaskTimings, SharedString, StatefulInteractiveElement, Styled, Task,
-    ThreadTaskTimings, ThreadTimingsDelta, TitlebarOptions, UniformListScrollHandle, WeakEntity,
-    WindowBounds, WindowOptions, div, prelude::FluentBuilder, px, relative, size, uniform_list,
+    ThreadTimingsDelta, TitlebarOptions, UniformListScrollHandle, WeakEntity, WindowBounds,
+    WindowOptions, div, prelude::FluentBuilder, px, relative, size, uniform_list,
 };
 use rpc::{AnyProtoClient, proto};
 use util::ResultExt;
@@ -177,17 +177,10 @@ impl ProfilerWindow {
                     .find(|thread| thread.thread_id == current_thread_id)
                     .or_else(|| {
                         let timings = dispatcher.get_current_thread_timings();
-                        if timings.is_empty() {
+                        if timings.timings.is_empty() {
                             None
                         } else {
-                            Some(ThreadTaskTimings {
-                                thread_name: std::thread::current()
-                                    .name()
-                                    .map(str::to_string),
-                                thread_id: current_thread_id,
-                                total_pushed: timings.len() as u64,
-                                timings,
-                            })
+                            Some(timings)
                         }
                     });
                 let deltas = current_thread
@@ -448,14 +441,14 @@ impl ProfilerWindow {
                     .flex_1()
                     .h(px(24.0))
                     .bg(cx.theme().colors().background)
-                    .rounded(cx.theme().border_radius().medium)
+                    .rounded_md()
                     .p(px(2.0))
                     .relative()
                     .child(
                         div()
                             .absolute()
                             .h_full()
-                            .rounded(cx.theme().border_radius().small)
+                            .rounded_sm()
                             .bg(item.color)
                             .left(relative(start_fraction.max(0.0)))
                             .w(relative(bar_width)),
@@ -485,7 +478,7 @@ impl Render for ProfilerWindow {
 
         let scroll_offset = self.scroll_handle.offset();
         let max_offset = self.scroll_handle.max_offset();
-        self.autoscroll = -scroll_offset.y >= (max_offset.height - px(24.));
+        self.autoscroll = -scroll_offset.y >= (max_offset.y - px(24.));
         if self.autoscroll {
             self.scroll_handle.scroll_to_bottom();
         }

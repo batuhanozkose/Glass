@@ -123,6 +123,7 @@ gpui = { workspace = true, features = [
     "windows-manifest",
     "x11",
 ] }
+gpui_platform.workspace = true
 image = { workspace = true, optional = true }
 semver = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }

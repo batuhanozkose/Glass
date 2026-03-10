@@ -7,7 +7,7 @@ fn main() {
         return;
     };
 
-    let _ = gpui::Application::headless().run(|cx| {
+    let _ = gpui_platform::headless().run(|cx| {
         let fs = fs::RealFs::new(None, cx.background_executor().clone());
         cx.background_spawn(async move {
             let timer = std::time::Instant::now();

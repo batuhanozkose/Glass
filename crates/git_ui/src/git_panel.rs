@@ -4,10 +4,10 @@ use crate::commit_tooltip::CommitTooltip;
 use crate::commit_view::CommitView;
 use crate::project_diff::{self, BranchDiff, Diff, ProjectDiff};
 use crate::remote_output::{self, RemoteAction, SuccessMessage};
-use crate::{picker_prompt, render_remote_button};
 use crate::{
     file_history_view::FileHistoryView, git_panel_settings::GitPanelSettings, git_status_icon,
 };
+use crate::{picker_prompt, render_remote_button};
 use agent_settings::AgentSettings;
 use anyhow::Context as _;
 use askpass::AskPassDelegate;
@@ -28,11 +28,11 @@ use git::repository::{
 };
 use git::stash::GitStash;
 use git::status::{DiffStat, StageStatus};
-use git::{Amend, Signoff, ToggleStaged, repository::RepoPath, status::FileStatus};
 use git::{
     ExpandCommitEditor, GitHostingProviderRegistry, RestoreTrackedFiles, StageAll, StashAll,
     StashApply, StashPop, TrashUntrackedFiles, UnstageAll,
 };
+use git::{Signoff, ToggleStaged, repository::RepoPath, status::FileStatus};
 use gpui::{
     Action, AsyncApp, AsyncWindowContext, Bounds, ClickEvent, Corner, Empty, Entity, EventEmitter,
     FocusHandle, Focusable, KeyContext, MouseButton, MouseDownEvent, Point, PromptLevel,
@@ -46,7 +46,6 @@ use language_model::{
 };
 use menu;
 use multi_buffer::ExcerptInfo;
-use toast::{StatusToast, ToastIcon};
 use panel::{PanelHeader, panel_button, panel_filled_button, panel_icon_button};
 use project::{
     Fs, Project, ProjectPath,
@@ -65,9 +64,10 @@ use std::{sync::Arc, time::Duration, usize};
 use strum::{IntoEnumIterator, VariantNames};
 use theme::ThemeSettings;
 use time::OffsetDateTime;
+use toast::{StatusToast, ToastIcon};
 use ui::{
-    ButtonLike, Checkbox, CommonAnimationExt, ContextMenu, ElevationIndex, IndentGuideColors, RenderedIndentGuide, ScrollAxes, Scrollbars, SplitButton, Tooltip, WithScrollbar,
-    prelude::*,
+    ButtonLike, Checkbox, CommonAnimationExt, ContextMenu, ElevationIndex, IndentGuideColors,
+    RenderedIndentGuide, ScrollAxes, Scrollbars, SplitButton, Tooltip, WithScrollbar, prelude::*,
 };
 use util::paths::PathStyle;
 use util::{ResultExt, TryFutureExt, maybe, rel_path::RelPath};
@@ -3970,8 +3970,8 @@ impl GitPanel {
 
         #[cfg(target_os = "macos")]
         {
+            use gpui::{InteractiveElement, ParentElement, div};
             use gpui::{NativeMenuItem, show_native_popup_menu};
-            use gpui::{div, InteractiveElement, ParentElement};
 
             let _ = id;
             let focus = focus_handle;
@@ -4016,11 +4016,7 @@ impl GitPanel {
                             enabled: has_new_changes,
                         },
                         NativeMenuItem::separator(),
-                        NativeMenuItem::action(if tree_view {
-                            "Flat View"
-                        } else {
-                            "Tree View"
-                        }),
+                        NativeMenuItem::action(if tree_view { "Flat View" } else { "Tree View" }),
                     ];
                     let mut actions: Vec<Box<dyn gpui::Action>> = vec![
                         StageAll.boxed_clone(),
@@ -4242,7 +4238,11 @@ impl GitPanel {
                         amend_idx = None;
                     }
 
-                    let title = if signoff { "\u{2713} Signoff" } else { "Signoff" };
+                    let title = if signoff {
+                        "\u{2713} Signoff"
+                    } else {
+                        "Signoff"
+                    };
                     items.push(NativeMenuItem::action(title));
                     signoff_idx = action_index;
 
@@ -4281,10 +4281,9 @@ impl GitPanel {
                     move |window, cx| {
                         Some(ContextMenu::build(window, cx, |context_menu, _, _| {
                             context_menu
-                                .when_some(
-                                    keybinding_target.clone(),
-                                    |el, keybinding_target| el.context(keybinding_target),
-                                )
+                                .when_some(keybinding_target.clone(), |el, keybinding_target| {
+                                    el.context(keybinding_target)
+                                })
                                 .when(has_previous_commit, |this| {
                                     this.toggleable_entry(
                                         "Amend",
@@ -4308,9 +4307,7 @@ impl GitPanel {
                                     signoff,
                                     IconPosition::Start,
                                     Some(Box::new(Signoff)),
-                                    move |window, cx| {
-                                        window.dispatch_action(Box::new(Signoff), cx)
-                                    },
+                                    move |window, cx| window.dispatch_action(Box::new(Signoff), cx),
                                 )
                         }))
                     }
@@ -4706,7 +4703,7 @@ impl GitPanel {
                         .id("commit-msg-hover")
                         .cursor_pointer()
                         .px_1()
-                        .theme_rounded_sm(cx)
+                        .rounded_sm()
                         .line_clamp(1)
                         .hover(|s| s.bg(cx.theme().colors().element_hover))
                         .child(
@@ -5286,12 +5283,7 @@ impl GitPanel {
 
         #[cfg(not(target_os = "macos"))]
         {
-            let context_menu = git_panel_context_menu(
-                self.focus_handle.clone(),
-                state,
-                window,
-                cx,
-            );
+            let context_menu = git_panel_context_menu(self.focus_handle.clone(), state, window, cx);
             self.set_context_menu(context_menu, position, window, cx);
         }
     }
@@ -6275,10 +6267,7 @@ impl RenderOnce for PanelRepoFooter {
             .truncate(true)
             .when(!single_repo, |this| {
                 this.on_click(|_, window, cx| {
-                    window.dispatch_action(
-                        zed_actions::git::SelectRepo.boxed_clone(),
-                        cx,
-                    );
+                    window.dispatch_action(zed_actions::git::SelectRepo.boxed_clone(), cx);
                 })
             })
             .tooltip(move |_, cx| {

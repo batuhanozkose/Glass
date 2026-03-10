@@ -41,6 +41,7 @@ workspace.workspace = true
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["screen-capture"] }
+gpui_platform.workspace = true
 
 [[example]]
 name = "component_preview"

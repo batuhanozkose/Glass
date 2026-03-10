@@ -10,7 +10,7 @@
 //!
 //! On macOS, the `VisualTestAppContext` must be created on the main thread.
 //! Standard Rust tests run on worker threads, so visual tests that use
-//! `VisualTestAppContext::new()` must be run with special consideration.
+//! `VisualTestAppContext::new(gpui_platform::current_platform(false))` must be run with special consideration.
 //!
 //! ## Running Visual Tests
 //!
@@ -425,7 +425,7 @@ mod tests {
     #[test]
     #[ignore]
     fn test_visual_test_smoke() {
-        let mut cx = VisualTestAppContext::new();
+        let mut cx = VisualTestAppContext::new(gpui_platform::current_platform(false));
 
         let _window = cx
             .open_offscreen_window_default(|_, cx| cx.new(|_| Empty))
@@ -437,7 +437,7 @@ mod tests {
     #[test]
     #[ignore]
     fn test_workspace_opens() {
-        let mut cx = VisualTestAppContext::new();
+        let mut cx = VisualTestAppContext::new(gpui_platform::current_platform(false));
         let app_state = init_visual_test(&mut cx);
 
         smol::block_on(async {
@@ -478,7 +478,7 @@ mod tests {
     #[test]
     #[ignore]
     fn test_workspace_screenshot() {
-        let mut cx = VisualTestAppContext::new();
+        let mut cx = VisualTestAppContext::new(gpui_platform::current_platform(false));
         let app_state = init_visual_test(&mut cx);
 
         smol::block_on(async {

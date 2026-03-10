@@ -962,7 +962,7 @@ impl CompletionsMenu {
                                 div()
                                     .flex_shrink_0()
                                     .size_3p5()
-                                    .theme_rounded_xs(cx)
+                                    .rounded_xs()
                                     .bg(color)
                                     .into_any_element()
                             })

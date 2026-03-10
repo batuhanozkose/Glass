@@ -499,7 +499,7 @@ impl Render for KeystrokeInput {
             .bg(colors
                 .editor_background
                 .blend(colors.text_accent.opacity(0.1)))
-            .theme_rounded_sm(cx)
+            .rounded_sm()
             .child(recording_pulse(Color::Error))
             .child(
                 Label::new("REC")
@@ -517,7 +517,7 @@ impl Render for KeystrokeInput {
             .bg(colors
                 .editor_background
                 .blend(colors.text_accent.opacity(0.1)))
-            .theme_rounded_sm(cx)
+            .rounded_sm()
             .child(recording_pulse(Color::Accent))
             .child(
                 Label::new("SEARCH")
@@ -545,7 +545,7 @@ impl Render for KeystrokeInput {
             .w_full()
             .flex_1()
             .justify_between()
-            .theme_rounded_md(cx)
+            .rounded_md()
             .overflow_hidden()
             .map(|this| {
                 if is_recording {

@@ -160,7 +160,7 @@ impl Render for InputField {
                     .py_1p5()
                     .flex_grow()
                     .text_color(style.text_color)
-                    .theme_rounded_md(cx)
+                    .rounded(cx.theme().component_radius().input.unwrap_or(px(6.0)))
                     .bg(style.background_color)
                     .border_1()
                     .border_color(style.border_color)

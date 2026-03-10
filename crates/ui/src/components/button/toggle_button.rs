@@ -371,7 +371,7 @@ impl<T: ButtonBuilder, const COLS: usize, const ROWS: usize> RenderOnce
                     this.w_full()
                 }
             })
-            .theme_rounded_md(cx)
+            .rounded_md()
             .overflow_hidden()
             .map(|this| {
                 if is_transparent {

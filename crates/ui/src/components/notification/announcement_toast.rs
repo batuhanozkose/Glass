@@ -171,7 +171,7 @@ impl Component for AnnouncementToast {
             .bg(cx.theme().colors().editor_background)
             .justify_center()
             .gap_8()
-            .theme_rounded_t_md(cx)
+            .rounded_t_md()
             .overflow_hidden()
             .child(
                 div().absolute().inset_0().w(px(515.)).h(px(126.)).child(

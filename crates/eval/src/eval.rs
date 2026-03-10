@@ -114,7 +114,7 @@ fn main() {
     let languages: HashSet<String> = args.languages.into_iter().collect();
 
     let http_client = Arc::new(ReqwestClient::new());
-    let app = gpui::Application::headless().with_http_client(http_client);
+    let app = gpui_platform::headless().with_http_client(http_client);
     let all_threads = examples::all(&examples_dir);
 
     app.run(move |cx| {

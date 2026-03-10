@@ -529,7 +529,7 @@ fn render_verification_section(
                 .border_1()
                 .border_dashed()
                 .border_color(color.border_variant)
-                .theme_rounded_sm(cx)
+                .rounded_sm()
                 .child(
                     Label::new("Test Your Rules")
                         .color(Color::Muted)
@@ -540,7 +540,7 @@ fn render_verification_section(
                         .w_full()
                         .h_8()
                         .px_2()
-                        .theme_rounded_md(cx)
+                        .rounded_md()
                         .border_1()
                         .border_color(color.border)
                         .bg(color.editor_background)
@@ -848,7 +848,7 @@ fn render_invalid_patterns_section(
 
                     v_flex()
                         .p_2()
-                        .theme_rounded_md(cx)
+                        .rounded_md()
                         .border_1()
                         .border_color(theme_colors.border_variant)
                         .bg(theme_colors.surface_background.opacity(0.15))
@@ -946,7 +946,7 @@ fn render_rule_section(
 fn render_pattern_empty_state(cx: &mut Context<SettingsWindow>) -> AnyElement {
     h_flex()
         .p_2()
-        .theme_rounded_md(cx)
+        .rounded_md()
         .border_1()
         .border_dashed()
         .border_color(cx.theme().colors().border_variant)

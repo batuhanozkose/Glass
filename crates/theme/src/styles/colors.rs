@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use gpui::{App, Hsla, Pixels, SharedString, WindowBackgroundAppearance, px};
+use gpui::{App, Hsla, Pixels, SharedString, WindowBackgroundAppearance};
 use refineable::Refineable;
 use std::sync::Arc;
 use strum::{AsRefStr, EnumIter, IntoEnumIterator};
@@ -590,25 +590,13 @@ pub fn all_theme_colors(cx: &mut App) -> Vec<(Hsla, SharedString)> {
         .collect()
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct ThemeBorderRadius {
-    pub extra_small: Pixels,
-    pub small: Pixels,
-    pub medium: Pixels,
-    pub large: Pixels,
-    pub extra_large: Pixels,
-}
-
-impl Default for ThemeBorderRadius {
-    fn default() -> Self {
-        Self {
-            extra_small: px(2.0),
-            small: px(4.0),
-            medium: px(6.0),
-            large: px(8.0),
-            extra_large: px(12.0),
-        }
-    }
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ThemeComponentRadius {
+    pub button: Option<Pixels>,
+    pub input: Option<Pixels>,
+    pub tab: Option<Pixels>,
+    pub panel: Option<Pixels>,
+    pub modal: Option<Pixels>,
 }
 
 #[derive(Refineable, Clone, Debug, PartialEq)]
@@ -631,7 +619,7 @@ pub struct ThemeStyles {
 
     pub syntax: Arc<SyntaxTheme>,
 
-    pub border_radius: ThemeBorderRadius,
+    pub component_radius: ThemeComponentRadius,
 }
 
 #[cfg(test)]

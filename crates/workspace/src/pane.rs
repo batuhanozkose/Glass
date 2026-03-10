@@ -1,7 +1,6 @@
 use crate::{
     CloseWindow, NewFile, NewTerminal, OpenInTerminal, OpenOptions, OpenTerminal, OpenVisible,
-    SplitDirection, ToggleFileFinder, ToggleZoom, Workspace,
-    WorkspaceItemBuilder, ZoomIn, ZoomOut,
+    SplitDirection, ToggleFileFinder, ToggleZoom, Workspace, WorkspaceItemBuilder, ZoomIn, ZoomOut,
     invalid_item_view::InvalidItemView,
     item::{
         ActivateOnClose, ClosePosition, Item, ItemBufferKind, ItemHandle, ItemSettings,
@@ -19,9 +18,9 @@ use futures::{StreamExt, stream::FuturesUnordered};
 use gpui::{
     Action, AnyElement, App, AsyncWindowContext, ClickEvent, ClipboardItem, Context, Corner, Div,
     DragMoveEvent, Entity, EntityId, EventEmitter, ExternalPaths, FocusHandle, FocusOutEvent,
-    Focusable, KeyContext, MouseButton, NavigationDirection, Pixels, Point,
-    PromptLevel, Render, ScrollHandle, Subscription, Task, WeakEntity, WeakFocusHandle, Window,
-    actions, anchored, deferred, native_icon_button, native_image_view, prelude::*,
+    Focusable, KeyContext, MouseButton, NavigationDirection, Pixels, Point, PromptLevel, Render,
+    ScrollHandle, Subscription, Task, WeakEntity, WeakFocusHandle, Window, actions, anchored,
+    deferred, native_icon_button, native_image_view, prelude::*,
 };
 use itertools::Itertools;
 use language::{Capability, DiagnosticSeverity};
@@ -2933,9 +2932,10 @@ impl Pane {
                         .into_any_element();
                     match show_close_button {
                         ShowCloseButton::Always => close_button,
-                        ShowCloseButton::Hover => {
-                            div().visible_on_hover("").child(close_button).into_any_element()
-                        }
+                        ShowCloseButton::Hover => div()
+                            .visible_on_hover("")
+                            .child(close_button)
+                            .into_any_element(),
                         ShowCloseButton::Hidden => return this,
                     }
                 };
@@ -3401,7 +3401,7 @@ impl Pane {
                 cx,
             )
             .children(pinned_tabs.len().ne(&0).then(|| {
-                let max_scroll = self.tab_bar_scroll_handle.max_offset().width;
+                let max_scroll = self.tab_bar_scroll_handle.max_offset().x;
                 // We need to check both because offset returns delta values even when the scroll handle is not scrollable
                 let is_scrolled = self.tab_bar_scroll_handle.offset().x < px(0.);
                 // Avoid flickering when max_offset is very small (< 2px).
@@ -4325,7 +4325,7 @@ impl Render for Pane {
                                         gpui::img(logo_file)
                                             .w(rems_from_px(80.))
                                             .h(rems_from_px(92.))
-                                            .opacity(0.15)
+                                            .opacity(0.15),
                                     )
                                 })
                                 .on_click(cx.listener(

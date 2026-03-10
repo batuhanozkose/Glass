@@ -2454,7 +2454,7 @@ impl EditorElement {
                 .h(line_height)
                 .w_full()
                 .px_1()
-                .theme_rounded_xs(cx)
+                .rounded_xs()
                 .opacity(opacity)
                 .bg(severity_to_color(&diagnostic_to_render.severity)
                     .color(cx)
@@ -2817,7 +2817,7 @@ impl EditorElement {
                 }
             });
 
-            window.defer_draw(element, origin, 2);
+            window.defer_draw(element, origin, 2, None);
         }
     }
 
@@ -5062,7 +5062,7 @@ impl EditorElement {
                         current_position.y -= size.height;
                     }
                     let position = current_position;
-                    window.defer_draw(element, current_position, 1);
+                    window.defer_draw(element, current_position, 1, None);
                     if !y_flipped {
                         current_position.y += size.height + MENU_GAP;
                     } else {
@@ -5165,7 +5165,7 @@ impl EditorElement {
         // Skip drawing if it doesn't fit anywhere.
         if let Some((aside, position, size)) = positioned_aside {
             let aside_bounds = Bounds::new(position, size);
-            window.defer_draw(aside, position, 2);
+            window.defer_draw(aside, position, 2, None);
             return Some(aside_bounds);
         }
 
@@ -5374,7 +5374,7 @@ impl EditorElement {
                 .on_mouse_move(|_, _, cx| cx.stop_propagation())
                 .into_any_element();
             occlusion.layout_as_root(size(width, HOVER_POPOVER_GAP).into(), window, cx);
-            window.defer_draw(occlusion, origin, 2);
+            window.defer_draw(occlusion, origin, 2, None);
         }
 
         fn place_popovers_above(
@@ -5391,7 +5391,7 @@ impl EditorElement {
                     current_y - size.height,
                 );
 
-                window.defer_draw(popover.element, popover_origin, 2);
+                window.defer_draw(popover.element, popover_origin, 2, None);
                 if position != itertools::Position::Last {
                     let origin = point(popover_origin.x, popover_origin.y - HOVER_POPOVER_GAP);
                     draw_occluder(size.width, origin, window, cx);
@@ -5413,7 +5413,7 @@ impl EditorElement {
                 let size = popover.size;
                 let popover_origin = point(hovered_point.x + popover.horizontal_offset, current_y);
 
-                window.defer_draw(popover.element, popover_origin, 2);
+                window.defer_draw(popover.element, popover_origin, 2, None);
                 if position != itertools::Position::Last {
                     let origin = point(popover_origin.x, popover_origin.y + size.height);
                     draw_occluder(size.width, origin, window, cx);
@@ -5515,7 +5515,7 @@ impl EditorElement {
                     let size = popover.size;
                     let popover_origin = point(origin.x, current_y);
 
-                    window.defer_draw(popover.element, popover_origin, 2);
+                    window.defer_draw(popover.element, popover_origin, 2, None);
                     if position != itertools::Position::Last {
                         let origin = point(popover_origin.x, popover_origin.y + size.height);
                         draw_occluder(size.width, origin, window, cx);
@@ -5847,7 +5847,7 @@ impl EditorElement {
             })
         };
 
-        window.defer_draw(element, final_origin, 2);
+        window.defer_draw(element, final_origin, 2, None);
     }
 
     fn paint_background(&self, layout: &EditorLayout, window: &mut Window, cx: &mut App) {
@@ -6471,8 +6471,6 @@ impl EditorElement {
         window.with_content_mask(
             Some(ContentMask {
                 bounds: layout.position_map.text_hitbox.bounds,
-                corner_radii: Default::default(),
-                corner_radii_bounds: Default::default(),
             }),
             |window| {
                 let editor = self.editor.read(cx);
@@ -7529,7 +7527,7 @@ impl EditorElement {
         for mut block in layout.spacer_blocks.drain(..) {
             let mut bounds = layout.hitbox.bounds;
             bounds.origin.x += layout.gutter_hitbox.bounds.size.width;
-            window.with_content_mask(Some(ContentMask { bounds, corner_radii: Default::default(), corner_radii_bounds: Default::default() }), |window| {
+            window.with_content_mask(Some(ContentMask { bounds }), |window| {
                 block.element.paint(window, cx);
             })
         }
@@ -7547,7 +7545,7 @@ impl EditorElement {
             } else {
                 let mut bounds = layout.hitbox.bounds;
                 bounds.origin.x += layout.gutter_hitbox.bounds.size.width;
-                window.with_content_mask(Some(ContentMask { bounds, corner_radii: Default::default(), corner_radii_bounds: Default::default() }), |window| {
+                window.with_content_mask(Some(ContentMask { bounds }), |window| {
                     block.element.paint(window, cx);
                 })
             }
@@ -8202,7 +8200,7 @@ pub(crate) fn render_buffer_header(
                 .flex_basis(Length::Definite(DefiniteLength::Fraction(0.667)))
                 .pl_1()
                 .pr_2()
-                .theme_rounded_sm(cx)
+                .rounded_sm()
                 .gap_1p5()
                 .when(is_sticky, |el| el.shadow_md())
                 .border_1()
@@ -8227,7 +8225,7 @@ pub(crate) fn render_buffer_header(
                     header.child(
                         div()
                             .hover(|style| style.bg(colors.element_selected))
-                            .theme_rounded_xs(cx)
+                            .rounded_xs()
                             .child(
                                 ButtonLike::new("toggle-buffer-fold")
                                     .style(ButtonStyle::Transparent)
@@ -9605,7 +9603,7 @@ impl Element for EditorElement {
         let rem_size = self.rem_size(cx);
         window.with_rem_size(rem_size, |window| {
             window.with_text_style(Some(text_style), |window| {
-                window.with_content_mask(Some(ContentMask { bounds, corner_radii: Default::default(), corner_radii_bounds: Default::default() }), |window| {
+                window.with_content_mask(Some(ContentMask { bounds }), |window| {
                     let (mut snapshot, is_read_only) = self.editor.update(cx, |editor, cx| {
                         (editor.snapshot(window, cx), editor.read_only(cx))
                     });
@@ -11052,7 +11050,7 @@ impl Element for EditorElement {
         let rem_size = self.rem_size(cx);
         window.with_rem_size(rem_size, |window| {
             window.with_text_style(Some(text_style), |window| {
-                window.with_content_mask(Some(ContentMask { bounds, corner_radii: Default::default(), corner_radii_bounds: Default::default() }), |window| {
+                window.with_content_mask(Some(ContentMask { bounds }), |window| {
                     self.paint_mouse_listeners(layout, window, cx);
                     self.paint_background(layout, window, cx);
 
@@ -11345,8 +11343,6 @@ impl StickyHeaderLine {
                         + point(Pixels::ZERO, self.offset),
                     size(available_text_width, line_height),
                 ),
-                corner_radii: Default::default(),
-                corner_radii_bounds: Default::default(),
             }),
             |window| {
                 self.line.draw_with_custom_offset(

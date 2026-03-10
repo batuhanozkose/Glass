@@ -80,7 +80,7 @@ impl Render for ApiKeysWithProviders {
                     .py_1p5()
                     .gap_2()
                     .flex_wrap()
-                    .rounded_t(cx.theme().border_radius().medium)
+                    .rounded_t_md()
                     .overflow_hidden()
                     .border_t_1()
                     .border_x_1()

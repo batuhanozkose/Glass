@@ -89,8 +89,7 @@ use workspace_modes::ModeId;
 
 use workspace::{
     AppState, MultiWorkspace, NewFile, NewWindow, OpenLog, Panel, Toast, Workspace,
-    WorkspaceSettings, create_and_open_local_file,
-    item::ItemHandle,
+    WorkspaceSettings, create_and_open_local_file, item::ItemHandle,
     notifications::simple_message_notification::MessageNotification, open_new,
 };
 use workspace::{

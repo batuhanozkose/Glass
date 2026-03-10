@@ -844,22 +844,15 @@ pub fn theme_colors_refinement(
     }
 }
 
-pub fn parse_border_radius(
-    content: &settings::ThemeBorderRadiusContent,
-) -> crate::ThemeBorderRadius {
-    let defaults = crate::ThemeBorderRadius::default();
-    crate::ThemeBorderRadius {
-        extra_small: content
-            .extra_small
-            .map(gpui::px)
-            .unwrap_or(defaults.extra_small),
-        small: content.small.map(gpui::px).unwrap_or(defaults.small),
-        medium: content.medium.map(gpui::px).unwrap_or(defaults.medium),
-        large: content.large.map(gpui::px).unwrap_or(defaults.large),
-        extra_large: content
-            .extra_large
-            .map(gpui::px)
-            .unwrap_or(defaults.extra_large),
+pub fn parse_component_radius(
+    content: &settings::ThemeComponentRadiusContent,
+) -> crate::ThemeComponentRadius {
+    crate::ThemeComponentRadius {
+        button: content.button.map(gpui::px),
+        input: content.input.map(gpui::px),
+        tab: content.tab.map(gpui::px),
+        panel: content.panel.map(gpui::px),
+        modal: content.modal.map(gpui::px),
     }
 }
 
@@ -876,4 +869,39 @@ pub(crate) fn try_parse_color(color: &str) -> anyhow::Result<Hsla> {
     );
 
     Ok(hsla)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_component_radius;
+    use crate::ThemeComponentRadiusContent;
+    use gpui::px;
+
+    #[test]
+    fn parse_component_radius_keeps_missing_values_none() {
+        let radius = parse_component_radius(&ThemeComponentRadiusContent::default());
+
+        assert_eq!(radius.button, None);
+        assert_eq!(radius.input, None);
+        assert_eq!(radius.tab, None);
+        assert_eq!(radius.panel, None);
+        assert_eq!(radius.modal, None);
+    }
+
+    #[test]
+    fn parse_component_radius_maps_present_values_to_pixels() {
+        let radius = parse_component_radius(&ThemeComponentRadiusContent {
+            button: Some(4.0),
+            input: Some(6.0),
+            tab: Some(8.0),
+            panel: Some(10.0),
+            modal: Some(12.0),
+        });
+
+        assert_eq!(radius.button, Some(px(4.0)));
+        assert_eq!(radius.input, Some(px(6.0)));
+        assert_eq!(radius.tab, Some(px(8.0)));
+        assert_eq!(radius.panel, Some(px(10.0)));
+        assert_eq!(radius.modal, Some(px(12.0)));
+    }
 }

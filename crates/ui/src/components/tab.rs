@@ -148,7 +148,7 @@ impl RenderOnce for Tab {
             .mt(px(1.))
             .mb(px(2.))
             .bg(tab_bg)
-            .rounded(cx.theme().border_radius().medium)
+            .rounded(cx.theme().component_radius().tab.unwrap_or(px(6.0)))
             .when(!self.selected, |this| {
                 this.hover(move |style| style.bg(tab_hover_bg))
             })

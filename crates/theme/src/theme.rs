@@ -49,14 +49,22 @@ pub use crate::schema::*;
 pub use crate::settings::*;
 pub use crate::styles::*;
 pub use ::settings::{
-    FontStyleContent, HighlightStyleContent, StatusColorsContent, ThemeBorderRadiusContent,
-    ThemeColorsContent, ThemeStyleContent,
+    FontStyleContent, HighlightStyleContent, StatusColorsContent, ThemeColorsContent,
+    ThemeComponentRadiusContent, ThemeStyleContent,
 };
 
 /// Defines window border radius for platforms that use client side decorations.
 pub const CLIENT_SIDE_DECORATION_ROUNDING: Pixels = px(10.0);
 /// Defines window shadow size for platforms that use client side decorations.
 pub const CLIENT_SIDE_DECORATION_SHADOW: Pixels = px(10.0);
+
+/// Returns a component radius only when it meaningfully rounds corners.
+///
+/// This is used for layout decisions like inset shells, where `Some(px(0.0))`
+/// should behave like "no rounded shell" instead of enabling alternate chrome.
+pub fn active_component_radius(radius: Option<Pixels>) -> Option<Pixels> {
+    radius.filter(|radius| *radius > Pixels::ZERO)
+}
 
 /// The appearance of the theme.
 #[derive(Debug, PartialEq, Clone, Copy, Deserialize)]
@@ -92,6 +100,18 @@ impl From<Appearance> for ThemeAppearanceMode {
             Appearance::Light => Self::Light,
             Appearance::Dark => Self::Dark,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::active_component_radius;
+    use gpui::px;
+
+    #[test]
+    fn active_component_radius_filters_zero() {
+        assert_eq!(active_component_radius(Some(px(0.0))), None);
+        assert_eq!(active_component_radius(Some(px(6.0))), Some(px(6.0)));
     }
 }
 
@@ -297,7 +317,7 @@ impl ThemeFamily {
             adjust_borders_for_transparency(&mut refined_theme_colors, appearance);
         }
 
-        let border_radius = parse_border_radius(&theme.style.border_radius);
+        let component_radius = parse_component_radius(&theme.style.component_radius);
 
         Theme {
             id: uuid::Uuid::new_v4().to_string(),
@@ -311,7 +331,7 @@ impl ThemeFamily {
                 status: refined_status_colors,
                 player: refined_player_colors,
                 syntax: syntax_theme,
-                border_radius,
+                component_radius,
             },
         }
     }
@@ -392,10 +412,10 @@ impl Theme {
         &self.styles.status
     }
 
-    /// Returns the [`ThemeBorderRadius`] for the theme.
+    /// Returns the optional per-component radius overrides for the theme.
     #[inline(always)]
-    pub fn border_radius(&self) -> &ThemeBorderRadius {
-        &self.styles.border_radius
+    pub fn component_radius(&self) -> &ThemeComponentRadius {
+        &self.styles.component_radius
     }
 
     /// Returns the color for the syntax node with the given name.

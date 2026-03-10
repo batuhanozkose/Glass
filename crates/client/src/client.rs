@@ -2091,7 +2091,7 @@ mod tests {
         let (done_tx1, done_rx1) = smol::channel::unbounded();
         let (done_tx2, done_rx2) = smol::channel::unbounded();
         AnyProtoClient::from(client.clone()).add_entity_message_handler(
-            move |entity: Entity<TestEntity>, _: TypedEnvelope<proto::JoinProject>, cx| {
+            move |entity: Entity<TestEntity>, _: TypedEnvelope<proto::UpdateProject>, cx| {
                 match entity.read_with(&cx, |entity, _| entity.id) {
                     1 => done_tx1.try_send(()).unwrap(),
                     2 => done_tx2.try_send(()).unwrap(),
@@ -2129,15 +2129,13 @@ mod tests {
             .set_entity(&entity3, &cx.to_async());
         drop(subscription3);
 
-        server.send(proto::JoinProject {
+        server.send(proto::UpdateProject {
             project_id: 1,
-            committer_name: None,
-            committer_email: None,
+            worktree_roots: Vec::new(),
         });
-        server.send(proto::JoinProject {
+        server.send(proto::UpdateProject {
             project_id: 2,
-            committer_name: None,
-            committer_email: None,
+            worktree_roots: Vec::new(),
         });
         done_rx1.recv().await.unwrap();
         done_rx2.recv().await.unwrap();

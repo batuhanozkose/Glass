@@ -123,7 +123,7 @@ impl Component for Animation {
                 .bg(cx.theme().colors().text.opacity(0.05))
                 .border_1()
                 .border_color(cx.theme().colors().border)
-                .theme_rounded_sm(cx)
+                .rounded_sm()
         };
 
         Some(
@@ -143,7 +143,7 @@ impl Component for Animation {
                                             .absolute()
                                             .size(px(element_size))
                                             .left(px(offset))
-                                            .theme_rounded_md(cx)
+                                            .rounded_md()
                                             .bg(gpui::red())
                                             .animate_in_from_bottom(false),
                                     )
@@ -159,7 +159,7 @@ impl Component for Animation {
                                             .absolute()
                                             .size(px(element_size))
                                             .left(px(offset))
-                                            .theme_rounded_md(cx)
+                                            .rounded_md()
                                             .bg(gpui::blue())
                                             .animate_in_from_top(false),
                                     )
@@ -175,7 +175,7 @@ impl Component for Animation {
                                             .absolute()
                                             .size(px(element_size))
                                             .top(px(offset))
-                                            .theme_rounded_md(cx)
+                                            .rounded_md()
                                             .bg(gpui::green())
                                             .animate_in_from_left(false),
                                     )
@@ -191,7 +191,7 @@ impl Component for Animation {
                                             .absolute()
                                             .size(px(element_size))
                                             .top(px(offset))
-                                            .theme_rounded_md(cx)
+                                            .rounded_md()
                                             .bg(gpui::yellow())
                                             .animate_in_from_right(false),
                                     )
@@ -213,7 +213,7 @@ impl Component for Animation {
                                             .absolute()
                                             .size(px(element_size))
                                             .left(px(offset))
-                                            .theme_rounded_md(cx)
+                                            .rounded_md()
                                             .bg(gpui::red())
                                             .animate_in_from_bottom(true),
                                     )
@@ -229,7 +229,7 @@ impl Component for Animation {
                                             .absolute()
                                             .size(px(element_size))
                                             .left(px(offset))
-                                            .theme_rounded_md(cx)
+                                            .rounded_md()
                                             .bg(gpui::blue())
                                             .animate_in_from_top(true),
                                     )
@@ -245,7 +245,7 @@ impl Component for Animation {
                                             .absolute()
                                             .size(px(element_size))
                                             .top(px(offset))
-                                            .theme_rounded_md(cx)
+                                            .rounded_md()
                                             .bg(gpui::green())
                                             .animate_in_from_left(true),
                                     )
@@ -261,7 +261,7 @@ impl Component for Animation {
                                             .absolute()
                                             .size(px(element_size))
                                             .top(px(offset))
-                                            .theme_rounded_md(cx)
+                                            .rounded_md()
                                             .bg(gpui::yellow())
                                             .animate_in_from_right(true),
                                     )

@@ -5,7 +5,7 @@ use crate::{
 use anyhow::Result;
 use assistant_slash_command::{SlashCommand, SlashCommandOutputSection, SlashCommandWorkingSet};
 use assistant_slash_commands::{DefaultSlashCommand, FileSlashCommand, selections_creases};
-use client::{proto, zed_urls};
+use client::zed_urls;
 use collections::{BTreeSet, HashMap, HashSet, hash_map};
 use editor::{
     Anchor, Editor, EditorEvent, MenuEditPredictionsPolicy, MultiBuffer, MultiBufferOffset,
@@ -2668,6 +2668,17 @@ impl Render for TextThreadEditor {
                 });
             }))
             .size_full()
+            .when_some(
+                theme::active_component_radius(cx.theme().component_radius().input),
+                |this, radius| {
+                    this.m_2()
+                        .bg(cx.theme().colors().editor_background)
+                        .rounded(radius)
+                        .overflow_hidden()
+                        .border_1()
+                        .border_color(cx.theme().colors().border)
+                },
+            )
             .child(
                 div()
                     .flex_grow()
@@ -2683,8 +2694,14 @@ impl Render for TextThreadEditor {
                     .pr_2()
                     .w_full()
                     .justify_between()
-                    .border_t_1()
-                    .border_color(cx.theme().colors().border_variant)
+                    .when(
+                        theme::active_component_radius(cx.theme().component_radius().input)
+                            .is_none(),
+                        |this| {
+                            this.border_t_1()
+                                .border_color(cx.theme().colors().border_variant)
+                        },
+                    )
                     .bg(cx.theme().colors().editor_background)
                     .child(
                         h_flex()

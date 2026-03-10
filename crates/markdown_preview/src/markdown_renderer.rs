@@ -230,7 +230,7 @@ impl<'a> RenderContext<'a> {
             text_muted_color: theme.colors().text_muted,
             code_block_background_color: theme.colors().surface_background,
             code_span_background_color: theme.colors().editor_document_highlight_read_background,
-            border_radius_small: theme.border_radius().small,
+            border_radius_small: px(4.0),
             checkbox_clicked_callback: None,
             is_last_child: false,
             mermaid_state,

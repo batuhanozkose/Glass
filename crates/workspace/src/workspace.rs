@@ -114,7 +114,10 @@ use std::{
     path::{Path, PathBuf},
     process::ExitStatus,
     rc::Rc,
-    sync::{Arc, LazyLock, Weak, atomic::{AtomicBool, AtomicUsize}},
+    sync::{
+        Arc, LazyLock, Weak,
+        atomic::{AtomicBool, AtomicUsize},
+    },
     time::Duration,
 };
 use task::{DebugScenario, SharedTaskContext, SpawnInTerminal};
@@ -132,7 +135,7 @@ use util::{
 };
 use uuid::Uuid;
 #[cfg(target_os = "macos")]
-use workspace_modes::BrowserSidebarState;
+use workspace_modes::mode_sidebar_visible;
 use workspace_modes::{
     ModeDeactivateCallback, ModeId, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode,
     SwitchToTerminalMode,
@@ -162,7 +165,7 @@ const DEFAULT_SIDEBAR_WIDTH: f64 = 240.0;
 pub struct UnifiedSidebar {
     active_mode: ModeId,
     left_dock: Entity<Dock>,
-    browser_sidebar_view: Option<AnyView>,
+    mode_sidebar_views: HashMap<ModeId, AnyView>,
     width: f64,
 }
 
@@ -172,7 +175,7 @@ impl UnifiedSidebar {
         Self {
             active_mode: ModeId::BROWSER,
             left_dock,
-            browser_sidebar_view: None,
+            mode_sidebar_views: HashMap::default(),
             width: DEFAULT_SIDEBAR_WIDTH,
         }
     }
@@ -184,12 +187,33 @@ impl UnifiedSidebar {
         }
     }
 
-    pub fn browser_sidebar_view(&self) -> Option<&AnyView> {
-        self.browser_sidebar_view.as_ref()
+    pub fn mode_sidebar_view(&self, mode: ModeId) -> Option<&AnyView> {
+        self.mode_sidebar_views.get(&mode)
     }
 
-    pub fn set_browser_sidebar_view(&mut self, view: AnyView, cx: &mut Context<Self>) {
-        self.browser_sidebar_view = Some(view);
+    pub fn set_mode_sidebar_view(&mut self, mode: ModeId, view: AnyView, cx: &mut Context<Self>) {
+        let needs_update = self.mode_sidebar_views.get(&mode) != Some(&view);
+        self.mode_sidebar_views.insert(mode, view);
+        if needs_update {
+            cx.notify();
+        }
+    }
+
+    pub fn clear_mode_sidebar_view(&mut self, mode: ModeId, cx: &mut Context<Self>) {
+        if self.mode_sidebar_views.remove(&mode).is_some() {
+            cx.notify();
+        }
+    }
+
+    pub fn has_mode_sidebar_view(&self, mode: ModeId) -> bool {
+        self.mode_sidebar_views.contains_key(&mode)
+    }
+
+    pub fn active_mode_sidebar_view(&self) -> Option<&AnyView> {
+        self.mode_sidebar_view(self.active_mode)
+    }
+
+    pub fn update_mode_sidebar_visibility(&mut self, cx: &mut Context<Self>) {
         cx.notify();
     }
 
@@ -215,10 +239,8 @@ impl UnifiedSidebar {
 #[cfg(target_os = "macos")]
 impl Render for UnifiedSidebar {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        if self.active_mode == ModeId::BROWSER {
-            if let Some(view) = &self.browser_sidebar_view {
-                return div().size_full().child(view.clone()).into_any_element();
-            }
+        if let Some(view) = self.active_mode_sidebar_view() {
+            return div().size_full().child(view.clone()).into_any_element();
         }
         div()
             .size_full()
@@ -1613,8 +1635,10 @@ impl Workspace {
 
         let subscriptions = vec![
             #[cfg(target_os = "macos")]
-            cx.observe_global::<BrowserSidebarState>(|_this, cx| {
-                cx.notify();
+            cx.observe_global::<workspace_modes::ModeSidebarState>(|this, cx| {
+                this.unified_sidebar.update(cx, |sidebar, cx| {
+                    sidebar.update_mode_sidebar_visibility(cx);
+                });
             }),
             #[cfg(target_os = "macos")]
             cx.observe_in(&left_dock, window, |this, _, window, cx| {
@@ -4907,7 +4931,7 @@ impl Workspace {
                 #[cfg(target_os = "macos")]
                 if let Some(sidebar_view) = registered.sidebar_view {
                     self.unified_sidebar.update(cx, |sidebar, cx| {
-                        sidebar.set_browser_sidebar_view(sidebar_view, cx);
+                        sidebar.set_mode_sidebar_view(mode_id, sidebar_view, cx);
                     });
                 }
 
@@ -6561,12 +6585,11 @@ impl Workspace {
     ) -> AnyElement {
         let sidebar_width = unified_sidebar.read(cx).width();
 
-        let sidebar_collapsed = if self.active_mode == ModeId::BROWSER {
-            let sidebar_active = cx
-                .try_global::<BrowserSidebarState>()
-                .map(|s| s.sidebar_active)
-                .unwrap_or(false);
-            !sidebar_active
+        let sidebar_collapsed = if unified_sidebar
+            .read(cx)
+            .has_mode_sidebar_view(self.active_mode)
+        {
+            !mode_sidebar_visible(cx, self.active_mode).unwrap_or(true)
         } else {
             !self.left_dock.read(cx).has_visible_content(window, cx)
         };

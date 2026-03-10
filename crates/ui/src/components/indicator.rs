@@ -78,7 +78,7 @@ impl RenderOnce for Indicator {
             IndicatorKind::Bar => container
                 .w_full()
                 .h_1p5()
-                .theme_rounded_t_sm(cx)
+                .rounded_t_sm()
                 .bg(self.color.color(cx)),
         }
     }

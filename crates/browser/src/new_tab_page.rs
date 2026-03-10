@@ -49,7 +49,7 @@ pub fn render_new_tab_page(
                         div()
                             .px_3()
                             .py_1()
-                            .theme_rounded_lg(cx)
+                            .rounded_lg()
                             .border_1()
                             .border_color(theme.colors().border)
                             .bg(theme.colors().element_background)

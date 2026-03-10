@@ -119,7 +119,7 @@ impl RenderOnce for AiUpsellCard {
             .pt_3()
             .border_1()
             .border_color(cx.theme().colors().border)
-            .theme_rounded_lg(cx)
+            .rounded_lg()
             .overflow_hidden()
             .child(grid_bg)
             .child(gradient_bg);

@@ -1,10 +1,20 @@
-use gpui::{App, Styled, hsla};
+use gpui::{App, Pixels, Styled, hsla, px};
 
 use crate::ElevationIndex;
 use crate::prelude::*;
 
+fn elevated_radius(cx: &App, index: ElevationIndex) -> Pixels {
+    match index {
+        ElevationIndex::ModalSurface => cx.theme().component_radius().modal.unwrap_or(px(8.0)),
+        ElevationIndex::Surface
+        | ElevationIndex::EditorSurface
+        | ElevationIndex::ElevatedSurface
+        | ElevationIndex::Background => cx.theme().component_radius().panel.unwrap_or(px(8.0)),
+    }
+}
+
 fn elevated<E: Styled>(this: E, cx: &App, index: ElevationIndex) -> E {
-    let radius = cx.theme().border_radius().large;
+    let radius = elevated_radius(cx, index);
     this.bg(cx.theme().colors().elevated_surface_background)
         .rounded(radius)
         .border_1()
@@ -13,7 +23,7 @@ fn elevated<E: Styled>(this: E, cx: &App, index: ElevationIndex) -> E {
 }
 
 fn elevated_borderless<E: Styled>(this: E, cx: &mut App, index: ElevationIndex) -> E {
-    let radius = cx.theme().border_radius().large;
+    let radius = elevated_radius(cx, index);
     this.bg(cx.theme().colors().elevated_surface_background)
         .rounded(radius)
         .shadow(index.shadow(cx))
@@ -42,7 +52,7 @@ pub trait StyledExt: Styled + Sized {
 
     /// The [`Surface`](ElevationIndex::Surface) elevation level, located above the app background, is the standard level for all elements
     ///
-    /// Sets `bg()`, `rounded()` (theme border radius), `border()`, `border_color()`, `shadow()`
+    /// Sets `bg()`, `rounded_lg()`, `border()`, `border_color()`, `shadow()`
     ///
     /// Example Elements: Title Bar, Panel, Tab Bar, Editor
     fn elevation_1(self, cx: &App) -> Self {
@@ -58,7 +68,7 @@ pub trait StyledExt: Styled + Sized {
 
     /// Non-Modal Elevated Surfaces appear above the [`Surface`](ElevationIndex::Surface) layer and is used for things that should appear above most UI elements like an editor or panel, but not elements like popovers, context menus, modals, etc.
     ///
-    /// Sets `bg()`, `rounded()` (theme border radius), `border()`, `border_color()`, `shadow()`
+    /// Sets `bg()`, `rounded_lg()`, `border()`, `border_color()`, `shadow()`
     ///
     /// Examples: Notifications, Palettes, Detached/Floating Windows, Detached/Floating Panels
     fn elevation_2(self, cx: &App) -> Self {
@@ -78,7 +88,7 @@ pub trait StyledExt: Styled + Sized {
     ///
     /// If the element does not have this behavior, it should be rendered at the [`Elevated Surface`](ElevationIndex::ElevatedSurface) layer.
     ///
-    /// Sets `bg()`, `rounded()` (theme border radius), `border()`, `border_color()`, `shadow()`
+    /// Sets `bg()`, `rounded_lg()`, `border()`, `border_color()`, `shadow()`
     ///
     /// Examples: Settings Modal, Channel Management, Wizards/Setup UI, Dialogs
     fn elevation_3(self, cx: &App) -> Self {
@@ -130,101 +140,6 @@ pub trait StyledExt: Styled + Sized {
     /// Sets the background color to magenta for debugging when building UI.
     fn debug_bg_magenta(self) -> Self {
         self.bg(hsla(300. / 360., 1., 0.5, 1.))
-    }
-
-    /// Theme-aware extra-small border radius (default 2px).
-    fn theme_rounded_xs(self, cx: &App) -> Self {
-        self.rounded(cx.theme().border_radius().extra_small)
-    }
-
-    /// Theme-aware small border radius (default 4px).
-    fn theme_rounded_sm(self, cx: &App) -> Self {
-        self.rounded(cx.theme().border_radius().small)
-    }
-
-    /// Theme-aware medium border radius (default 6px).
-    fn theme_rounded_md(self, cx: &App) -> Self {
-        self.rounded(cx.theme().border_radius().medium)
-    }
-
-    /// Theme-aware large border radius (default 8px).
-    fn theme_rounded_lg(self, cx: &App) -> Self {
-        self.rounded(cx.theme().border_radius().large)
-    }
-
-    /// Theme-aware extra-large border radius (default 12px).
-    fn theme_rounded_xl(self, cx: &App) -> Self {
-        self.rounded(cx.theme().border_radius().extra_large)
-    }
-
-    /// Theme-aware small top border radius.
-    fn theme_rounded_t_sm(self, cx: &App) -> Self {
-        self.rounded_t(cx.theme().border_radius().small)
-    }
-
-    /// Theme-aware medium top border radius.
-    fn theme_rounded_t_md(self, cx: &App) -> Self {
-        self.rounded_t(cx.theme().border_radius().medium)
-    }
-
-    /// Theme-aware large top border radius.
-    fn theme_rounded_t_lg(self, cx: &App) -> Self {
-        self.rounded_t(cx.theme().border_radius().large)
-    }
-
-    /// Theme-aware small bottom border radius.
-    fn theme_rounded_b_sm(self, cx: &App) -> Self {
-        self.rounded_b(cx.theme().border_radius().small)
-    }
-
-    /// Theme-aware medium bottom border radius.
-    fn theme_rounded_b_md(self, cx: &App) -> Self {
-        self.rounded_b(cx.theme().border_radius().medium)
-    }
-
-    /// Theme-aware large bottom border radius.
-    fn theme_rounded_b_lg(self, cx: &App) -> Self {
-        self.rounded_b(cx.theme().border_radius().large)
-    }
-
-    /// Theme-aware small left border radius.
-    fn theme_rounded_l_sm(self, cx: &App) -> Self {
-        self.rounded_l(cx.theme().border_radius().small)
-    }
-
-    /// Theme-aware medium left border radius.
-    fn theme_rounded_l_md(self, cx: &App) -> Self {
-        self.rounded_l(cx.theme().border_radius().medium)
-    }
-
-    /// Theme-aware small right border radius.
-    fn theme_rounded_r_sm(self, cx: &App) -> Self {
-        self.rounded_r(cx.theme().border_radius().small)
-    }
-
-    /// Theme-aware medium right border radius.
-    fn theme_rounded_r_md(self, cx: &App) -> Self {
-        self.rounded_r(cx.theme().border_radius().medium)
-    }
-
-    /// Theme-aware small top-left corner border radius.
-    fn theme_rounded_tl_sm(self, cx: &App) -> Self {
-        self.rounded_tl(cx.theme().border_radius().small)
-    }
-
-    /// Theme-aware small top-right corner border radius.
-    fn theme_rounded_tr_sm(self, cx: &App) -> Self {
-        self.rounded_tr(cx.theme().border_radius().small)
-    }
-
-    /// Theme-aware small bottom-left corner border radius.
-    fn theme_rounded_bl_sm(self, cx: &App) -> Self {
-        self.rounded_bl(cx.theme().border_radius().small)
-    }
-
-    /// Theme-aware small bottom-right corner border radius.
-    fn theme_rounded_br_sm(self, cx: &App) -> Self {
-        self.rounded_br(cx.theme().border_radius().small)
     }
 }
 

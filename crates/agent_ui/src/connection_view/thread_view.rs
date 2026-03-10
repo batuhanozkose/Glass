@@ -2472,9 +2472,20 @@ impl ThreadView {
             .on_action(cx.listener(Self::expand_message_editor))
             .p_2()
             .gap_2()
-            .border_t_1()
-            .border_color(cx.theme().colors().border)
             .bg(editor_bg_color)
+            .when_some(
+                theme::active_component_radius(cx.theme().component_radius().input),
+                |this, radius| {
+                    this.m_2()
+                        .rounded(radius)
+                        .border_1()
+                        .border_color(cx.theme().colors().border)
+                },
+            )
+            .when(
+                theme::active_component_radius(cx.theme().component_radius().input).is_none(),
+                |this| this.border_t_1().border_color(cx.theme().colors().border),
+            )
             .when(editor_expanded, |this| {
                 this.h(vh(0.8, window)).size_full().justify_between()
             })

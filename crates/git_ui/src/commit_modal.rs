@@ -44,7 +44,7 @@ impl ModalContainerProperties {
                 f32::from(preferred_char_width as f32 * em_width + px(container_padding * 2.0));
         }
 
-        let modal_border_radius = f32::from(cx.theme().border_radius().extra_large);
+        let modal_border_radius = f32::from(cx.theme().component_radius().modal.unwrap_or(px(12.0)));
 
         Self {
             modal_width,

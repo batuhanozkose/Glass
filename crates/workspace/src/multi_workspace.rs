@@ -295,25 +295,28 @@ impl MultiWorkspace {
     }
 
     /// Sync the shared unified sidebar to point at the active workspace's left dock,
-    /// mode, and browser view. Width is NOT synced because the NSSplitView manages
+    /// mode, and hosted sidebar view. Width is NOT synced because the NSSplitView manages
     /// its own divider position independently.
     #[cfg(target_os = "macos")]
     fn sync_unified_sidebar(&self, cx: &mut App) {
         let active_ws = self.workspace().clone();
-        let (left_dock, mode, per_ws_sidebar) = {
+        let (left_dock, mode, sidebar_view) = {
             let workspace = active_ws.read(cx);
-            (
-                workspace.left_dock().clone(),
-                workspace.active_mode_id(),
-                workspace.unified_sidebar.clone(),
-            )
+            let mode = workspace.active_mode_id();
+            let sidebar_view = workspace
+                .unified_sidebar
+                .read(cx)
+                .mode_sidebar_view(mode)
+                .cloned();
+            (workspace.left_dock().clone(), mode, sidebar_view)
         };
-        let browser_view = per_ws_sidebar.read(cx).browser_sidebar_view().cloned();
         self.unified_sidebar.update(cx, |sidebar, cx| {
             sidebar.set_left_dock(left_dock, cx);
             sidebar.set_mode(mode, cx);
-            if let Some(view) = browser_view {
-                sidebar.set_browser_sidebar_view(view, cx);
+            if let Some(view) = sidebar_view {
+                sidebar.set_mode_sidebar_view(mode, view, cx);
+            } else {
+                sidebar.clear_mode_sidebar_view(mode, cx);
             }
         });
     }
@@ -677,7 +680,6 @@ impl MultiWorkspace {
             workspace.open_workspace_for_paths(true, paths, window, cx)
         })
     }
-
 }
 
 impl Render for MultiWorkspace {
@@ -685,9 +687,6 @@ impl Render for MultiWorkspace {
         #[cfg(target_os = "macos")]
         self.sync_unified_sidebar(cx);
         let is_zoomed = self.workspace().read(cx).zoomed_item().is_some();
-
-        let ui_font = theme::setup_ui_font(window, cx);
-        let text_color = cx.theme().colors().text;
 
         let ui_font = theme::setup_ui_font(window, cx);
         let text_color = cx.theme().colors().text;
@@ -740,16 +739,15 @@ impl Render for MultiWorkspace {
                     #[cfg(target_os = "macos")]
                     let workspace_content = {
                         let ws = self.workspace().read(cx);
-                        let sidebar_collapsed =
-                            ws.left_dock().read(cx).visible_panel().is_none();
+                        let sidebar_collapsed = ws.left_dock().read(cx).visible_panel().is_none();
                         let sidebar_width = self.unified_sidebar.read(cx).width();
-                        let sidebar_titlebar_fill =
-                            match cx.theme().window_background_appearance() {
-                                WindowBackgroundAppearance::Opaque => {
-                                    Some(cx.theme().colors().panel_background)
-                                }
-                                _ => None,
-                            };
+                        let sidebar_titlebar_fill = match cx.theme().window_background_appearance()
+                        {
+                            WindowBackgroundAppearance::Opaque => {
+                                Some(cx.theme().colors().panel_background)
+                            }
+                            _ => None,
+                        };
                         div()
                             .size_full()
                             .flex()

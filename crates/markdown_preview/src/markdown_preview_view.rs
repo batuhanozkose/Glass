@@ -650,7 +650,7 @@ impl Render for MarkdownPreviewView {
                                                 s.bg(cx.theme().colors().border_variant)
                                             }
                                         })
-                                        .theme_rounded_xs(cx);
+                                        .rounded_xs();
 
                                     container.child(
                                         div()

@@ -39,7 +39,11 @@ pub(super) fn render_action_button(
     })
 }
 
-pub(crate) fn input_base_styles(border_color: Hsla, map: impl FnOnce(Div) -> Div, cx: &App) -> Div {
+pub(crate) fn input_base_styles(
+    border_color: Hsla,
+    map: impl FnOnce(Div) -> Div,
+    _cx: &App,
+) -> Div {
     h_flex()
         .map(map)
         .min_w_32()
@@ -48,7 +52,7 @@ pub(crate) fn input_base_styles(border_color: Hsla, map: impl FnOnce(Div) -> Div
         .pr_1()
         .border_1()
         .border_color(border_color)
-        .theme_rounded_md(cx)
+        .rounded_md()
 }
 pub(crate) fn filter_search_results_input(
     border_color: Hsla,

@@ -274,7 +274,7 @@ impl Render for BookmarkBar {
             .collect();
 
         let view = cx.entity().downgrade();
-        let favicon_radius = cx.theme().border_radius().small;
+        let favicon_radius = px(4.0);
 
         // Build bookmark chip elements (each with its own right-click menu)
         let bookmark_chips: Vec<_> = bookmark_data

@@ -477,31 +477,22 @@ pub struct ThemeStyleContent {
     #[serde(default)]
     pub syntax: IndexMap<String, HighlightStyleContent>,
 
-    /// Theme authors can override these to control the roundedness of the UI.
+    /// Optional per-component radius overrides.
+    ///
+    /// Components retain their built-in appearance unless they explicitly opt
+    /// into reading one of these values.
     #[serde(default)]
-    pub border_radius: ThemeBorderRadiusContent,
+    pub component_radius: ThemeComponentRadiusContent,
 }
 
-/// Border radius scale for UI elements.
-///
-/// All values are in pixels. When not specified, defaults match the standard Zed UI:
-/// - `extra_small`: 2.0px — keybindings, code folds, tiny decorations
-/// - `small`: 4.0px — chips, tags, small badges
-/// - `medium`: 6.0px — buttons, inputs, list items
-/// - `large`: 8.0px — panels, cards, elevated surfaces
-/// - `extra_large`: 12.0px — modals, large containers
+/// Optional per-component radius overrides for extension themes.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, MergeFrom, PartialEq)]
-pub struct ThemeBorderRadiusContent {
-    /// Border radius for tiny elements (keybindings, folds). Default: 2.0
-    pub extra_small: Option<f32>,
-    /// Border radius for small elements (chips, tags). Default: 4.0
-    pub small: Option<f32>,
-    /// Border radius for medium elements (buttons, inputs). Default: 6.0
-    pub medium: Option<f32>,
-    /// Border radius for large elements (panels, cards). Default: 8.0
-    pub large: Option<f32>,
-    /// Border radius for extra large elements (modals). Default: 12.0
-    pub extra_large: Option<f32>,
+pub struct ThemeComponentRadiusContent {
+    pub button: Option<f32>,
+    pub input: Option<f32>,
+    pub tab: Option<f32>,
+    pub panel: Option<f32>,
+    pub modal: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, MergeFrom, PartialEq)]

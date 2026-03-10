@@ -4,8 +4,8 @@ use gpui::{FontStyle, FontWeight, HighlightStyle, Hsla, WindowBackgroundAppearan
 
 use crate::{
     AccentColors, Appearance, DEFAULT_DARK_THEME, PlayerColors, StatusColors,
-    StatusColorsRefinement, SyntaxTheme, SystemColors, Theme, ThemeBorderRadius, ThemeColors,
-    ThemeColorsRefinement, ThemeFamily, ThemeStyles, default_color_scales,
+    StatusColorsRefinement, SyntaxTheme, SystemColors, Theme, ThemeColors, ThemeColorsRefinement,
+    ThemeComponentRadius, ThemeFamily, ThemeStyles, default_color_scales,
 };
 
 /// The default theme family for Zed.
@@ -314,7 +314,7 @@ pub(crate) fn zed_default_dark() -> Theme {
                 warning_border: yellow,
             },
             player,
-            border_radius: ThemeBorderRadius::default(),
+            component_radius: ThemeComponentRadius::default(),
             syntax: Arc::new(SyntaxTheme {
                 highlights: vec![
                     ("attribute".into(), purple.into()),

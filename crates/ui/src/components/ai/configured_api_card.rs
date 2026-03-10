@@ -62,7 +62,7 @@ impl RenderOnce for ConfiguredApiCard {
             .mt_0p5()
             .p_1()
             .justify_between()
-            .theme_rounded_md(cx)
+            .rounded_md()
             .flex_wrap()
             .border_1()
             .border_color(cx.theme().colors().border)

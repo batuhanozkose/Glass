@@ -1131,7 +1131,7 @@ fn render_style_preview(style: HighlightStyle, selected: bool, cx: &App) -> Div 
 
     let display_color = style.color.or(style.background_color);
 
-    let mut preview = div().px_1().theme_rounded_sm(cx);
+    let mut preview = div().px_1().rounded_sm();
 
     if let Some(color) = display_color {
         if selected {

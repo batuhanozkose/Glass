@@ -30,7 +30,6 @@ use gpui::{
 };
 use language::DiagnosticSeverity;
 use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrevious};
-use toast::{StatusToast, ToastIcon};
 use project::{
     Entry, EntryKind, Fs, GitEntry, GitEntryRef, GitTraversal, Project, ProjectEntryId,
     ProjectPath, Worktree, WorktreeId,
@@ -46,6 +45,7 @@ use settings::{
     update_settings_file,
 };
 use smallvec::SmallVec;
+use std::ops::Neg;
 use std::{any::TypeId, time::Instant};
 use std::{
     cell::OnceCell,
@@ -57,10 +57,12 @@ use std::{
     time::Duration,
 };
 use theme::ThemeSettings;
+use toast::{StatusToast, ToastIcon};
 use ui::{
     Color, ContextMenu, DecoratedIcon, Divider, Icon, IconDecoration, IconDecorationKind,
     IndentGuideColors, IndentGuideLayout, KeyBinding, Label, LabelSize, ListItem, ListItemSpacing,
-    ScrollableHandle, Scrollbars, StickyCandidate, Tooltip, WithScrollbar, prelude::*, v_flex,
+    ScrollAxes, ScrollableHandle, Scrollbars, StickyCandidate, Tooltip, WithScrollbar, prelude::*,
+    v_flex,
 };
 use util::{
     ResultExt, TakeUntilExt, TryFutureExt, maybe,
@@ -1213,8 +1215,7 @@ impl ProjectPanel {
                         } else {
                             "Reveal in File Manager"
                         }));
-                        actions
-                            .push(NativeMenuAction::Dispatch(Box::new(RevealInFileManager)));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(RevealInFileManager)));
                         items.push(NativeMenuItem::action("Open in Default App"));
                         actions.push(NativeMenuAction::Dispatch(Box::new(OpenWithSystem)));
                     }
@@ -1223,8 +1224,7 @@ impl ProjectPanel {
                     if is_dir {
                         items.push(NativeMenuItem::separator());
                         items.push(NativeMenuItem::action("Find in Folder\u{2026}"));
-                        actions
-                            .push(NativeMenuAction::Dispatch(Box::new(NewSearchInDirectory)));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(NewSearchInDirectory)));
                     }
                     if is_unfoldable {
                         items.push(NativeMenuItem::action("Unfold Directory"));
@@ -1237,8 +1237,7 @@ impl ProjectPanel {
                     if should_show_compare {
                         items.push(NativeMenuItem::separator());
                         items.push(NativeMenuItem::action("Compare marked files"));
-                        actions
-                            .push(NativeMenuAction::Dispatch(Box::new(CompareMarkedFiles)));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(CompareMarkedFiles)));
                     }
                     items.push(NativeMenuItem::separator());
                     items.push(NativeMenuItem::action("Cut"));
@@ -1255,8 +1254,7 @@ impl ProjectPanel {
                     if is_remote {
                         items.push(NativeMenuItem::separator());
                         items.push(NativeMenuItem::action("Download\u{2026}"));
-                        actions
-                            .push(NativeMenuAction::Dispatch(Box::new(DownloadFromRemote)));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(DownloadFromRemote)));
                     }
                     items.push(NativeMenuItem::separator());
                     items.push(NativeMenuItem::action("Copy Path"));
@@ -1270,15 +1268,14 @@ impl ProjectPanel {
                     if has_git_changes {
                         items.push(NativeMenuItem::separator());
                         items.push(NativeMenuItem::action("Restore File"));
-                        actions.push(NativeMenuAction::Dispatch(Box::new(
-                            git::RestoreFile { skip_prompt: false },
-                        )));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(git::RestoreFile {
+                            skip_prompt: false,
+                        })));
                     }
                     if has_git_repo {
                         items.push(NativeMenuItem::separator());
                         items.push(NativeMenuItem::action("View File History"));
-                        actions
-                            .push(NativeMenuAction::Dispatch(Box::new(git::FileHistory)));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(git::FileHistory)));
                     }
                     if !should_hide_rename {
                         items.push(NativeMenuItem::separator());
@@ -1304,8 +1301,7 @@ impl ProjectPanel {
                             workspace::AddFolderToProject,
                         )));
                         items.push(NativeMenuItem::action("Remove from Workspace"));
-                        actions
-                            .push(NativeMenuAction::Dispatch(Box::new(RemoveFromProject)));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(RemoveFromProject)));
                     }
                     if is_dir && !is_root {
                         items.push(NativeMenuItem::separator());
@@ -1323,28 +1319,22 @@ impl ProjectPanel {
 
                 let focus = self.focus_handle.clone();
                 let entity = cx.entity().downgrade();
-                show_native_popup_menu(
-                    &items,
-                    position,
-                    window,
-                    cx,
-                    move |index, window, cx| {
-                        if let Some(action) = actions.into_iter().nth(index) {
-                            match action {
-                                NativeMenuAction::Dispatch(action) => {
-                                    focus.dispatch_action(&*action, window, cx);
-                                }
-                                NativeMenuAction::CollapseAllForRoot => {
-                                    entity
-                                        .update(cx, |this, cx| {
-                                            this.collapse_all_for_root(window, cx);
-                                        })
-                                        .ok();
-                                }
+                show_native_popup_menu(&items, position, window, cx, move |index, window, cx| {
+                    if let Some(action) = actions.into_iter().nth(index) {
+                        match action {
+                            NativeMenuAction::Dispatch(action) => {
+                                focus.dispatch_action(&*action, window, cx);
+                            }
+                            NativeMenuAction::CollapseAllForRoot => {
+                                entity
+                                    .update(cx, |this, cx| {
+                                        this.collapse_all_for_root(window, cx);
+                                    })
+                                    .ok();
                             }
                         }
-                    },
-                );
+                    }
+                });
                 cx.notify();
                 return;
             }
@@ -1372,10 +1362,7 @@ impl ProjectPanel {
                                     )
                                 })
                                 .when(is_local, |menu| {
-                                    menu.action(
-                                        "Open in Default App",
-                                        Box::new(OpenWithSystem),
-                                    )
+                                    menu.action("Open in Default App", Box::new(OpenWithSystem))
                                 })
                                 .action("Open in Terminal", Box::new(OpenInTerminal))
                                 .when(is_dir, |menu| {
@@ -1385,10 +1372,7 @@ impl ProjectPanel {
                                     )
                                 })
                                 .when(is_unfoldable, |menu| {
-                                    menu.action(
-                                        "Unfold Directory",
-                                        Box::new(UnfoldDirectory),
-                                    )
+                                    menu.action("Unfold Directory", Box::new(UnfoldDirectory))
                                 })
                                 .when(is_foldable, |menu| {
                                     menu.action("Fold Directory", Box::new(FoldDirectory))
@@ -1405,16 +1389,11 @@ impl ProjectPanel {
                                 .action("Duplicate", Box::new(Duplicate))
                                 .action_disabled_when(!has_clipboard, "Paste", Box::new(Paste))
                                 .when(is_remote, |menu| {
-                                    menu.separator().action(
-                                        "Download\u{2026}",
-                                        Box::new(DownloadFromRemote),
-                                    )
+                                    menu.separator()
+                                        .action("Download\u{2026}", Box::new(DownloadFromRemote))
                                 })
                                 .separator()
-                                .action(
-                                    "Copy Path",
-                                    Box::new(zed_actions::workspace::CopyPath),
-                                )
+                                .action("Copy Path", Box::new(zed_actions::workspace::CopyPath))
                                 .action(
                                     "Copy Relative Path",
                                     Box::new(zed_actions::workspace::CopyRelativePath),
@@ -1426,25 +1405,17 @@ impl ProjectPanel {
                                     )
                                 })
                                 .when(has_git_repo, |menu| {
-                                    menu.separator().action(
-                                        "View File History",
-                                        Box::new(git::FileHistory),
-                                    )
+                                    menu.separator()
+                                        .action("View File History", Box::new(git::FileHistory))
                                 })
                                 .when(!should_hide_rename, |menu| {
                                     menu.separator().action("Rename", Box::new(Rename))
                                 })
                                 .when(!is_root && !is_remote, |menu| {
-                                    menu.action(
-                                        "Trash",
-                                        Box::new(Trash { skip_prompt: false }),
-                                    )
+                                    menu.action("Trash", Box::new(Trash { skip_prompt: false }))
                                 })
                                 .when(!is_root, |menu| {
-                                    menu.action(
-                                        "Delete",
-                                        Box::new(Delete { skip_prompt: false }),
-                                    )
+                                    menu.action("Delete", Box::new(Delete { skip_prompt: false }))
                                 })
                                 .when(!is_collab && is_root, |menu| {
                                     menu.separator()
@@ -1480,11 +1451,10 @@ impl ProjectPanel {
                 });
 
                 window.focus(&context_menu.focus_handle(cx), cx);
-                let subscription =
-                    cx.subscribe(&context_menu, |this, _, _: &DismissEvent, cx| {
-                        this.context_menu.take();
-                        cx.notify();
-                    });
+                let subscription = cx.subscribe(&context_menu, |this, _, _: &DismissEvent, cx| {
+                    this.context_menu.take();
+                    cx.notify();
+                });
                 self.context_menu = Some((context_menu, position, subscription));
             }
         }
@@ -5817,15 +5787,17 @@ impl ProjectPanel {
                             .flex_none()
                     })
                     .child(if show_editor {
-                        h_flex().h_6().w_full().child(self.filename_editor.clone())
-                    } else {
                         h_flex()
                             .h_6()
                             .w_full()
-                            .min_w_0()
+                            .child(self.filename_editor.clone())
+                            .into_any_element()
+                    } else {
+                        h_flex()
+                            .h_6()
                             .map(|this| match self.state.ancestors.get(&entry_id) {
-                                Some(folded_ancestors) => {
-                                    this.children(self.render_folder_elements(
+                                Some(folded_ancestors) => this.children(
+                                    self.render_folder_elements(
                                         folded_ancestors,
                                         entry_id,
                                         file_name,
@@ -5839,20 +5811,19 @@ impl ProjectPanel {
                                         folded_directory_drag_target,
                                         filename_text_color,
                                         cx,
-                                    ))
-                                }
-
+                                    ),
+                                ),
                                 None => this.child(
                                     Label::new(file_name)
                                         .single_line()
                                         .color(filename_text_color)
-                                        .when(
-                                            settings.bold_folder_labels && kind.is_dir(),
-                                            |this| this.weight(FontWeight::SEMIBOLD),
-                                        )
+                                        .when(settings.bold_folder_labels && kind.is_dir(), |this| {
+                                            this.weight(FontWeight::SEMIBOLD)
+                                        })
                                         .into_any_element(),
                                 ),
                             })
+                            .into_any_element()
                     })
                     .on_secondary_mouse_down(cx.listener(
                         move |this, event: &MouseDownEvent, window, cx| {
@@ -5869,6 +5840,7 @@ impl ProjectPanel {
                             this.deploy_context_menu(event.position, entry_id, window, cx);
                         },
                     ))
+                    .overflow_x(),
             )
             .when_some(validation_color_and_message, |this, (color, message)| {
                 this.relative().child(deferred(
@@ -5926,10 +5898,9 @@ impl ProjectPanel {
                             "project_panel_path_component_{}_{index}",
                             entry_id.to_usize()
                         )))
-                        .when(index == components_len - 1, |this| this.flex_1().min_w_0())
                         .when(index == 0, |this| this.ml_neg_0p5())
                         .px_0p5()
-                        .theme_rounded_xs(cx)
+                        .rounded_xs()
                         .hover(|style| style.bg(cx.theme().colors().element_active))
                         .when(!is_sticky, |div| {
                             div.when(index != components_len - 1, |div| {
@@ -6013,7 +5984,6 @@ impl ProjectPanel {
                         .child(
                             Label::new(component)
                                 .single_line()
-                                .truncate()
                                 .color(filename_text_color)
                                 .when(bold_folder_labels && !is_file, |this| {
                                     this.weight(FontWeight::SEMIBOLD)
@@ -6665,7 +6635,7 @@ impl Render for ProjectPanel {
                                     this.rendered_entries_len = range.end - range.start;
                                     let mut items = Vec::with_capacity(this.rendered_entries_len);
                                     this.for_each_visible_entry(
-                                        range,
+                                        range.clone(),
                                         window,
                                         cx,
                                         &mut |id, details, window, cx| {
@@ -6868,7 +6838,7 @@ impl Render for ProjectPanel {
                             })
                             .with_sizing_behavior(ListSizingBehavior::Infer)
                             .with_horizontal_sizing_behavior(
-                                ListHorizontalSizingBehavior::FitList,
+                                ListHorizontalSizingBehavior::Unconstrained,
                             )
                             .with_width_from_item(self.state.max_width_item_index)
                             .track_scroll(&self.scroll_handle),
@@ -6878,6 +6848,24 @@ impl Render for ProjectPanel {
                                 .id("project-panel-blank-area")
                                 .block_mouse_except_scroll()
                                 .flex_grow()
+                                .on_scroll_wheel({
+                                    let scroll_handle = self.scroll_handle.clone();
+                                    let entity_id = cx.entity().entity_id();
+                                    move |event, window, cx| {
+                                        let state = scroll_handle.0.borrow();
+                                        let base_handle = &state.base_handle;
+                                        let current_offset = base_handle.offset();
+                                        let max_offset = base_handle.max_offset();
+                                        let delta = event.delta.pixel_delta(window.line_height());
+                                        let new_offset = (current_offset + delta)
+                                            .clamp(&max_offset.neg(), &Point::default());
+
+                                        if new_offset != current_offset {
+                                            base_handle.set_offset(new_offset);
+                                            cx.notify(entity_id);
+                                        }
+                                    }
+                                })
                                 .when(
                                     self.drag_target_entry.as_ref().is_some_and(
                                         |entry| match entry {
@@ -7015,6 +7003,10 @@ impl Render for ProjectPanel {
                 .custom_scrollbars(
                     Scrollbars::for_settings::<ProjectPanelSettings>()
                         .tracked_scroll_handle(&self.scroll_handle)
+                        .with_track_along(
+                            ScrollAxes::Horizontal,
+                            cx.theme().colors().panel_background,
+                        )
                         .notify_content(),
                     window,
                     cx,
@@ -7120,7 +7112,7 @@ impl Render for DraggedProjectEntryView {
                     .items_center()
                     .py_1()
                     .px_2()
-                    .theme_rounded_lg(cx)
+                    .rounded_lg()
                     .bg(cx.theme().colors().background)
                     .map(|this| {
                         if self.selections.len() > 1 && self.selections.contains(&self.selection) {

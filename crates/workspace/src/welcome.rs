@@ -411,12 +411,12 @@ impl Render for WelcomePage {
                                     .gap_4()
                                     .child({
                                         let logo = match cx.theme().appearance {
-                                            theme::Appearance::Light => "images/glass_logo_light.png",
+                                            theme::Appearance::Light => {
+                                                "images/glass_logo_light.png"
+                                            }
                                             theme::Appearance::Dark => "images/glass_logo_dark.png",
                                         };
-                                        gpui::img(logo)
-                                            .w(rems_from_px(45.))
-                                            .h(rems_from_px(45.))
+                                        gpui::img(logo).w(rems_from_px(45.)).h(rems_from_px(45.))
                                     })
                                     .child(
                                         v_flex().child(Headline::new(welcome_label)).child(

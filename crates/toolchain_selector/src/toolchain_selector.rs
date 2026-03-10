@@ -394,7 +394,7 @@ impl Render for AddToolchainState {
             .bg(cx.theme().colors().elevated_surface_background)
             .border_1()
             .border_color(cx.theme().colors().border_variant)
-            .theme_rounded_lg(cx)
+            .rounded_lg()
             .when_some(weak, |this, weak| {
                 this.on_action(window.listener_for(
                     &weak,
