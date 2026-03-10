@@ -302,6 +302,7 @@ gpui = { git = "https://github.com/Obsydian-HQ/gpui.git", default-features = fal
 gpui_macros = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 gpui_platform = { git = "https://github.com/Obsydian-HQ/gpui.git", default-features = false, features = ["font-kit"] }
 gpui_tokio = { git = "https://github.com/Obsydian-HQ/gpui.git" }
+gpui_util = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 html_to_markdown = { path = "crates/html_to_markdown" }
 http_client = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 http_client_tls = { git = "https://github.com/Obsydian-HQ/gpui.git" }
@@ -330,7 +331,7 @@ markdown_preview = { path = "crates/markdown_preview" }
 svg_preview = { path = "crates/svg_preview" }
 media = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 menu = { path = "crates/menu" }
-mermaid-rs-renderer = { git = "https://github.com/zed-industries/mermaid-rs-renderer", branch = "fix-font-family-xml-escaping", default-features = false }
+mermaid-rs-renderer = { git = "https://github.com/zed-industries/mermaid-rs-renderer", rev = "9d8360d9cea10dc4bc86d7b8012cc6e9656e6cf2", default-features = false }
 migrator = { path = "crates/migrator" }
 mistral = { path = "crates/mistral" }
 multi_buffer = { path = "crates/multi_buffer" }
@@ -409,7 +410,7 @@ ui = { path = "crates/ui" }
 ui_input = { path = "crates/ui_input" }
 ui_macros = { path = "crates/ui_macros" }
 ui_prompt = { path = "crates/ui_prompt" }
-util = { git = "https://github.com/Obsydian-HQ/gpui.git", rev = "2e49c2189e8fde24266ada3610b4cf352599f07c" }
+util = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 util_macros = { path = "crates/util_macros" }
 vercel = { path = "crates/vercel" }
 which_key = { path = "crates/which_key" }

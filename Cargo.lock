@@ -12,7 +12,7 @@ dependencies = [
  "base64 0.22.1",
  "buffer_diff",
  "chrono",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "env_logger 0.11.8",
  "file_icons",
  "futures",
@@ -42,7 +42,7 @@ dependencies = [
  "ui",
  "url",
  "urlencoding",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "watch",
  "zlog",
@@ -53,7 +53,7 @@ name = "acp_tools"
 version = "0.1.0"
 dependencies = [
  "agent-client-protocol",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "gpui",
  "language",
  "markdown",
@@ -63,7 +63,7 @@ dependencies = [
  "settings",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -74,7 +74,7 @@ dependencies = [
  "anyhow",
  "buffer_diff",
  "clock",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "ctor",
  "futures",
  "gpui",
@@ -88,7 +88,7 @@ dependencies = [
  "settings",
  "telemetry",
  "text",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "watch",
  "zlog",
 ]
@@ -110,7 +110,7 @@ dependencies = [
  "release_channel",
  "smallvec",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -165,7 +165,7 @@ dependencies = [
  "clock",
  "cloud_api_types",
  "cloud_llm_client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "context_server",
  "ctor",
  "db",
@@ -221,7 +221,7 @@ dependencies = [
  "ui",
  "unindent",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "watch",
  "web_search",
@@ -274,7 +274,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "credentials_provider",
  "env_logger 0.11.8",
  "fs",
@@ -301,7 +301,7 @@ dependencies = [
  "terminal",
  "thiserror 2.0.17",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "watch",
 ]
@@ -312,7 +312,7 @@ version = "0.1.0"
 dependencies = [
  "agent-client-protocol",
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "convert_case 0.8.0",
  "fs",
  "gpui",
@@ -326,7 +326,7 @@ dependencies = [
  "serde_json",
  "serde_json_lenient",
  "settings",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -354,7 +354,7 @@ dependencies = [
  "clock",
  "cloud_api_types",
  "cloud_llm_client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "command_palette_hooks",
  "component",
  "context_server",
@@ -386,7 +386,7 @@ dependencies = [
  "menu",
  "multi_buffer",
  "notifications",
- "ordered-float",
+ "ordered-float 2.10.1",
  "parking_lot",
  "paths",
  "picker",
@@ -426,7 +426,7 @@ dependencies = [
  "ui_input",
  "unindent",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "watch",
  "workspace",
@@ -722,6 +722,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d92bec98840b8f03a5ff5413de5293bfcd8bf96467cf5452609f939ec6f5de16"
 
 [[package]]
+name = "ash"
+version = "0.38.0+1.3.281"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bb44936d800fea8f016d7f2311c6a4f97aebd5dc86f09906139ec848cf3a46f"
+dependencies = [
+ "libloading 0.8.9",
+]
+
+[[package]]
 name = "ashpd"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -746,7 +755,7 @@ dependencies = [
  "net",
  "smol",
  "tempfile",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "windows 0.61.3",
  "zeroize",
 ]
@@ -766,7 +775,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "derive_more 0.99.20",
  "extension",
  "futures",
@@ -778,7 +787,7 @@ dependencies = [
  "serde",
  "serde_json",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -789,7 +798,7 @@ dependencies = [
  "anyhow",
  "assistant_slash_command",
  "chrono",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "editor",
  "feature_flags",
  "fs",
@@ -810,7 +819,7 @@ dependencies = [
  "smol",
  "text",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "worktree",
  "zlog",
@@ -828,7 +837,7 @@ dependencies = [
  "client",
  "clock",
  "cloud_llm_client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "context_server",
  "fs",
  "futures",
@@ -858,7 +867,7 @@ dependencies = [
  "text",
  "ui",
  "unindent",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "workspace",
  "zed_env_vars",
@@ -1197,12 +1206,12 @@ name = "audio"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "gpui",
  "log",
  "rodio",
  "settings",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -1240,7 +1249,7 @@ dependencies = [
  "settings",
  "smol",
  "tempfile",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "which 6.0.3",
  "workspace",
  "zlog",
@@ -1274,7 +1283,7 @@ dependencies = [
  "serde_json",
  "smol",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -1975,7 +1984,7 @@ dependencies = [
  "toast",
  "ui",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace_modes",
  "zed_actions",
 ]
@@ -2026,7 +2035,7 @@ dependencies = [
  "text",
  "tracing",
  "unindent",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zlog",
  "ztracing",
 ]
@@ -2590,7 +2599,7 @@ dependencies = [
  "anyhow",
  "askpass",
  "clap",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "core-foundation 0.10.0",
  "core-services",
  "exec",
@@ -2604,7 +2613,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "walkdir",
  "windows 0.61.3",
 ]
@@ -2620,7 +2629,7 @@ dependencies = [
  "clock",
  "cloud_api_client",
  "cloud_llm_client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "credentials_provider",
  "derive_more 0.99.20",
  "feature_flags",
@@ -2659,7 +2668,7 @@ dependencies = [
  "tokio-rustls 0.26.2",
  "tokio-socks",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "windows 0.61.3",
  "worktree",
 ]
@@ -2796,6 +2805,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "codespan-reporting"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe6d2e5af09e8c8ad56c969f2157a3d4238cebc7c55f0a517728c38f7b200f81"
+dependencies = [
+ "serde",
+ "termcolor",
+ "unicode-width",
+]
+
+[[package]]
 name = "codestral"
 version = "0.1.0"
 dependencies = [
@@ -2817,16 +2837,7 @@ dependencies = [
 [[package]]
 name = "collections"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c#2e49c2189e8fde24266ada3610b4cf352599f07c"
-dependencies = [
- "indexmap",
- "rustc-hash 2.1.1",
-]
-
-[[package]]
-name = "collections"
-version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "indexmap",
  "rustc-hash 2.1.1",
@@ -2870,7 +2881,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "command_palette_hooks",
  "ctor",
  "db",
@@ -2892,7 +2903,7 @@ dependencies = [
  "theme",
  "time",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
 ]
@@ -2901,7 +2912,7 @@ dependencies = [
 name = "command_palette_hooks"
 version = "0.1.0"
 dependencies = [
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "derive_more 0.99.20",
  "gpui",
  "workspace",
@@ -2911,7 +2922,7 @@ dependencies = [
 name = "component"
 version = "0.1.0"
 dependencies = [
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "documented",
  "gpui",
  "inventory",
@@ -2926,7 +2937,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "component",
  "db",
  "fs",
@@ -2990,6 +3001,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3021,7 +3042,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "futures",
  "gpui",
  "http_client",
@@ -3038,7 +3059,7 @@ dependencies = [
  "tempfile",
  "terminal",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -3093,7 +3114,7 @@ dependencies = [
  "async-std",
  "client",
  "clock",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "command_palette_hooks",
  "copilot_chat",
  "ctor",
@@ -3120,7 +3141,7 @@ dependencies = [
  "settings",
  "sum_tree",
  "theme",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zlog",
 ]
@@ -3130,7 +3151,7 @@ name = "copilot_chat"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "dirs 4.0.0",
  "fs",
  "futures",
@@ -3158,7 +3179,7 @@ dependencies = [
  "serde_json",
  "settings",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -3294,7 +3315,7 @@ dependencies = [
  "core-graphics2",
  "io-surface",
  "libc",
- "metal",
+ "metal 0.29.0",
 ]
 
 [[package]]
@@ -3318,6 +3339,30 @@ dependencies = [
  "objc2-core-audio",
  "objc2-core-audio-types",
  "objc2-core-foundation",
+]
+
+[[package]]
+name = "cosmic-text"
+version = "0.17.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d8c4e3a1d02f5269ed15c2d70b4647167856f66f228dcdf99050ab77bbb5a56"
+dependencies = [
+ "bitflags 2.10.0",
+ "fontdb 0.23.0",
+ "harfrust",
+ "linebender_resource_handle",
+ "log",
+ "rangemap",
+ "rustc-hash 2.1.1",
+ "self_cell",
+ "skrifa 0.40.0",
+ "smol_str",
+ "swash",
+ "sys-locale",
+ "unicode-bidi",
+ "unicode-linebreak",
+ "unicode-script",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -3736,7 +3781,7 @@ dependencies = [
  "async-tar",
  "async-trait",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "dap-types",
  "fs",
  "futures",
@@ -3759,7 +3804,7 @@ dependencies = [
  "telemetry",
  "tree-sitter",
  "tree-sitter-go",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zlog",
 ]
 
@@ -3779,7 +3824,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "dap",
  "dotenvy",
  "fs",
@@ -3796,7 +3841,7 @@ dependencies = [
  "settings",
  "smol",
  "task",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -3866,7 +3911,7 @@ dependencies = [
  "sqlez",
  "sqlez_macros",
  "tempfile",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zed_env_vars",
 ]
 
@@ -3887,13 +3932,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "dap",
  "extension",
  "gpui",
  "serde_json",
  "task",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -3909,7 +3954,7 @@ dependencies = [
  "serde_json",
  "settings",
  "smol",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -3921,7 +3966,7 @@ dependencies = [
  "anyhow",
  "bitflags 2.10.0",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "command_palette_hooks",
  "dap",
  "dap_adapters",
@@ -3965,7 +4010,7 @@ dependencies = [
  "ui",
  "ui_input",
  "unindent",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
  "zlog",
@@ -4080,7 +4125,7 @@ dependencies = [
 [[package]]
 name = "derive_refineable"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4120,7 +4165,7 @@ dependencies = [
  "smol",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "worktree",
 ]
@@ -4131,7 +4176,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "component",
  "ctor",
  "editor",
@@ -4152,7 +4197,7 @@ dependencies = [
  "theme",
  "ui",
  "unindent",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
  "zlog",
@@ -4290,7 +4335,7 @@ name = "docs_preprocessor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "jsonschema",
  "mdbook",
  "regex",
@@ -4300,7 +4345,7 @@ dependencies = [
  "settings",
  "task",
  "theme",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zlog",
 ]
 
@@ -4477,7 +4522,7 @@ dependencies = [
  "clock",
  "cloud_api_types",
  "cloud_llm_client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "copilot",
  "copilot_ui",
  "ctor",
@@ -4517,7 +4562,7 @@ dependencies = [
  "toml 0.8.23",
  "tree-sitter-rust",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "workspace",
  "worktree",
@@ -4537,7 +4582,7 @@ dependencies = [
  "clap",
  "client",
  "cloud_llm_client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "debug_adapter_extension",
  "dirs 4.0.0",
  "edit_prediction",
@@ -4581,7 +4626,7 @@ dependencies = [
  "tempfile",
  "terminal_view",
  "toml 0.8.23",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "wasmtime",
  "watch",
  "workspace",
@@ -4594,7 +4639,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clock",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "env_logger 0.11.8",
  "futures",
  "gpui",
@@ -4611,7 +4656,7 @@ dependencies = [
  "smallvec",
  "text",
  "tree-sitter",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zeta_prompt",
  "zlog",
 ]
@@ -4637,7 +4682,7 @@ dependencies = [
  "clock",
  "cloud_llm_client",
  "codestral",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "command_palette_hooks",
  "copilot",
  "copilot_chat",
@@ -4670,7 +4715,7 @@ dependencies = [
  "theme",
  "time",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
  "zeta_prompt",
@@ -4688,7 +4733,7 @@ dependencies = [
  "buffer_diff",
  "client",
  "clock",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "convert_case 0.8.0",
  "criterion",
  "ctor",
@@ -4714,7 +4759,7 @@ dependencies = [
  "markdown",
  "menu",
  "multi_buffer",
- "ordered-float",
+ "ordered-float 2.10.1",
  "parking_lot",
  "pretty_assertions",
  "project",
@@ -4754,7 +4799,7 @@ dependencies = [
  "unicode-width",
  "unindent",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "workspace",
  "zed_actions",
@@ -4852,7 +4897,7 @@ dependencies = [
  "project",
  "settings",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -5019,7 +5064,7 @@ dependencies = [
  "net",
  "serde",
  "serde_json",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "windows 0.61.3",
  "windows-core 0.61.2",
  "workspace",
@@ -5050,7 +5095,7 @@ dependencies = [
  "chrono",
  "clap",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "debug_adapter_extension",
  "dirs 4.0.0",
  "dotenvy",
@@ -5086,7 +5131,7 @@ dependencies = [
  "terminal_view",
  "toml 0.8.23",
  "unindent",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "watch",
 ]
@@ -5175,7 +5220,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "cloud_api_types",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "dap",
  "fs",
  "futures",
@@ -5197,7 +5242,7 @@ dependencies = [
  "toml 0.8.23",
  "tracing",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "wasm-encoder 0.221.3",
  "wasmparser 0.221.3",
  "ztracing",
@@ -5239,7 +5284,7 @@ dependencies = [
  "async-trait",
  "client",
  "cloud_api_types",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "criterion",
  "ctor",
  "dap",
@@ -5275,7 +5320,7 @@ dependencies = [
  "toml 0.8.23",
  "tracing",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "wasmparser 0.221.3",
  "wasmtime",
  "wasmtime-wasi",
@@ -5290,7 +5335,7 @@ dependencies = [
  "anyhow",
  "client",
  "cloud_api_types",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "db",
  "editor",
  "extension",
@@ -5312,7 +5357,7 @@ dependencies = [
  "telemetry",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
 ]
@@ -5411,7 +5456,7 @@ dependencies = [
  "gpui",
  "system_specs",
  "urlencoding",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
 ]
@@ -5421,7 +5466,7 @@ name = "file_finder"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "ctor",
  "editor",
  "file_icons",
@@ -5441,7 +5486,7 @@ dependencies = [
  "text",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
  "zlog",
@@ -5454,7 +5499,7 @@ dependencies = [
  "gpui",
  "serde",
  "theme",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -5491,6 +5536,12 @@ name = "fixedbitset"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
+
+[[package]]
+name = "fixedbitset"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
 
 [[package]]
 name = "flate2"
@@ -5578,6 +5629,15 @@ name = "font-types"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39a654f404bbcbd48ea58c617c2993ee91d1cb63727a37bf2323a4edeed1b8c5"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
+name = "font-types"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1e4d2d0cf79d38430cc9dc9aadec84774bff2e1ba30ae2bf6c16cfce9385a23"
 dependencies = [
  "bytemuck",
 ]
@@ -5709,7 +5769,7 @@ dependencies = [
  "async-tar",
  "async-trait",
  "cocoa 0.26.0",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "fs",
  "futures",
  "git",
@@ -5730,7 +5790,7 @@ dependencies = [
  "tempfile",
  "text",
  "time",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "windows 0.61.3",
 ]
 
@@ -5808,6 +5868,19 @@ checksum = "2dff15bf788c671c1934e366d07e30c1814a8ef514e1af724a602e8a2fbe1b10"
 dependencies = [
  "futures-core",
  "futures-sink",
+]
+
+[[package]]
+name = "futures-concurrency"
+version = "7.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "175cd8cca9e1d45b87f18ffa75088f2099e3c4fe5e2f83e42de112560bea8ea6"
+dependencies = [
+ "fixedbitset 0.5.7",
+ "futures-core",
+ "futures-lite 2.6.1",
+ "pin-project",
+ "smallvec",
 ]
 
 [[package]]
@@ -5908,7 +5981,7 @@ version = "0.1.0"
 dependencies = [
  "gpui",
  "log",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -6296,7 +6369,7 @@ dependencies = [
  "anyhow",
  "askpass",
  "async-trait",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "derive_more 0.99.20",
  "futures",
  "git2",
@@ -6322,7 +6395,7 @@ dependencies = [
  "unindent",
  "url",
  "urlencoding",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "ztracing",
 ]
@@ -6345,7 +6418,7 @@ name = "git_graph"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "db",
  "feature_flags",
  "fs",
@@ -6385,7 +6458,7 @@ dependencies = [
  "settings",
  "url",
  "urlencoding",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -6397,7 +6470,7 @@ dependencies = [
  "askpass",
  "buffer_diff",
  "cloud_llm_client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "component",
  "ctor",
  "db",
@@ -6442,7 +6515,7 @@ dependencies = [
  "ui",
  "ui_input",
  "unindent",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "watch",
  "windows 0.61.3",
  "workspace",
@@ -6450,6 +6523,17 @@ dependencies = [
  "zeroize",
  "zlog",
  "ztracing",
+]
+
+[[package]]
+name = "gl_generator"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a95dfc23a2b4a9a2f5ab41d194f8bfda3cabec42af4e39f08c339eb2a0c124d"
+dependencies = [
+ "khronos_api",
+ "log",
+ "xml-rs",
 ]
 
 [[package]]
@@ -6484,6 +6568,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "glow"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5e5ea60d70410161c8bf5da3fdfeaa1c72ed2c15f8bbb9d19fe3a4fad085f08"
+dependencies = [
+ "js-sys",
+ "slotmap",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "glutin_wgl_sys"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c4ee00b289aba7a9e5306d57c2d05499b2e5dc427f84ac708bd2c090212cf3e"
+dependencies = [
+ "gl_generator",
+]
+
+[[package]]
 name = "go_to_line"
 version = "0.1.0"
 dependencies = [
@@ -6502,7 +6607,7 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-typescript",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -6532,11 +6637,46 @@ dependencies = [
 ]
 
 [[package]]
+name = "gpu-allocator"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51255ea7cfaadb6c5f1528d43e92a82acb2b96c43365989a28b2d44ee38f8795"
+dependencies = [
+ "ash",
+ "hashbrown 0.16.1",
+ "log",
+ "presser",
+ "thiserror 2.0.17",
+ "windows 0.62.2",
+]
+
+[[package]]
+name = "gpu-descriptor"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b89c83349105e3732062a895becfc71a8f921bb71ecbbdd8ff99263e3b53a0ca"
+dependencies = [
+ "bitflags 2.10.0",
+ "gpu-descriptor-types",
+ "hashbrown 0.15.5",
+]
+
+[[package]]
+name = "gpu-descriptor-types"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdf242682df893b86f33a73828fb09ca4b2d3bb6cc95249707fc684d27484b91"
+dependencies = [
+ "bitflags 2.10.0",
+]
+
+[[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "anyhow",
+ "async-channel 2.5.0",
  "async-task",
  "backtrace",
  "bitflags 2.10.0",
@@ -6545,7 +6685,7 @@ dependencies = [
  "circular-buffer",
  "cocoa 0.26.0",
  "cocoa-foundation 0.2.0",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "core-foundation 0.10.0",
  "core-foundation-sys",
  "core-graphics 0.24.0",
@@ -6557,6 +6697,8 @@ dependencies = [
  "etagere",
  "foreign-types 0.5.0",
  "futures",
+ "futures-concurrency",
+ "getrandom 0.3.4",
  "gpui_macros",
  "gpui_util",
  "http_client",
@@ -6568,15 +6710,17 @@ dependencies = [
  "lyon",
  "mach2 0.5.0",
  "media",
- "metal",
+ "metal 0.29.0",
  "num_cpus",
  "objc",
  "parking",
  "parking_lot",
  "pathfinder_geometry",
  "pin-project",
+ "pollster 0.4.0",
  "postage",
  "profiling",
+ "proptest",
  "rand 0.9.2",
  "raw-window-handle",
  "refineable",
@@ -6596,10 +6740,11 @@ dependencies = [
  "sum_tree",
  "taffy",
  "thiserror 2.0.17",
+ "url",
  "usvg",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
  "uuid",
  "waker-fn",
+ "web-time",
  "windows 0.61.3",
  "zed-font-kit",
  "zed-scap",
@@ -6608,11 +6753,11 @@ dependencies = [
 [[package]]
 name = "gpui_ios"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "anyhow",
  "block",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "core-foundation 0.10.0",
  "core-foundation-sys",
  "core-graphics 0.24.0",
@@ -6624,7 +6769,7 @@ dependencies = [
  "gpui_metal",
  "libc",
  "log",
- "metal",
+ "metal 0.29.0",
  "objc",
  "parking_lot",
  "pathfinder_geometry",
@@ -6637,12 +6782,12 @@ dependencies = [
 [[package]]
 name = "gpui_linux"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "anyhow",
  "bytemuck",
  "calloop",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "futures",
  "gpui",
  "http_client",
@@ -6660,20 +6805,20 @@ dependencies = [
  "strum",
  "swash",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "util",
  "uuid",
 ]
 
 [[package]]
 name = "gpui_macos"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "anyhow",
  "async-task",
  "block",
  "cocoa 0.26.0",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "core-foundation 0.10.0",
  "core-foundation-sys",
  "core-graphics 0.24.0",
@@ -6692,7 +6837,7 @@ dependencies = [
  "log",
  "mach2 0.5.0",
  "media",
- "metal",
+ "metal 0.29.0",
  "objc",
  "parking_lot",
  "pathfinder_geometry",
@@ -6700,7 +6845,7 @@ dependencies = [
  "semver",
  "smallvec",
  "strum",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "util",
  "uuid",
  "zed-font-kit",
 ]
@@ -6708,7 +6853,7 @@ dependencies = [
 [[package]]
 name = "gpui_macros"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -6719,13 +6864,13 @@ dependencies = [
 [[package]]
 name = "gpui_metal"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "anyhow",
  "block",
  "cbindgen",
  "cocoa 0.26.0",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "core-foundation 0.10.0",
  "core-graphics 0.24.0",
  "core-video",
@@ -6736,7 +6881,7 @@ dependencies = [
  "image",
  "log",
  "media",
- "metal",
+ "metal 0.29.0",
  "objc",
  "parking_lot",
 ]
@@ -6744,42 +6889,94 @@ dependencies = [
 [[package]]
 name = "gpui_platform"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
+ "console_error_panic_hook",
  "gpui",
  "gpui_ios",
  "gpui_linux",
  "gpui_macos",
+ "gpui_web",
  "gpui_windows",
 ]
 
 [[package]]
 name = "gpui_tokio"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "anyhow",
  "gpui",
  "tokio",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "util",
 ]
 
 [[package]]
 name = "gpui_util"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "anyhow",
  "log",
 ]
 
 [[package]]
-name = "gpui_windows"
+name = "gpui_web"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "console_error_panic_hook",
+ "futures",
+ "gpui",
+ "gpui_wgpu",
+ "js-sys",
+ "log",
+ "parking_lot",
+ "raw-window-handle",
+ "smallvec",
+ "uuid",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm_thread",
+ "web-sys",
+ "web-time",
+]
+
+[[package]]
+name = "gpui_wgpu"
+version = "0.1.0"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "collections",
+ "cosmic-text",
+ "etagere",
+ "gpui",
+ "gpui_util",
+ "itertools 0.14.0",
+ "js-sys",
+ "log",
+ "parking_lot",
+ "pollster 0.4.0",
+ "profiling",
+ "raw-window-handle",
+ "smallvec",
+ "swash",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu",
+]
+
+[[package]]
+name = "gpui_windows"
+version = "0.1.0"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
+dependencies = [
+ "anyhow",
+ "collections",
  "etagere",
  "futures",
  "gpui",
@@ -6790,7 +6987,7 @@ dependencies = [
  "rand 0.9.2",
  "raw-window-handle",
  "smallvec",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "util",
  "uuid",
  "windows 0.61.3",
  "windows-core 0.61.2",
@@ -6884,6 +7081,19 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "harfrust"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9da2e5ae821f6e96664977bf974d6d6a2d6682f9ccee23e62ec1d134246845f9"
+dependencies = [
+ "bitflags 2.10.0",
+ "bytemuck",
+ "core_maths",
+ "read-fonts 0.37.0",
+ "smallvec",
 ]
 
 [[package]]
@@ -7027,6 +7237,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "hexf-parse"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
+
+[[package]]
 name = "hkdf"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7155,7 +7371,7 @@ dependencies = [
 [[package]]
 name = "http_client"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -7174,13 +7390,13 @@ dependencies = [
  "sha2",
  "tempfile",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "util",
 ]
 
 [[package]]
 name = "http_client_tls"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "rustls 0.23.33",
  "rustls-platform-verifier",
@@ -7307,7 +7523,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.1",
+ "socket2 0.5.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -7511,7 +7727,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "525e9ff3e1a4be2fbea1fdf0e98686a6d98b4d8f937e1bf7402245af1909e8c3"
 dependencies = [
  "byteorder-lite",
- "quick-error",
+ "quick-error 2.0.1",
 ]
 
 [[package]]
@@ -7530,7 +7746,7 @@ dependencies = [
  "settings",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -7648,7 +7864,7 @@ dependencies = [
  "serde_json_lenient",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "util_macros",
  "workspace",
  "zed_actions",
@@ -7663,7 +7879,7 @@ dependencies = [
  "gpui",
  "release_channel",
  "smol",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -7931,7 +8147,7 @@ name = "json_schema_store"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "dap",
  "extension",
  "gpui",
@@ -7946,7 +8162,7 @@ dependencies = [
  "snippet_provider",
  "task",
  "theme",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -8016,7 +8232,7 @@ name = "keymap_editor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "command_palette",
  "component",
  "db",
@@ -8044,10 +8260,27 @@ dependencies = [
  "tree-sitter-rust",
  "ui",
  "ui_input",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
 ]
+
+[[package]]
+name = "khronos-egl"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6aae1df220ece3c0ada96b8153459b67eebe9ae9212258bb0134ae60416fdf76"
+dependencies = [
+ "libc",
+ "libloading 0.8.9",
+ "pkg-config",
+]
+
+[[package]]
+name = "khronos_api"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "kqueue"
@@ -8096,7 +8329,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clock",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "ctor",
  "diffy",
  "ec4rs",
@@ -8147,7 +8380,7 @@ dependencies = [
  "tree-sitter-typescript",
  "unicase",
  "unindent",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "watch",
  "zlog",
  "ztracing",
@@ -8159,7 +8392,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "extension",
  "fs",
  "futures",
@@ -8171,7 +8404,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "ztracing",
 ]
 
@@ -8186,7 +8419,7 @@ dependencies = [
  "cloud_api_client",
  "cloud_api_types",
  "cloud_llm_client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "credentials_provider",
  "futures",
  "gpui",
@@ -8204,7 +8437,7 @@ dependencies = [
  "settings",
  "smol",
  "thiserror 2.0.17",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zed_env_vars",
 ]
 
@@ -8224,7 +8457,7 @@ dependencies = [
  "client",
  "cloud_api_types",
  "cloud_llm_client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "component",
  "convert_case 0.8.0",
  "copilot",
@@ -8266,7 +8499,7 @@ dependencies = [
  "tokio",
  "ui",
  "ui_input",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "vercel",
  "x_ai",
 ]
@@ -8299,7 +8532,7 @@ dependencies = [
  "serde_json",
  "settings",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -8309,7 +8542,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "command_palette_hooks",
  "edit_prediction",
  "editor",
@@ -8330,7 +8563,7 @@ dependencies = [
  "theme",
  "tree-sitter",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
  "zlog",
@@ -8346,7 +8579,7 @@ dependencies = [
  "async-tar",
  "async-trait",
  "chrono",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "futures",
  "globset",
  "gpui",
@@ -8403,7 +8636,7 @@ dependencies = [
  "tree-sitter-yaml",
  "unindent",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -8574,9 +8807,15 @@ dependencies = [
  "project",
  "settings",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
+
+[[package]]
+name = "linebender_resource_handle"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4a5ff6bcca6c4867b1c4fd4ef63e4db7436ef363e0ad7531d1558856bae64f4"
 
 [[package]]
 name = "linkify"
@@ -8687,7 +8926,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-pipe",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "ctor",
  "futures",
  "gpui",
@@ -8701,7 +8940,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smol",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zlog",
 ]
 
@@ -8813,7 +9052,7 @@ version = "0.1.0"
 dependencies = [
  "assets",
  "base64 0.22.1",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "env_logger 0.11.8",
  "fs",
  "futures",
@@ -8829,7 +9068,7 @@ dependencies = [
  "sum_tree",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -8838,7 +9077,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-recursion",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "crashes",
  "editor",
  "fs",
@@ -8855,7 +9094,7 @@ dependencies = [
  "theme",
  "ui",
  "urlencoding",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
 ]
@@ -8982,7 +9221,7 @@ dependencies = [
 [[package]]
 name = "media"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -8990,7 +9229,7 @@ dependencies = [
  "core-video",
  "ctor",
  "foreign-types 0.5.0",
- "metal",
+ "metal 0.29.0",
  "objc",
 ]
 
@@ -9060,7 +9299,7 @@ dependencies = [
 [[package]]
 name = "mermaid-rs-renderer"
 version = "0.2.0"
-source = "git+https://github.com/zed-industries/mermaid-rs-renderer?branch=fix-font-family-xml-escaping#d91961aa90bc7b0c09c87a13c91d48e2f05c468d"
+source = "git+https://github.com/zed-industries/mermaid-rs-renderer?rev=9d8360d9cea10dc4bc86d7b8012cc6e9656e6cf2#9d8360d9cea10dc4bc86d7b8012cc6e9656e6cf2"
 dependencies = [
  "anyhow",
  "fontdb 0.16.2",
@@ -9089,11 +9328,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "metal"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7047791b5bc903b8cd963014b355f71dc9864a9a0b727057676c1dcae5cbc15"
+dependencies = [
+ "bitflags 2.10.0",
+ "block",
+ "core-graphics-types 0.2.0",
+ "foreign-types 0.5.0",
+ "log",
+ "objc",
+ "paste",
+]
+
+[[package]]
 name = "migrator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "convert_case 0.8.0",
  "log",
  "pretty_assertions",
@@ -9204,7 +9458,7 @@ dependencies = [
  "serde_json",
  "smol",
  "theme",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
 ]
@@ -9309,7 +9563,7 @@ dependencies = [
  "anyhow",
  "buffer_diff",
  "clock",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "ctor",
  "gpui",
  "indoc",
@@ -9330,7 +9584,7 @@ dependencies = [
  "theme",
  "tracing",
  "tree-sitter",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zlog",
  "ztracing",
 ]
@@ -9340,6 +9594,32 @@ name = "multimap"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
+
+[[package]]
+name = "naga"
+version = "28.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "618f667225063219ddfc61251087db8a9aec3c3f0950c916b614e403486f1135"
+dependencies = [
+ "arrayvec",
+ "bit-set",
+ "bitflags 2.10.0",
+ "cfg-if",
+ "cfg_aliases 0.2.1",
+ "codespan-reporting",
+ "half",
+ "hashbrown 0.16.1",
+ "hexf-parse",
+ "indexmap",
+ "libm",
+ "log",
+ "num-traits",
+ "once_cell",
+ "rustc-hash 1.1.0",
+ "spirv",
+ "thiserror 2.0.17",
+ "unicode-ident",
+]
 
 [[package]]
 name = "nanorand"
@@ -9378,7 +9658,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smol",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "walkdir",
 ]
 
@@ -9401,7 +9681,7 @@ dependencies = [
  "smol",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
 ]
@@ -9530,7 +9810,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smol",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "watch",
  "which 6.0.3",
 ]
@@ -9575,7 +9855,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "component",
  "db",
  "gpui",
@@ -9584,7 +9864,7 @@ dependencies = [
  "sum_tree",
  "time",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
 ]
@@ -10036,7 +10316,7 @@ dependencies = [
  "theme",
  "toast",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
  "zlog",
@@ -10140,7 +10420,7 @@ dependencies = [
  "settings",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -10237,6 +10517,15 @@ name = "ordered-float"
 version = "2.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68f19d67e5a2795c94e73e0bb1cc1a7edeb2e28efd39e2e1c9b7a40c1108b11c"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "ordered-float"
+version = "5.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f4779c6901a562440c3786d08192c6fbda7c1c2060edd10006b05ee35d10f2d"
 dependencies = [
  "num-traits",
 ]
@@ -10380,7 +10669,7 @@ version = "0.1.0"
 dependencies = [
  "dirs 4.0.0",
  "ignore",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -10445,7 +10734,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 name = "perf"
 version = "0.1.0"
 dependencies = [
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "serde",
  "serde_json",
 ]
@@ -10886,7 +11175,7 @@ version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
 dependencies = [
- "fixedbitset",
+ "fixedbitset 0.4.2",
  "indexmap",
 ]
 
@@ -11109,7 +11398,7 @@ checksum = "740ebea15c5d1428f910cd1a5f52cebf8d25006245ed8ade92702f4943d91e07"
 dependencies = [
  "base64 0.22.1",
  "indexmap",
- "quick-xml",
+ "quick-xml 0.38.3",
  "serde",
  "time",
 ]
@@ -11299,11 +11588,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
 
 [[package]]
+name = "presser"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8cf8e6a8aa66ce33f63993ffc4ea4271eb5b0530a9002db8455ea6050c77bfa"
+
+[[package]]
 name = "prettier"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "fs",
  "gpui",
  "language",
@@ -11314,7 +11609,7 @@ dependencies = [
  "paths",
  "serde",
  "serde_json",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -11452,7 +11747,7 @@ dependencies = [
  "circular-buffer",
  "client",
  "clock",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "context_server",
  "dap",
  "dap_adapters",
@@ -11508,7 +11803,7 @@ dependencies = [
  "tracing",
  "unindent",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "watch",
  "wax",
  "which 6.0.3",
@@ -11547,7 +11842,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "command_palette_hooks",
  "criterion",
  "db",
@@ -11576,7 +11871,7 @@ dependencies = [
  "theme",
  "toast",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "worktree",
  "zed_actions",
@@ -11589,7 +11884,7 @@ dependencies = [
  "anyhow",
  "assets",
  "chrono",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "fs",
  "futures",
  "fuzzy",
@@ -11605,8 +11900,27 @@ dependencies = [
  "strum",
  "tempfile",
  "text",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
+]
+
+[[package]]
+name = "proptest"
+version = "1.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37566cb3fdacef14c0737f9546df7cfeadbfbc9fef10991038bf5015d0c80532"
+dependencies = [
+ "bit-set",
+ "bit-vec",
+ "bitflags 2.10.0",
+ "num-traits",
+ "rand 0.9.2",
+ "rand_chacha 0.9.0",
+ "rand_xorshift",
+ "regex-syntax",
+ "rusty-fork",
+ "tempfile",
+ "unarray",
 ]
 
 [[package]]
@@ -11690,7 +12004,7 @@ name = "proto"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "prost 0.9.0",
  "prost-build",
  "serde",
@@ -11792,9 +12106,24 @@ dependencies = [
 
 [[package]]
 name = "quick-error"
+version = "1.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
+
+[[package]]
+name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
+
+[[package]]
+name = "quick-xml"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eff6510e86862b57b210fd8cbe8ed3f0d7d600b9c2863cd4549a2e033c66e956"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "quick-xml"
@@ -11818,7 +12147,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.1",
  "rustls 0.23.33",
- "socket2 0.6.1",
+ "socket2 0.5.10",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
@@ -11855,7 +12184,7 @@ dependencies = [
  "cfg_aliases 0.2.1",
  "libc",
  "once_cell",
- "socket2 0.6.1",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.60.2",
 ]
@@ -11992,6 +12321,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_xorshift"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "513962919efc330f829edb2535844d1b912b0fbe2ca165d613e4e8788bb05a5a"
+dependencies = [
+ "rand_core 0.9.3",
+]
+
+[[package]]
 name = "random_choice"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12001,6 +12339,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "range-alloc"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca45419789ae5a7899559e9512e58ca889e41f04f1f2445e9f4b290ceccd1d08"
+
+[[package]]
 name = "range-map"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12008,6 +12352,12 @@ checksum = "12a5a2d6c7039059af621472a4389be1215a816df61aa4d531cfe85264aee95f"
 dependencies = [
  "num-traits",
 ]
+
+[[package]]
+name = "rangemap"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "973443cf09a9c8656b574a866ab68dfa19f0867d0340648c7d2f6a71b8a8ea68"
 
 [[package]]
 name = "rav1e"
@@ -12053,7 +12403,7 @@ dependencies = [
  "avif-serialize",
  "imgref",
  "loop9",
- "quick-error",
+ "quick-error 2.0.1",
  "rav1e",
  "rayon",
  "rgb",
@@ -12119,7 +12469,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6717cf23b488adf64b9d711329542ba34de147df262370221940dfabc2c91358"
 dependencies = [
  "bytemuck",
- "font-types",
+ "font-types 0.10.1",
+]
+
+[[package]]
+name = "read-fonts"
+version = "0.37.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b634fabf032fab15307ffd272149b622260f55974d9fad689292a5d33df02e5"
+dependencies = [
+ "bytemuck",
+ "core_maths",
+ "font-types 0.11.0",
 ]
 
 [[package]]
@@ -12161,7 +12522,7 @@ dependencies = [
  "menu",
  "node_runtime",
  "open_path_prompt",
- "ordered-float",
+ "ordered-float 2.10.1",
  "paths",
  "picker",
  "project",
@@ -12178,7 +12539,7 @@ dependencies = [
  "telemetry",
  "ui",
  "ui_input",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "windows-registry 0.6.1",
  "workspace",
  "worktree",
@@ -12263,7 +12624,7 @@ dependencies = [
 [[package]]
 name = "refineable"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "derive_refineable",
 ]
@@ -12334,7 +12695,7 @@ dependencies = [
  "askpass",
  "async-trait",
  "base64 0.22.1",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "fs",
  "futures",
  "gpui",
@@ -12353,7 +12714,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.17",
  "urlencoding",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "which 6.0.3",
 ]
 
@@ -12391,7 +12752,7 @@ dependencies = [
  "clap",
  "client",
  "clock",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "crash-handler",
  "crashes",
  "dap",
@@ -12446,7 +12807,7 @@ dependencies = [
  "thiserror 2.0.17",
  "toml 0.8.23",
  "unindent",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "watch",
  "windows 0.61.3",
@@ -12454,6 +12815,12 @@ dependencies = [
  "worktree",
  "zlog",
 ]
+
+[[package]]
+name = "renderdoc-sys"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
 name = "repl"
@@ -12466,7 +12833,7 @@ dependencies = [
  "async-tungstenite",
  "base64 0.22.1",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "command_palette_hooks",
  "editor",
  "env_logger 0.11.8",
@@ -12503,7 +12870,7 @@ dependencies = [
  "tree-sitter-python",
  "tree-sitter-typescript",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "workspace",
  "zed_actions",
@@ -12551,13 +12918,13 @@ dependencies = [
  "bytes",
  "futures",
  "gpui",
+ "gpui_util",
  "http_client",
  "http_client_tls",
  "log",
  "regex",
  "serde",
  "tokio",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
  "zed-reqwest",
 ]
 
@@ -12595,7 +12962,7 @@ dependencies = [
  "pulldown-cmark 0.13.0",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -12642,7 +13009,7 @@ dependencies = [
  "sum_tree",
  "tracing",
  "unicode-segmentation",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zlog",
  "ztracing",
 ]
@@ -12671,7 +13038,7 @@ dependencies = [
  "anyhow",
  "async-tungstenite",
  "base64 0.22.1",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "futures",
  "gpui",
  "parking_lot",
@@ -12683,7 +13050,7 @@ dependencies = [
  "sha2",
  "strum",
  "tracing",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zlog",
  "zstd",
 ]
@@ -12729,7 +13096,7 @@ name = "rules_library"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "editor",
  "gpui",
  "language",
@@ -12746,7 +13113,7 @@ dependencies = [
  "theme",
  "ui",
  "ui_input",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
 ]
@@ -13036,6 +13403,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
+name = "rusty-fork"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc6bf79ff24e648f6da1f8d1f011e9cac26491b619e6b9280f2b47f1774e6ee2"
+dependencies = [
+ "fnv",
+ "quick-error 1.2.3",
+ "tempfile",
+ "wait-timeout",
+]
+
+[[package]]
 name = "rustybuzz"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13106,7 +13485,7 @@ dependencies = [
 [[package]]
 name = "scheduler"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "async-task",
  "backtrace",
@@ -13242,7 +13621,7 @@ dependencies = [
  "anyhow",
  "bitflags 2.10.0",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "editor",
  "fs",
  "futures",
@@ -13261,7 +13640,7 @@ dependencies = [
  "tracing",
  "ui",
  "unindent",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "util_macros",
  "workspace",
  "zed_actions",
@@ -13303,6 +13682,12 @@ dependencies = [
  "core-foundation-sys",
  "libc",
 ]
+
+[[package]]
+name = "self_cell"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b12e76d157a900eb52e81bc6e9f3069344290341720e9178cde2407113ac8d89"
 
 [[package]]
 name = "semver"
@@ -13490,7 +13875,7 @@ dependencies = [
  "db",
  "gpui",
  "serde_json",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
 ]
 
@@ -13499,7 +13884,7 @@ name = "settings"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "ec4rs",
  "fs",
  "futures",
@@ -13521,7 +13906,7 @@ dependencies = [
  "settings_macros",
  "smallvec",
  "unindent",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zlog",
 ]
 
@@ -13530,7 +13915,7 @@ name = "settings_content"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "derive_more 0.99.20",
  "gpui",
  "log",
@@ -13541,7 +13926,7 @@ dependencies = [
  "settings_json",
  "settings_macros",
  "strum",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -13557,7 +13942,7 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-json",
  "unindent",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -13638,7 +14023,7 @@ dependencies = [
  "theme",
  "title_bar",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
  "zlog",
@@ -13765,7 +14150,7 @@ dependencies = [
  "theme",
  "ui",
  "ui_input",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -13858,7 +14243,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c31071dedf532758ecf3fed987cdb4bd9509f900e026ab684b4ecb81ea49841"
 dependencies = [
  "bytemuck",
- "read-fonts",
+ "read-fonts 0.35.0",
+]
+
+[[package]]
+name = "skrifa"
+version = "0.40.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fbdfe3d2475fbd7ddd1f3e5cf8288a30eb3e5f95832829570cd88115a7434ac"
+dependencies = [
+ "bytemuck",
+ "read-fonts 0.37.0",
 ]
 
 [[package]]
@@ -13921,6 +14316,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "smol_str"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aaa7368fcf4852a4c2dd92df0cace6a71f2091ca0a23391ce7f3a31833f1523"
+
+[[package]]
 name = "snippet"
 version = "0.1.0"
 dependencies = [
@@ -13933,7 +14334,7 @@ name = "snippet_provider"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "extension",
  "fs",
  "futures",
@@ -13946,7 +14347,7 @@ dependencies = [
  "serde_json",
  "serde_json_lenient",
  "snippet",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -13962,7 +14363,7 @@ dependencies = [
  "picker",
  "settings",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -14025,6 +14426,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "spirv"
+version = "0.3.0+sdk-1.3.268.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eda41003dc44290527a59b13432d4a0379379fa074b70174882adfbdfd917844"
+dependencies = [
+ "bitflags 2.10.0",
+]
+
+[[package]]
 name = "spki"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14045,7 +14455,7 @@ name = "sqlez"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "futures",
  "indoc",
  "libsqlite3-sys",
@@ -14054,7 +14464,7 @@ dependencies = [
  "smol",
  "sqlformat",
  "thread_local",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
 ]
 
@@ -14133,10 +14543,10 @@ checksum = "2b2231b7c3057d5e4ad0156fb3dc807d900806020c5ffa3ee6ff2c8c76fb8520"
 name = "streaming_diff"
 version = "0.1.0"
 dependencies = [
- "ordered-float",
+ "ordered-float 2.10.1",
  "rand 0.9.2",
  "rope",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -14215,7 +14625,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 [[package]]
 name = "sum_tree"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "arrayvec",
  "log",
@@ -14229,7 +14639,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "edit_prediction_types",
  "editor",
  "env_logger 0.11.8",
@@ -14249,7 +14659,7 @@ dependencies = [
  "theme",
  "ui",
  "unicode-segmentation",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -14263,7 +14673,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smol",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -14379,7 +14789,7 @@ version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47846491253e976bdd07d0f9cc24b7daf24720d11309302ccbbc6e6b6e53550a"
 dependencies = [
- "skrifa",
+ "skrifa 0.37.0",
  "yazi",
  "zeno",
 ]
@@ -14717,7 +15127,7 @@ name = "tab_switcher"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "ctor",
  "editor",
  "fuzzy",
@@ -14733,7 +15143,7 @@ dependencies = [
  "smol",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zlog",
 ]
@@ -14802,7 +15212,7 @@ name = "task"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "futures",
  "gpui",
  "hex",
@@ -14816,7 +15226,7 @@ dependencies = [
  "serde_json_lenient",
  "sha2",
  "shellexpand 2.1.2",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zed_actions",
 ]
 
@@ -14825,7 +15235,7 @@ name = "tasks_ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "editor",
  "file_icons",
  "fuzzy",
@@ -14841,7 +15251,7 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-typescript",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
 ]
@@ -14904,7 +15314,7 @@ version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "futures",
  "gpui",
  "itertools 0.14.0",
@@ -14925,7 +15335,7 @@ dependencies = [
  "thiserror 2.0.17",
  "url",
  "urlencoding",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "util_macros",
  "windows 0.61.3",
 ]
@@ -14949,7 +15359,7 @@ dependencies = [
  "async-recursion",
  "breadcrumbs",
  "client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "db",
  "dirs 4.0.0",
  "editor",
@@ -14972,7 +15382,7 @@ dependencies = [
  "terminal",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
 ]
@@ -14983,7 +15393,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clock",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "ctor",
  "gpui",
  "http_client",
@@ -14995,7 +15405,7 @@ dependencies = [
  "rope",
  "smallvec",
  "sum_tree",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "zlog",
 ]
 
@@ -15004,7 +15414,7 @@ name = "theme"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "derive_more 0.99.20",
  "fs",
  "futures",
@@ -15020,7 +15430,7 @@ dependencies = [
  "settings",
  "strum",
  "thiserror 2.0.17",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
 ]
 
@@ -15041,7 +15451,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "gpui",
  "indexmap",
  "log",
@@ -15069,7 +15479,7 @@ dependencies = [
  "telemetry",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
  "zed_actions",
 ]
@@ -15132,7 +15542,7 @@ dependencies = [
  "fax",
  "flate2",
  "half",
- "quick-error",
+ "quick-error 2.0.1",
  "weezl",
  "zune-jpeg",
 ]
@@ -15278,7 +15688,7 @@ dependencies = [
  "chrono",
  "client",
  "cloud_api_types",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "db",
  "edit_prediction_ui",
  "editor",
@@ -15312,7 +15722,7 @@ dependencies = [
  "tree-sitter-md",
  "ui",
  "url",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "windows 0.61.3",
  "workspace",
  "workspace_modes",
@@ -15542,7 +15952,7 @@ dependencies = [
  "picker",
  "project",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -16098,7 +16508,7 @@ dependencies = [
  "strum",
  "theme",
  "ui_macros",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "windows 0.61.3",
 ]
 
@@ -16135,6 +16545,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "unarray"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eaea85b334db583fe3274d12b4cd1880032beab409c0d774be044d4480ab9a94"
+
+[[package]]
 name = "unicase"
 version = "2.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16169,6 +16585,12 @@ name = "unicode-ident"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f63a545481291138910575129486daeaf8ac54aee4387fe7906919f7830c7d9d"
+
+[[package]]
+name = "unicode-linebreak"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b09c83c3c29d37506a3e260c08c03743a6bb66a9cd432c6934ab501a190571f"
 
 [[package]]
 name = "unicode-properties"
@@ -16350,52 +16772,12 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 [[package]]
 name = "util"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c#2e49c2189e8fde24266ada3610b4cf352599f07c"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#58e77244af3b7e860661c1c94893df5fc7c5d40b"
 dependencies = [
  "anyhow",
  "async-fs",
  "async_zip",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
- "command-fds",
- "dirs 4.0.0",
- "dunce",
- "futures",
- "futures-lite 1.13.0",
- "git2",
- "globset",
- "itertools 0.14.0",
- "libc",
- "log",
- "mach2 0.5.0",
- "nix 0.29.0",
- "percent-encoding",
- "rand 0.9.2",
- "regex",
- "rust-embed",
- "schemars",
- "serde",
- "serde_json",
- "serde_json_lenient",
- "shlex",
- "smol",
- "take-until",
- "tempfile",
- "tendril",
- "unicase",
- "url",
- "walkdir",
- "which 6.0.3",
-]
-
-[[package]]
-name = "util"
-version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#4117429d4eefb318fcfa96a3c7eb19d29d3e0724"
-dependencies = [
- "anyhow",
- "async-fs",
- "async_zip",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "command-fds",
  "dirs 4.0.0",
  "dunce",
@@ -16587,6 +16969,15 @@ dependencies = [
  "log",
  "memchr",
  "serde",
+]
+
+[[package]]
+name = "wait-timeout"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09ac3b126d3914f9849036f826e054cbabdc8519970b8998ddaf3b5bd3c65f11"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
@@ -16844,6 +17235,18 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "wasm_thread"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7516db7f32decdadb1c3b8deb1b7d78b9df7606c5cc2f6241737c2ab3a0258e"
+dependencies = [
+ "futures",
+ "js-sys",
+ "wasm-bindgen",
  "web-sys",
 ]
 
@@ -17274,7 +17677,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cloud_llm_client",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "gpui",
  "serde",
 ]
@@ -17329,6 +17732,156 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a751b3277700db47d3e574514de2eced5e54dc8a5436a3bf7a0b248b2cee16f3"
 
 [[package]]
+name = "wgpu"
+version = "28.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9cb534d5ffd109c7d1135f34cdae29e60eab94855a625dcfe1705f8bc7ad79f"
+dependencies = [
+ "arrayvec",
+ "bitflags 2.10.0",
+ "bytemuck",
+ "cfg-if",
+ "cfg_aliases 0.2.1",
+ "document-features",
+ "hashbrown 0.16.1",
+ "js-sys",
+ "log",
+ "naga",
+ "parking_lot",
+ "portable-atomic",
+ "profiling",
+ "raw-window-handle",
+ "smallvec",
+ "static_assertions",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu-core",
+ "wgpu-hal",
+ "wgpu-types",
+]
+
+[[package]]
+name = "wgpu-core"
+version = "28.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d23f4642f53f666adcfd2d3218ab174d1e6681101aef18696b90cbe64d1c10f9"
+dependencies = [
+ "arrayvec",
+ "bit-set",
+ "bit-vec",
+ "bitflags 2.10.0",
+ "bytemuck",
+ "cfg_aliases 0.2.1",
+ "document-features",
+ "hashbrown 0.16.1",
+ "indexmap",
+ "log",
+ "naga",
+ "once_cell",
+ "parking_lot",
+ "portable-atomic",
+ "profiling",
+ "raw-window-handle",
+ "rustc-hash 1.1.0",
+ "smallvec",
+ "thiserror 2.0.17",
+ "wgpu-core-deps-apple",
+ "wgpu-core-deps-emscripten",
+ "wgpu-core-deps-windows-linux-android",
+ "wgpu-hal",
+ "wgpu-types",
+]
+
+[[package]]
+name = "wgpu-core-deps-apple"
+version = "28.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87b7b696b918f337c486bf93142454080a32a37832ba8a31e4f48221890047da"
+dependencies = [
+ "wgpu-hal",
+]
+
+[[package]]
+name = "wgpu-core-deps-emscripten"
+version = "28.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34b251c331f84feac147de3c4aa3aa45112622a95dd7ee1b74384fa0458dbd79"
+dependencies = [
+ "wgpu-hal",
+]
+
+[[package]]
+name = "wgpu-core-deps-windows-linux-android"
+version = "28.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68ca976e72b2c9964eb243e281f6ce7f14a514e409920920dcda12ae40febaae"
+dependencies = [
+ "wgpu-hal",
+]
+
+[[package]]
+name = "wgpu-hal"
+version = "28.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44d6cb474beb218824dcc9e1ce679d973f719262789bfb27407da560cac20eeb"
+dependencies = [
+ "android_system_properties",
+ "arrayvec",
+ "ash",
+ "bit-set",
+ "bitflags 2.10.0",
+ "block",
+ "bytemuck",
+ "cfg-if",
+ "cfg_aliases 0.2.1",
+ "core-graphics-types 0.2.0",
+ "glow",
+ "glutin_wgl_sys",
+ "gpu-allocator",
+ "gpu-descriptor",
+ "hashbrown 0.16.1",
+ "js-sys",
+ "khronos-egl",
+ "libc",
+ "libloading 0.8.9",
+ "log",
+ "metal 0.33.0",
+ "naga",
+ "ndk-sys",
+ "objc",
+ "once_cell",
+ "ordered-float 5.1.0",
+ "parking_lot",
+ "portable-atomic",
+ "portable-atomic-util",
+ "profiling",
+ "range-alloc",
+ "raw-window-handle",
+ "renderdoc-sys",
+ "smallvec",
+ "thiserror 2.0.17",
+ "wasm-bindgen",
+ "web-sys",
+ "wgpu-types",
+ "windows 0.62.2",
+ "windows-core 0.62.2",
+]
+
+[[package]]
+name = "wgpu-types"
+version = "28.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e18308757e594ed2cd27dddbb16a139c42a683819d32a2e0b1b0167552f5840c"
+dependencies = [
+ "bitflags 2.10.0",
+ "bytemuck",
+ "js-sys",
+ "log",
+ "web-sys",
+]
+
+[[package]]
 name = "which"
 version = "4.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -17362,7 +17915,7 @@ dependencies = [
  "settings",
  "theme",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "workspace",
 ]
 
@@ -18526,7 +19079,7 @@ dependencies = [
  "chrono",
  "client",
  "clock",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "component",
  "dap",
  "db",
@@ -18561,7 +19114,7 @@ dependencies = [
  "theme",
  "toast",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "windows 0.61.3",
  "workspace_modes",
@@ -18574,7 +19127,7 @@ name = "workspace_modes"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "db",
  "gpui",
  "schemars",
@@ -18582,7 +19135,7 @@ dependencies = [
  "serde_json",
  "settings",
  "ui",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
 ]
 
 [[package]]
@@ -18593,7 +19146,7 @@ dependencies = [
  "async-lock 2.8.0",
  "chardetng",
  "clock",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "encoding_rs",
  "fs",
  "futures",
@@ -18619,7 +19172,7 @@ dependencies = [
  "sum_tree",
  "text",
  "tracing",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "worktree",
  "zlog",
  "ztracing",
@@ -18654,6 +19207,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea2f10b9bb0928dfb1b42b65e1f9e36f7f54dbdf08457afefb38afcdec4fa2bb"
 
 [[package]]
+name = "x11"
+version = "2.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "502da5464ccd04011667b11c435cb992822c2c0dbde1770c988480d312a0db2e"
+dependencies = [
+ "libc",
+ "pkg-config",
+]
+
+[[package]]
 name = "x_ai"
 version = "0.1.0"
 dependencies = [
@@ -18681,6 +19244,24 @@ dependencies = [
  "libc",
  "rustix 1.1.2",
 ]
+
+[[package]]
+name = "xcb"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee4c580d8205abb0a5cf4eb7e927bd664e425b6c3263f9c5310583da96970cf6"
+dependencies = [
+ "bitflags 1.3.2",
+ "libc",
+ "quick-xml 0.30.0",
+ "x11",
+]
+
+[[package]]
+name = "xml-rs"
+version = "0.8.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f"
 
 [[package]]
 name = "xml5ever"
@@ -18924,7 +19505,7 @@ dependencies = [
  "client",
  "clock",
  "codestral",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "command_palette",
  "component",
  "component_preview",
@@ -19045,7 +19626,7 @@ dependencies = [
  "ui_prompt",
  "url",
  "urlencoding",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
  "watch",
  "web_search",
@@ -19153,6 +19734,8 @@ dependencies = [
  "tao-core-video-sys",
  "windows 0.61.3",
  "windows-capture",
+ "x11",
+ "xcb",
 ]
 
 [[package]]
@@ -19162,7 +19745,7 @@ dependencies = [
  "gpui",
  "schemars",
  "serde",
- "util 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git?rev=2e49c2189e8fde24266ada3610b4cf352599f07c)",
+ "util",
  "uuid",
 ]
 
@@ -19387,7 +19970,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "log",
  "tempfile",
 ]
@@ -19396,7 +19979,7 @@ dependencies = [
 name = "zlog_settings"
 version = "0.1.0"
 dependencies = [
- "collections 0.1.0 (git+https://github.com/Obsydian-HQ/gpui.git)",
+ "collections",
  "gpui",
  "settings",
  "zlog",
