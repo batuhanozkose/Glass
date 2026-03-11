@@ -33,7 +33,6 @@ use std::{
     any::Any,
     cmp, fmt, mem,
     num::NonZeroUsize,
-    ops::ControlFlow,
     path::PathBuf,
     rc::Rc,
     sync::{
@@ -381,9 +380,6 @@ pub struct Pane {
     project: WeakEntity<Project>,
     pub drag_split_direction: Option<SplitDirection>,
     can_drop_predicate: Option<Arc<dyn Fn(&dyn Any, &mut Window, &mut App) -> bool>>,
-    custom_drop_handle: Option<
-        Arc<dyn Fn(&mut Pane, &dyn Any, &mut Window, &mut Context<Pane>) -> ControlFlow<(), ()>>,
-    >,
     can_split_predicate:
         Option<Arc<dyn Fn(&mut Self, &dyn Any, &mut Window, &mut Context<Self>) -> bool>>,
     can_toggle_zoom: bool,
@@ -566,7 +562,6 @@ impl Pane {
             workspace,
             project: project.downgrade(),
             can_drop_predicate,
-            custom_drop_handle: None,
             can_split_predicate: None,
             can_toggle_zoom: true,
             should_display_tab_bar: Rc::new(|_, cx| TabBarSettings::get_global(cx).show),
@@ -842,15 +837,6 @@ impl Pane {
             ) -> (Option<AnyElement>, Option<AnyElement>),
     {
         self.render_tab_bar_buttons = Rc::new(render);
-        cx.notify();
-    }
-
-    pub fn set_custom_drop_handle<F>(&mut self, cx: &mut Context<Self>, handle: F)
-    where
-        F: 'static
-            + Fn(&mut Pane, &dyn Any, &mut Window, &mut Context<Pane>) -> ControlFlow<(), ()>,
-    {
-        self.custom_drop_handle = Some(Arc::new(handle));
         cx.notify();
     }
 
@@ -2882,7 +2868,7 @@ impl Pane {
             .on_drop(
                 cx.listener(move |this, dragged_tab: &DraggedTab, window, cx| {
                     this.drag_split_direction = None;
-                    this.handle_tab_drop(dragged_tab, ix, window, cx)
+                    this.handle_tab_drop(dragged_tab, ix, false, window, cx)
                 }),
             )
             .on_drop(
@@ -3502,7 +3488,7 @@ impl Pane {
             .on_drop(
                 cx.listener(move |this, dragged_tab: &DraggedTab, window, cx| {
                     this.drag_split_direction = None;
-                    this.handle_tab_drop(dragged_tab, this.items.len(), window, cx)
+                    this.handle_tab_drop(dragged_tab, this.items.len(), false, window, cx)
                 }),
             )
             .on_drop(
@@ -3643,14 +3629,18 @@ impl Pane {
         &mut self,
         dragged_tab: &DraggedTab,
         ix: usize,
+        is_pane_target: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(custom_drop_handle) = self.custom_drop_handle.clone()
-            && let ControlFlow::Break(()) = custom_drop_handle(self, dragged_tab, window, cx)
+        if is_pane_target
+            && ix == self.active_item_index
+            && let Some(active_item) = self.active_item()
+            && active_item.handle_drop(self, dragged_tab, window, cx)
         {
             return;
         }
+
         let mut to_pane = cx.entity();
         let split_direction = self.drag_split_direction;
         let item_id = dragged_tab.item.item_id();
@@ -3743,7 +3733,7 @@ impl Pane {
         let item_id = dragged_tab.item.item_id();
         let pinned_count = self.pinned_tab_count;
 
-        self.handle_tab_drop(dragged_tab, pinned_count, window, cx);
+        self.handle_tab_drop(dragged_tab, pinned_count, false, window, cx);
 
         let to_pane = cx.entity();
 
@@ -3795,11 +3785,12 @@ impl Pane {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(custom_drop_handle) = self.custom_drop_handle.clone()
-            && let ControlFlow::Break(()) = custom_drop_handle(self, dragged_selection, window, cx)
+        if let Some(active_item) = self.active_item()
+            && active_item.handle_drop(self, dragged_selection, window, cx)
         {
             return;
         }
+
         self.handle_project_entry_drop(
             &dragged_selection.active_selection.entry_id,
             dragged_onto,
@@ -3815,11 +3806,12 @@ impl Pane {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(custom_drop_handle) = self.custom_drop_handle.clone()
-            && let ControlFlow::Break(()) = custom_drop_handle(self, project_entry_id, window, cx)
+        if let Some(active_item) = self.active_item()
+            && active_item.handle_drop(self, project_entry_id, window, cx)
         {
             return;
         }
+
         let mut to_pane = cx.entity();
         let split_direction = self.drag_split_direction;
         let project_entry_id = *project_entry_id;
@@ -3891,11 +3883,12 @@ impl Pane {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(custom_drop_handle) = self.custom_drop_handle.clone()
-            && let ControlFlow::Break(()) = custom_drop_handle(self, paths, window, cx)
+        if let Some(active_item) = self.active_item()
+            && active_item.handle_drop(self, paths, window, cx)
         {
             return;
         }
+
         let mut to_pane = cx.entity();
         let mut split_direction = self.drag_split_direction;
         let paths = paths.paths().to_vec();
@@ -4372,6 +4365,7 @@ impl Render for Pane {
                                 this.handle_tab_drop(
                                     dragged_tab,
                                     this.active_item_index(),
+                                    true,
                                     window,
                                     cx,
                                 )
@@ -4774,7 +4768,7 @@ impl Render for DraggedTab {
 
 #[cfg(test)]
 mod tests {
-    use std::{iter::zip, num::NonZero};
+    use std::{cell::Cell, iter::zip, num::NonZero};
 
     use super::*;
     use crate::{
@@ -4786,6 +4780,65 @@ mod tests {
     use settings::SettingsStore;
     use theme::LoadThemes;
     use util::TryFutureExt;
+
+    // drop_call_count is a Cell here because `handle_drop` takes &self, not &mut self.
+    struct CustomDropHandlingItem {
+        focus_handle: gpui::FocusHandle,
+        drop_call_count: Cell<usize>,
+    }
+
+    impl CustomDropHandlingItem {
+        fn new(cx: &mut Context<Self>) -> Self {
+            Self {
+                focus_handle: cx.focus_handle(),
+                drop_call_count: Cell::new(0),
+            }
+        }
+
+        fn drop_call_count(&self) -> usize {
+            self.drop_call_count.get()
+        }
+    }
+
+    impl EventEmitter<()> for CustomDropHandlingItem {}
+
+    impl Focusable for CustomDropHandlingItem {
+        fn focus_handle(&self, _cx: &App) -> gpui::FocusHandle {
+            self.focus_handle.clone()
+        }
+    }
+
+    impl Render for CustomDropHandlingItem {
+        fn render(
+            &mut self,
+            _window: &mut Window,
+            _cx: &mut Context<Self>,
+        ) -> impl gpui::IntoElement {
+            gpui::Empty
+        }
+    }
+
+    impl Item for CustomDropHandlingItem {
+        type Event = ();
+
+        fn tab_content_text(&self, _detail: usize, _cx: &App) -> gpui::SharedString {
+            "custom_drop_handling_item".into()
+        }
+
+        fn handle_drop(
+            &self,
+            _active_pane: &Pane,
+            dropped: &dyn std::any::Any,
+            _window: &mut Window,
+            _cx: &mut App,
+        ) -> bool {
+            let is_dragged_tab = dropped.downcast_ref::<DraggedTab>().is_some();
+            if is_dragged_tab {
+                self.drop_call_count.set(self.drop_call_count.get() + 1);
+            }
+            is_dragged_tab
+        }
+    }
 
     #[gpui::test]
     async fn test_add_item_capped_to_max_tabs(cx: &mut TestAppContext) {
@@ -5613,6 +5666,83 @@ mod tests {
     }
 
     #[gpui::test]
+    async fn test_handle_tab_drop_respects_is_pane_target(cx: &mut TestAppContext) {
+        init_test(cx);
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, None, cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
+        let source_pane = workspace.read_with(cx, |workspace, _| workspace.active_pane().clone());
+
+        let item_a = add_labeled_item(&source_pane, "A", false, cx);
+        let item_b = add_labeled_item(&source_pane, "B", false, cx);
+
+        let target_pane = workspace.update_in(cx, |workspace, window, cx| {
+            workspace.split_pane(source_pane.clone(), SplitDirection::Right, window, cx)
+        });
+
+        let custom_item = target_pane.update_in(cx, |pane, window, cx| {
+            let custom_item = Box::new(cx.new(CustomDropHandlingItem::new));
+            pane.add_item(custom_item.clone(), true, true, None, window, cx);
+            custom_item
+        });
+
+        let moved_item_id = item_a.item_id();
+        let other_item_id = item_b.item_id();
+        let custom_item_id = custom_item.item_id();
+
+        let pane_item_ids = |pane: &Entity<Pane>, cx: &mut VisualTestContext| {
+            pane.read_with(cx, |pane, _| {
+                pane.items().map(|item| item.item_id()).collect::<Vec<_>>()
+            })
+        };
+
+        let source_before_item_ids = pane_item_ids(&source_pane, cx);
+        assert_eq!(source_before_item_ids, vec![moved_item_id, other_item_id]);
+
+        let target_before_item_ids = pane_item_ids(&target_pane, cx);
+        assert_eq!(target_before_item_ids, vec![custom_item_id]);
+
+        let dragged_tab = DraggedTab {
+            pane: source_pane.clone(),
+            item: item_a.boxed_clone(),
+            ix: 0,
+            detail: 0,
+            is_active: true,
+        };
+
+        // Dropping item_a onto the target pane itself means the
+        // custom item handles the drop and no tab move should occur
+        target_pane.update_in(cx, |pane, window, cx| {
+            pane.handle_tab_drop(&dragged_tab, pane.active_item_index(), true, window, cx);
+        });
+        cx.run_until_parked();
+
+        assert_eq!(
+            custom_item.read_with(cx, |item, _| item.drop_call_count()),
+            1
+        );
+        assert_eq!(pane_item_ids(&source_pane, cx), source_before_item_ids);
+        assert_eq!(pane_item_ids(&target_pane, cx), target_before_item_ids);
+
+        // Dropping item_a onto the tab target means the custom handler
+        // should be skipped and the pane's default tab drop behavior should run.
+        target_pane.update_in(cx, |pane, window, cx| {
+            pane.handle_tab_drop(&dragged_tab, pane.active_item_index(), false, window, cx);
+        });
+        cx.run_until_parked();
+
+        assert_eq!(
+            custom_item.read_with(cx, |item, _| item.drop_call_count()),
+            1
+        );
+        assert_eq!(pane_item_ids(&source_pane, cx), vec![other_item_id]);
+
+        let target_item_ids = pane_item_ids(&target_pane, cx);
+        assert_eq!(target_item_ids, vec![moved_item_id, custom_item_id]);
+    }
+
+    #[gpui::test]
     async fn test_drag_unpinned_tab_to_split_creates_pane_with_unpinned_tab(
         cx: &mut TestAppContext,
     ) {
@@ -5647,7 +5777,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 0, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 0, true, window, cx);
         });
 
         // A should be moved to new pane. B should remain pinned, A should not be pinned
@@ -5696,7 +5826,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 0, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 0, true, window, cx);
         });
 
         // A should be moved to new pane. Both A and B should still be pinned
@@ -5746,7 +5876,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 0, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 0, false, window, cx);
         });
 
         // A should stay pinned
@@ -5794,7 +5924,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 1, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 1, false, window, cx);
         });
 
         // A should become pinned
@@ -5838,7 +5968,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 0, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 0, false, window, cx);
         });
 
         // A should stay pinned
@@ -5900,7 +6030,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 0, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 0, false, window, cx);
         });
 
         // E (unpinned) should be closed, leaving 3 pinned items
@@ -5935,7 +6065,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 1, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 1, false, window, cx);
         });
 
         // A should still be pinned and active
@@ -5975,7 +6105,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 2, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 2, false, window, cx);
         });
 
         // A stays pinned
@@ -6012,7 +6142,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 1, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 1, false, window, cx);
         });
 
         // Neither are pinned
@@ -6049,7 +6179,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 2, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 2, false, window, cx);
         });
 
         // A becomes unpinned
@@ -6086,7 +6216,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 0, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 0, false, window, cx);
         });
 
         // A becomes unpinned
@@ -6122,7 +6252,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 1, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 1, false, window, cx);
         });
 
         // A stays pinned, B and C remain unpinned
@@ -6163,7 +6293,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 0, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 0, false, window, cx);
         });
 
         // A should become pinned since it was dropped in the pinned region
@@ -6205,7 +6335,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 1, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 1, true, window, cx);
         });
 
         // A should remain unpinned since it was dropped outside the pinned region
@@ -6252,7 +6382,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 1, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 1, false, window, cx);
         });
 
         // A should be after B and all are pinned
@@ -6267,7 +6397,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 2, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 2, false, window, cx);
         });
 
         // A should be after C and all are pinned
@@ -6282,7 +6412,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 1, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 1, false, window, cx);
         });
 
         // A should be before C and all are pinned
@@ -6297,7 +6427,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 0, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 0, false, window, cx);
         });
 
         // A should be before B and all are pinned
@@ -6329,7 +6459,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 2, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 2, false, window, cx);
         });
 
         // A should be at the end
@@ -6361,7 +6491,7 @@ mod tests {
                 detail: 0,
                 is_active: true,
             };
-            pane.handle_tab_drop(&dragged_tab, 0, window, cx);
+            pane.handle_tab_drop(&dragged_tab, 0, false, window, cx);
         });
 
         // C should be at the beginning

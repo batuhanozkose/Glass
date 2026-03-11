@@ -586,6 +586,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
+name = "annotate-snippets"
+version = "0.12.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c86cd1c51b95d71dde52bca69ed225008f6ff4c8cc825b08042aa1ef823e1980"
+dependencies = [
+ "anstyle",
+ "memchr",
+ "unicode-width",
+]
+
+[[package]]
 name = "anstream"
 version = "0.6.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9134,6 +9145,7 @@ dependencies = [
  "language",
  "linkify",
  "log",
+ "markdown",
  "markup5ever_rcdom",
  "mermaid-rs-renderer",
  "pretty_assertions",
@@ -11325,14 +11337,12 @@ name = "picker"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "ctor",
  "editor",
- "env_logger 0.11.8",
  "gpui",
  "menu",
  "schemars",
  "serde",
- "serde_json",
+ "settings",
  "theme",
  "ui",
  "ui_input",
@@ -14194,23 +14204,26 @@ name = "sidebar"
 version = "0.1.0"
 dependencies = [
  "acp_thread",
+ "agent",
+ "agent-client-protocol",
  "agent_ui",
+ "assistant_text_thread",
  "chrono",
  "editor",
  "feature_flags",
  "fs",
- "fuzzy",
  "gpui",
- "log",
- "picker",
+ "language_model",
+ "menu",
  "project",
  "recent_projects",
+ "serde_json",
  "settings",
  "theme",
  "ui",
- "ui_input",
  "util",
  "workspace",
+ "zed_actions",
 ]
 
 [[package]]
@@ -19293,6 +19306,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "annotate-snippets",
  "anyhow",
  "backtrace",
  "cargo_metadata",
@@ -19301,8 +19315,12 @@ dependencies = [
  "gh-workflow",
  "indexmap",
  "indoc",
+ "itertools 0.14.0",
+ "regex",
  "serde",
  "serde_json",
+ "serde_yaml",
+ "strum",
  "toml 0.8.23",
  "toml_edit 0.22.27",
 ]
