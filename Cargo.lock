@@ -6736,7 +6736,6 @@ dependencies = [
  "getrandom 0.3.4",
  "gpui_macros",
  "gpui_util",
- "gpui_web",
  "http_client",
  "image",
  "inventory",
