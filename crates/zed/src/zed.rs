@@ -69,7 +69,6 @@ use settings::{
     initial_local_debug_tasks_content, initial_project_settings_content, initial_tasks_content,
     update_settings_file,
 };
-use std::time::Duration;
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},

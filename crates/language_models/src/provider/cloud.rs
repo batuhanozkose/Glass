@@ -46,7 +46,6 @@ use std::task::Poll;
 use std::time::Duration;
 use thiserror::Error;
 use ui::prelude::*;
-use util::{ResultExt as _, maybe};
 
 use crate::provider::anthropic::{
     AnthropicEventMapper, count_anthropic_tokens_with_tiktoken, into_anthropic,

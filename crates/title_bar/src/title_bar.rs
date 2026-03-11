@@ -203,7 +203,7 @@ impl Render for TitleBar {
 impl TitleBar {
     fn render_gpui_title_bar(
         &mut self,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let title_bar_settings = *TitleBarSettings::get_global(cx);
@@ -828,7 +828,7 @@ impl TitleBar {
 
     pub fn render_project_name(
         &self,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let workspace = self.workspace.clone();
