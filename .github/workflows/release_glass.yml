@@ -128,19 +128,19 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.local/share/cef
-          key: cef-headers-${{ matrix.cef_platform }}-v145
+          key: cef-stock-${{ matrix.cef_platform }}-v145.0.28
 
-      - name: Download CEF headers for build
+      - name: Download stock CEF runtime for build and bundle
         run: |
           CEF_PATH="$HOME/.local/share/cef"
           mkdir -p "$CEF_PATH"
           echo "CEF_PATH=$CEF_PATH" >> $GITHUB_ENV
 
           if [ -f "$CEF_PATH/include/cef_version.h" ]; then
-            echo "CEF headers found in cache"
+            echo "CEF runtime found in cache"
           else
-            echo "Downloading stock CEF 145 headers from Spotify CDN..."
-            CEF_VERSION="145.0.23"
+            echo "Downloading stock CEF 145 runtime from Spotify CDN..."
+            CEF_VERSION="145.0.28"
             CEF_CDN="https://cef-builds.spotifycdn.com"
 
             INDEX_JSON=$(curl -sL "$CEF_CDN/index.json")
@@ -181,30 +181,7 @@ jobs:
             rm -rf /tmp/cef.tar.bz2 "/tmp/$EXTRACTED_DIR"
           fi
 
-          echo "CEF headers ready at: $CEF_PATH"
-
-      - name: Download custom CEF framework with proprietary codecs
-        run: |
-          echo "Downloading custom CEF 146 build with proprietary codecs..."
-          CEF_CUSTOM_PATH="/tmp/cef-custom"
-          mkdir -p "$CEF_CUSTOM_PATH"
-
-          # Download from Glass-HQ/cef-builds release
-          gh release download v146.0.0-proprietary \
-            --repo Glass-HQ/cef-builds \
-            --pattern "cef-146-macosarm64-proprietary-codecs.tar.gz" \
-            --dir /tmp
-
-          echo "Extracting custom CEF framework..."
-          tar -xzf /tmp/cef-146-macosarm64-proprietary-codecs.tar.gz -C "$CEF_CUSTOM_PATH"
-
-          echo "CEF_CUSTOM_PATH=$CEF_CUSTOM_PATH" >> $GITHUB_ENV
-
-          echo "Custom CEF framework contents:"
-          ls "$CEF_CUSTOM_PATH/" | head -20
-          echo "... ($(ls "$CEF_CUSTOM_PATH/"*.dylib 2>/dev/null | wc -l) component dylibs)"
-        env:
-          GH_TOKEN: ${{ github.token }}
+          echo "CEF runtime ready at: $CEF_PATH"
 
       - name: Build Glass
         run: |
@@ -490,18 +467,23 @@ jobs:
           cp target/${{ matrix.target }}/release/cli "$APP_PATH/Contents/MacOS/cli"
           cp /tmp/git-download/bin/git "$APP_PATH/Contents/MacOS/git"
 
-          # Copy custom CEF framework (with proprietary codecs)
-          echo "Copying custom CEF 146 framework with proprietary codecs..."
-          cp -R "$CEF_CUSTOM_PATH/Chromium Embedded Framework.framework" "$APP_PATH/Contents/Frameworks/"
+          # Copy the stock CEF framework that matches the browser crate.
+          echo "Copying stock CEF 145 framework..."
+          cp -R "$CEF_PATH/Chromium Embedded Framework.framework" "$APP_PATH/Contents/Frameworks/"
 
-          # Copy component dylibs (CEF 146 component build produces ~514 separate dylibs)
-          echo "Copying CEF component dylibs..."
-          DYLIB_COUNT=0
-          for dylib in "$CEF_CUSTOM_PATH"/*.dylib; do
-            cp "$dylib" "$APP_PATH/Contents/Frameworks/"
-            DYLIB_COUNT=$((DYLIB_COUNT + 1))
-          done
-          echo "Copied $DYLIB_COUNT component dylibs to Frameworks/"
+          # Stock minimal CEF exports don't ship top-level component dylibs,
+          # but keep support for custom layouts so release packaging stays robust.
+          CEF_COMPONENT_DYLIBS=()
+          while IFS= read -r dylib; do
+            CEF_COMPONENT_DYLIBS+=("$dylib")
+          done < <(find "$CEF_PATH" -maxdepth 1 -type f -name "*.dylib" | sort)
+
+          DYLIB_COUNT="${#CEF_COMPONENT_DYLIBS[@]}"
+          if [ "$DYLIB_COUNT" -gt 0 ]; then
+            echo "Copying $DYLIB_COUNT CEF component dylibs..."
+            cp "${CEF_COMPONENT_DYLIBS[@]}" "$APP_PATH/Contents/Frameworks/"
+          fi
+          echo "Copied $DYLIB_COUNT CEF component dylibs to Frameworks/"
 
           # Create CEF helper app bundles
           APP_NAME="Glass"
