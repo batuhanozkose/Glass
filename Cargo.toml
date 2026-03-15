@@ -254,7 +254,7 @@ clock = { path = "crates/clock" }
 cloud_api_client = { path = "crates/cloud_api_client" }
 cloud_api_types = { path = "crates/cloud_api_types" }
 cloud_llm_client = { path = "crates/cloud_llm_client" }
-collections = { git = "https://github.com/Obsydian-HQ/gpui.git", version = "0.1.0" }
+collections = { git = "https://github.com/Glass-HQ/gpui.git", version = "0.1.0" }
 command_palette = { path = "crates/command_palette" }
 command_palette_hooks = { path = "crates/command_palette_hooks" }
 component = { path = "crates/component" }
@@ -274,7 +274,7 @@ debug_adapter_extension = { path = "crates/debug_adapter_extension" }
 debugger_tools = { path = "crates/debugger_tools" }
 debugger_ui = { path = "crates/debugger_ui" }
 deepseek = { path = "crates/deepseek" }
-derive_refineable = { git = "https://github.com/Obsydian-HQ/gpui.git" }
+derive_refineable = { git = "https://github.com/Glass-HQ/gpui.git" }
 dev_container = { path = "crates/dev_container" }
 diagnostics = { path = "crates/diagnostics" }
 editor = { path = "crates/editor" }
@@ -296,14 +296,14 @@ git_hosting_providers = { path = "crates/git_hosting_providers" }
 git_ui = { path = "crates/git_ui" }
 go_to_line = { path = "crates/go_to_line" }
 google_ai = { path = "crates/google_ai" }
-gpui = { git = "https://github.com/Obsydian-HQ/gpui.git", default-features = false }
-gpui_macros = { git = "https://github.com/Obsydian-HQ/gpui.git" }
-gpui_platform = { git = "https://github.com/Obsydian-HQ/gpui.git", default-features = false, features = ["font-kit"] }
-gpui_tokio = { git = "https://github.com/Obsydian-HQ/gpui.git" }
-gpui_util = { git = "https://github.com/Obsydian-HQ/gpui.git" }
+gpui = { git = "https://github.com/Glass-HQ/gpui.git", default-features = false }
+gpui_macros = { git = "https://github.com/Glass-HQ/gpui.git" }
+gpui_platform = { git = "https://github.com/Glass-HQ/gpui.git", default-features = false, features = ["font-kit"] }
+gpui_tokio = { git = "https://github.com/Glass-HQ/gpui.git" }
+gpui_util = { git = "https://github.com/Glass-HQ/gpui.git" }
 html_to_markdown = { path = "crates/html_to_markdown" }
-http_client = { git = "https://github.com/Obsydian-HQ/gpui.git" }
-http_client_tls = { git = "https://github.com/Obsydian-HQ/gpui.git" }
+http_client = { git = "https://github.com/Glass-HQ/gpui.git" }
+http_client_tls = { git = "https://github.com/Glass-HQ/gpui.git" }
 icons = { path = "crates/icons" }
 image_viewer = { path = "crates/image_viewer" }
 edit_prediction_types = { path = "crates/edit_prediction_types" }
@@ -327,7 +327,7 @@ lsp = { path = "crates/lsp" }
 markdown = { path = "crates/markdown" }
 markdown_preview = { path = "crates/markdown_preview" }
 svg_preview = { path = "crates/svg_preview" }
-media = { git = "https://github.com/Obsydian-HQ/gpui.git" }
+media = { git = "https://github.com/Glass-HQ/gpui.git" }
 menu = { path = "crates/menu" }
 mermaid-rs-renderer = { git = "https://github.com/zed-industries/mermaid-rs-renderer", rev = "374db9ead5426697c6c2111151d9f246899bc638", default-features = false }
 migrator = { path = "crates/migrator" }
@@ -356,7 +356,7 @@ project_panel = { path = "crates/project_panel" }
 prompt_store = { path = "crates/prompt_store" }
 proto = { path = "crates/proto" }
 recent_projects = { path = "crates/recent_projects" }
-refineable = { git = "https://github.com/Obsydian-HQ/gpui.git" }
+refineable = { git = "https://github.com/Glass-HQ/gpui.git" }
 release_channel = { path = "crates/release_channel" }
 remote = { path = "crates/remote" }
 remote_connection = { path = "crates/remote_connection" }
@@ -367,7 +367,7 @@ rodio = { git = "https://github.com/RustAudio/rodio", rev = "e50e726ddd0292f6ef9
 rope = { path = "crates/rope" }
 rpc = { path = "crates/rpc" }
 rules_library = { path = "crates/rules_library" }
-scheduler = { git = "https://github.com/Obsydian-HQ/gpui.git" }
+scheduler = { git = "https://github.com/Glass-HQ/gpui.git" }
 search = { path = "crates/search" }
 session = { path = "crates/session" }
 settings = { path = "crates/settings" }
@@ -382,7 +382,7 @@ snippets_ui = { path = "crates/snippets_ui" }
 sqlez = { path = "crates/sqlez" }
 sqlez_macros = { path = "crates/sqlez_macros" }
 streaming_diff = { path = "crates/streaming_diff" }
-sum_tree = { git = "https://github.com/Obsydian-HQ/gpui.git" }
+sum_tree = { git = "https://github.com/Glass-HQ/gpui.git" }
 codestral = { path = "crates/codestral" }
 system_specs = { path = "crates/system_specs" }
 tab_switcher = { path = "crates/tab_switcher" }
@@ -405,7 +405,7 @@ ui = { path = "crates/ui" }
 ui_input = { path = "crates/ui_input" }
 ui_macros = { path = "crates/ui_macros" }
 ui_prompt = { path = "crates/ui_prompt" }
-util = { git = "https://github.com/Obsydian-HQ/gpui.git" }
+util = { git = "https://github.com/Glass-HQ/gpui.git" }
 util_macros = { path = "crates/util_macros" }
 vercel = { path = "crates/vercel" }
 which_key = { path = "crates/which_key" }
@@ -796,23 +796,23 @@ notify-types = { git = "https://github.com/zed-industries/notify.git", rev = "ce
 windows-capture = { git = "https://github.com/zed-industries/windows-capture.git", rev = "f0d6c1b6691db75461b732f6d5ff56eed002eeb9" }
 calloop = { git = "https://github.com/zed-industries/calloop" }
 
-[patch."https://github.com/Obsydian-HQ/gpui.git"]
-collections = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/collections" }
-derive_refineable = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/refineable/derive_refineable" }
-gpui = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/gpui" }
-gpui_macos = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/gpui_macos" }
-gpui_macros = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/gpui_macros" }
-gpui_metal = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/gpui_metal" }
-gpui_platform = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/gpui_platform" }
-gpui_tokio = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/gpui_tokio" }
-gpui_util = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/gpui_util" }
-http_client = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/http_client" }
-http_client_tls = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/http_client_tls" }
-media = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/media" }
-refineable = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/refineable" }
-scheduler = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/scheduler" }
-sum_tree = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/sum_tree" }
-util = { path = "/Users/naaiyy/Developer/Obsydian-HQ/gpui/crates/util" }
+[patch."https://github.com/Glass-HQ/gpui.git"]
+collections = { path = "../gpui/crates/collections" }
+derive_refineable = { path = "../gpui/crates/refineable/derive_refineable" }
+gpui = { path = "../gpui/crates/gpui" }
+gpui_macos = { path = "../gpui/crates/gpui_macos" }
+gpui_macros = { path = "../gpui/crates/gpui_macros" }
+gpui_metal = { path = "../gpui/crates/gpui_metal" }
+gpui_platform = { path = "../gpui/crates/gpui_platform" }
+gpui_tokio = { path = "../gpui/crates/gpui_tokio" }
+gpui_util = { path = "../gpui/crates/gpui_util" }
+http_client = { path = "../gpui/crates/http_client" }
+http_client_tls = { path = "../gpui/crates/http_client_tls" }
+media = { path = "../gpui/crates/media" }
+refineable = { path = "../gpui/crates/refineable" }
+scheduler = { path = "../gpui/crates/scheduler" }
+sum_tree = { path = "../gpui/crates/sum_tree" }
+util = { path = "../gpui/crates/util" }
 
 [profile.dev]
 split-debuginfo = "unpacked"

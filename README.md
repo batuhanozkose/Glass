@@ -19,7 +19,7 @@ For developers, everything is connected. Build a web app and test it in the same
 
 ### GPUI
 
-Zed's UI framework, [GPUI](https://github.com/zed-industries/zed/tree/main/crates/gpui), lives in the same repository as Zed. We separated it into its own standalone repository at **[Obsydian-HQ/gpui](https://github.com/Obsydian-HQ/gpui)** and extended it with native iOS and macOS components, making it a framework that multiple apps can build on. We are also bringing iOS support to GPUI so that apps built with it can run everywhere.
+Zed's UI framework, [GPUI](https://github.com/zed-industries/zed/tree/main/crates/gpui), lives in the same repository as Zed. We separated it into its own standalone repository at **[Glass-HQ/gpui](https://github.com/Glass-HQ/gpui)** and extended it with native iOS and macOS components, making it a framework that multiple apps can build on. We are also bringing iOS support to GPUI so that apps built with it can run everywhere.
 
 ---
 

@@ -96,7 +96,7 @@ Although there are few hard and fast rules, typically we don't merge:
 
 Glass is built on top of Zed's crate architecture. Here are the crates you're most likely to interact with:
 
-- [`gpui`](/crates/gpui) is a GPU-accelerated UI framework which provides all of the building blocks for Glass. We maintain a [standalone fork](https://github.com/Obsydian-HQ/gpui) with native iOS/macOS component extensions. **We recommend familiarizing yourself with the root level GPUI documentation.**
+- [`gpui`](/crates/gpui) is a GPU-accelerated UI framework which provides all of the building blocks for Glass. We maintain a [standalone fork](https://github.com/Glass-HQ/gpui) with native iOS/macOS component extensions. **We recommend familiarizing yourself with the root level GPUI documentation.**
 - [`editor`](/crates/editor) contains the core `Editor` type that drives both the code editor and all various input fields. It also handles a display layer for LSP features such as Inlay Hints or code completions.
 - [`project`](/crates/project) manages files and navigation within the filetree. It is also the app's side of communication with LSP.
 - [`workspace`](/crates/workspace) handles local state serialization and groups projects together.

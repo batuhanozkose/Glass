@@ -44,7 +44,7 @@ fn gpui_workspace_root() -> Result<PathBuf> {
 
     let default_root = std::env::current_dir()
         .context("failed to read current directory")?
-        .join("../../Obsydian-HQ/gpui");
+        .join("../gpui");
     if default_root.join("Cargo.toml").is_file()
         && default_root.join("crates/gpui/examples").is_dir()
     {
