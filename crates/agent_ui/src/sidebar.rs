@@ -1469,93 +1469,6 @@ impl Sidebar {
         self.update_entries(cx);
     }
 
-    fn active_workspace(&self, cx: &App) -> Option<Entity<Workspace>> {
-        let multi_workspace = self.multi_workspace.upgrade()?;
-        let multi_workspace = multi_workspace.read(cx);
-        multi_workspace
-            .workspaces()
-            .get(multi_workspace.active_workspace_index())
-            .cloned()
-    }
-
-    fn workspace_for_path_list(&self, path_list: &PathList, cx: &App) -> Option<Entity<Workspace>> {
-        let multi_workspace = self.multi_workspace.upgrade()?;
-        multi_workspace
-            .read(cx)
-            .workspaces()
-            .iter()
-            .find(|workspace| workspace_path_list(workspace, cx) == *path_list)
-            .cloned()
-    }
-
-    fn workspace_containing_path(&self, path: &Path, cx: &App) -> Option<Entity<Workspace>> {
-        let multi_workspace = self.multi_workspace.upgrade()?;
-        multi_workspace
-            .read(cx)
-            .workspaces()
-            .iter()
-            .find(|workspace| {
-                workspace.read(cx).worktrees(cx).any(|worktree| {
-                    let worktree = worktree.read(cx);
-                    worktree.is_visible() && path.starts_with(worktree.abs_path().as_ref())
-                })
-            })
-            .cloned()
-    }
-
-    fn archived_thread_path_list(&self, session_id: &acp::SessionId, cx: &App) -> Option<PathList> {
-        let thread_store = ThreadStore::try_global(cx)?;
-        let path_list = thread_store
-            .read(cx)
-            .thread_from_session_id(session_id)?
-            .folder_paths
-            .clone();
-        (!path_list.is_empty()).then_some(path_list)
-    }
-
-    fn open_archived_thread(
-        &mut self,
-        session_info: acp_thread::AgentSessionInfo,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.show_thread_list(window, cx);
-
-        if let Some(path_list) = self.archived_thread_path_list(&session_info.session_id, cx) {
-            if let Some(workspace) = self.workspace_for_path_list(&path_list, cx) {
-                self.activate_thread(Agent::NativeAgent, session_info, &workspace, window, cx);
-            } else {
-                self.open_workspace_and_activate_thread(
-                    Agent::NativeAgent,
-                    session_info,
-                    path_list,
-                    window,
-                    cx,
-                );
-            }
-            return;
-        }
-
-        if let Some(cwd) = session_info.cwd.clone() {
-            if let Some(workspace) = self.workspace_containing_path(&cwd, cx) {
-                self.activate_thread(Agent::NativeAgent, session_info, &workspace, window, cx);
-            } else {
-                self.open_workspace_and_activate_thread(
-                    Agent::NativeAgent,
-                    session_info,
-                    PathList::new(std::slice::from_ref(&cwd)),
-                    window,
-                    cx,
-                );
-            }
-            return;
-        }
-
-        if let Some(workspace) = self.active_workspace(cx) {
-            self.activate_thread(Agent::NativeAgent, session_info, &workspace, window, cx);
-        }
-    }
-
     fn open_workspace_and_activate_thread(
         &mut self,
         agent: Agent,
@@ -4135,7 +4048,7 @@ mod tests {
 
         sidebar.update_in(cx, |sidebar, window, cx| {
             sidebar.show_archive(window, cx);
-            sidebar.open_archived_thread(session_info, window, cx);
+            sidebar.activate_archived_thread(Agent::NativeAgent, session_info, window, cx);
         });
         cx.run_until_parked();
 

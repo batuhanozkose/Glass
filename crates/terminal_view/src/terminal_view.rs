@@ -8,10 +8,10 @@ mod terminal_slash_command;
 use assistant_slash_command::SlashCommandRegistry;
 use editor::{Editor, EditorSettings, actions::SelectAll, blink_manager::BlinkManager};
 use gpui::{
-    Action, AnyElement, App, ClipboardEntry, DismissEvent, Entity, EventEmitter, ExternalPaths,
-    FocusHandle, Focusable, Font, KeyContext, KeyDownEvent, Keystroke, MouseButton, MouseDownEvent,
-    Pixels, Point, Render, ScrollWheelEvent, Styled, Subscription, Task, WeakEntity, actions,
-    anchored, deferred, div,
+    Action, AnyElement, App, ClipboardEntry, Entity, EventEmitter, ExternalPaths, FocusHandle,
+    Focusable, Font, KeyContext, KeyDownEvent, Keystroke, MouseButton, MouseDownEvent, Pixels,
+    Point, Render, ScrollWheelEvent, Styled, Subscription, Task, WeakEntity, actions, anchored,
+    deferred, div,
 };
 use itertools::Itertools;
 use menu;
@@ -604,7 +604,7 @@ impl TerminalView {
             let subscription = cx.subscribe_in(
                 &context_menu,
                 window,
-                |this, _, _: &DismissEvent, window, cx| {
+                |this, _, _: &gpui::DismissEvent, window, cx| {
                     if this.context_menu.as_ref().is_some_and(|context_menu| {
                         context_menu.0.focus_handle(cx).contains_focused(window, cx)
                     }) {
