@@ -20084,13 +20084,3 @@ dependencies = [
  "syn 2.0.117",
  "winnow",
 ]
-
-[[patch.unused]]
-name = "libwebrtc"
-version = "0.3.26"
-source = "git+https://github.com/zed-industries/livekit-rust-sdks?rev=cf4375b244ebb51702968df7fc36e192d0f45ad5#cf4375b244ebb51702968df7fc36e192d0f45ad5"
-
-[[patch.unused]]
-name = "livekit"
-version = "0.7.32"
-source = "git+https://github.com/zed-industries/livekit-rust-sdks?rev=cf4375b244ebb51702968df7fc36e192d0f45ad5#cf4375b244ebb51702968df7fc36e192d0f45ad5"
