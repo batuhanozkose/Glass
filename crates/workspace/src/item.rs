@@ -876,12 +876,14 @@ impl<T: Item> ItemHandle for Entity<T> {
                         && item.workspace_settings(cx).autosave == AutosaveSetting::OnFocusChange
                     {
                         let focus_handle = item.item_focus_handle(cx);
-                        if !focus_handle.contains_focused(window, cx)
-                            && !workspace.has_active_modal(window, cx)
+                        if focus_handle.contains_focused(window, cx)
+                            || workspace.has_active_modal(window, cx)
                         {
-                            Pane::autosave_item(&item, workspace.project.clone(), window, cx)
-                                .detach_and_log_err(cx);
+                            return;
                         }
+
+                        Pane::autosave_item(&item, workspace.project.clone(), window, cx)
+                            .detach_and_log_err(cx);
                     }
                 },
             )

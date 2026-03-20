@@ -321,6 +321,71 @@ fn test_undo_redo_with_selection_restoration(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn test_accessibility_keyboard_word_completion(cx: &mut TestAppContext) {
+    init_test(cx, |_| {});
+
+    // Simulates the macOS Accessibility Keyboard word completion panel, which calls
+    // insertText:replacementRange: to commit a completion. macOS sends two calls per
+    // completion: one with a non-empty range replacing the typed prefix, and one with
+    // an empty replacement range (cursor..cursor) to append a trailing space.
+
+    cx.add_window(|window, cx| {
+        let buffer = MultiBuffer::build_simple("ab", cx);
+        let mut editor = build_editor(buffer, window, cx);
+
+        // Cursor is after the 2-char prefix "ab" at offset 2.
+        editor.change_selections(SelectionEffects::no_scroll(), window, cx, |s| {
+            s.select_ranges([MultiBufferOffset(2)..MultiBufferOffset(2)])
+        });
+
+        // macOS completes "about" by replacing the prefix via range 0..2.
+        editor.replace_text_in_range(Some(0..2), "about", window, cx);
+        assert_eq!(editor.text(cx), "about");
+
+        // macOS sends a trailing space as an empty replacement range (cursor..cursor).
+        // Must insert at the cursor position, not call backspace first (which would
+        // delete the preceding character).
+        editor.replace_text_in_range(Some(5..5), " ", window, cx);
+        assert_eq!(editor.text(cx), "about ");
+
+        editor
+    });
+
+    // Multi-cursor: the replacement must fan out to all cursors, and the trailing
+    // space must land at each cursor's actual current position. After the first
+    // completion, macOS's reported cursor offset is stale (it doesn't account for
+    // the offset shift caused by the other cursor's insertion), so the empty
+    // replacement range must be ignored and the space inserted at each real cursor.
+    cx.add_window(|window, cx| {
+        // Two cursors, each after a 2-char prefix "ab" at the end of each line:
+        //   "ab\nab" — cursors at offsets 2 and 5.
+        let buffer = MultiBuffer::build_simple("ab\nab", cx);
+        let mut editor = build_editor(buffer, window, cx);
+
+        editor.change_selections(SelectionEffects::no_scroll(), window, cx, |s| {
+            s.select_ranges([
+                MultiBufferOffset(2)..MultiBufferOffset(2),
+                MultiBufferOffset(5)..MultiBufferOffset(5),
+            ])
+        });
+
+        // macOS reports the newest cursor (offset 5) and sends range 3..5 to
+        // replace its 2-char prefix. selection_replacement_ranges applies the same
+        // delta to fan out to both cursors: 0..2 and 3..5.
+        editor.replace_text_in_range(Some(3..5), "about", window, cx);
+        assert_eq!(editor.text(cx), "about\nabout");
+
+        // Trailing space via empty range. macOS thinks the cursor is at offset 10
+        // (5 - 2 + 7 = 10), but the actual cursors are at 5 and 11. The stale
+        // offset must be ignored and the space inserted at each real cursor position.
+        editor.replace_text_in_range(Some(10..10), " ", window, cx);
+        assert_eq!(editor.text(cx), "about \nabout ");
+
+        editor
+    });
+}
+
+#[gpui::test]
 fn test_ime_composition(cx: &mut TestAppContext) {
     init_test(cx, |_| {});
 
@@ -7397,6 +7462,48 @@ async fn test_rewrap(cx: &mut TestAppContext) {
               also very long and should not merge
               with the numbered item.ˇ»
         "},
+        markdown_language.clone(),
+        &mut cx,
+    );
+
+    // Test that empty selection rewrap on a numbered list item does not merge adjacent items
+    assert_rewrap(
+        indoc! {"
+            1. This is the first numbered list item that is very long and needs to be wrapped properly.
+            2. ˇThis is the second numbered list item that is also very long and needs to be wrapped.
+            3. This is the third numbered list item, shorter.
+        "},
+        indoc! {"
+            1. This is the first numbered list item
+               that is very long and needs to be
+               wrapped properly.
+            2. ˇThis is the second numbered list item
+               that is also very long and needs to
+               be wrapped.
+            3. This is the third numbered list item,
+               shorter.
+        "},
+        markdown_language.clone(),
+        &mut cx,
+    );
+
+    // Test that empty selection rewrap on a bullet list item does not merge adjacent items
+    assert_rewrap(
+        indoc! {"
+            - This is the first bullet item that is very long and needs wrapping properly here.
+            - ˇThis is the second bullet item that is also very long and needs to be wrapped.
+            - This is the third bullet item, shorter.
+        "},
+        indoc! {"
+            - This is the first bullet item that is
+              very long and needs wrapping properly
+              here.
+            - ˇThis is the second bullet item that is
+              also very long and needs to be
+              wrapped.
+            - This is the third bullet item,
+              shorter.
+        "},
         markdown_language,
         &mut cx,
     );
@@ -9543,6 +9650,28 @@ async fn test_add_selection_above_below_multi_cursor_existing_state(cx: &mut Tes
            ef«ghˇ»
            «iˇ»jk«lˇ»
            «mˇ»no«pˇ»"#
+    ));
+}
+
+#[gpui::test]
+async fn test_add_selection_above_below_multibyte(cx: &mut TestAppContext) {
+    init_test(cx, |_| {});
+    let mut cx = EditorTestContext::new(cx).await;
+
+    // Cursor after "Häl" (byte column 4, char column 3) should align to
+    // char column 3 on the ASCII line below, not byte column 4.
+    cx.set_state(indoc!(
+        r#"Hälˇlö
+           Hallo"#
+    ));
+
+    cx.update_editor(|editor, window, cx| {
+        editor.add_selection_below(&Default::default(), window, cx);
+    });
+
+    cx.assert_editor_state(indoc!(
+        r#"Hälˇlö
+           Halˇlo"#
     ));
 }
 
@@ -30336,14 +30465,47 @@ async fn test_end_of_editor_context(cx: &mut TestAppContext) {
     cx.set_state("line1\nline2ˇ");
     cx.update_editor(|e, window, cx| {
         e.set_mode(EditorMode::SingleLine);
+        assert!(!e.key_context(window, cx).contains("start_of_input"));
         assert!(e.key_context(window, cx).contains("end_of_input"));
     });
     cx.set_state("ˇline1\nline2");
     cx.update_editor(|e, window, cx| {
+        e.set_mode(EditorMode::SingleLine);
+        assert!(e.key_context(window, cx).contains("start_of_input"));
         assert!(!e.key_context(window, cx).contains("end_of_input"));
     });
     cx.set_state("line1ˇ\nline2");
     cx.update_editor(|e, window, cx| {
+        e.set_mode(EditorMode::SingleLine);
+        assert!(!e.key_context(window, cx).contains("start_of_input"));
+        assert!(!e.key_context(window, cx).contains("end_of_input"));
+    });
+
+    cx.set_state("line1\nline2ˇ");
+    cx.update_editor(|e, window, cx| {
+        e.set_mode(EditorMode::AutoHeight {
+            min_lines: 1,
+            max_lines: Some(4),
+        });
+        assert!(!e.key_context(window, cx).contains("start_of_input"));
+        assert!(e.key_context(window, cx).contains("end_of_input"));
+    });
+    cx.set_state("ˇline1\nline2");
+    cx.update_editor(|e, window, cx| {
+        e.set_mode(EditorMode::AutoHeight {
+            min_lines: 1,
+            max_lines: Some(4),
+        });
+        assert!(e.key_context(window, cx).contains("start_of_input"));
+        assert!(!e.key_context(window, cx).contains("end_of_input"));
+    });
+    cx.set_state("line1ˇ\nline2");
+    cx.update_editor(|e, window, cx| {
+        e.set_mode(EditorMode::AutoHeight {
+            min_lines: 1,
+            max_lines: Some(4),
+        });
+        assert!(!e.key_context(window, cx).contains("start_of_input"));
         assert!(!e.key_context(window, cx).contains("end_of_input"));
     });
 }

@@ -99,8 +99,7 @@ pub(crate) fn render_edit_prediction_setup_page(
                 IconName::AiOpenAiCompat,
                 "OpenAI Compatible API",
                 ApiKeyDocs::Custom {
-                    message: "Set an API key here. It will be sent as Authorization: Bearer {key}."
-                        .into(),
+                    message: "The API key sent as Authorization: Bearer {key}.".into(),
                 },
                 open_ai_compatible_api_token(cx),
                 |cx| open_ai_compatible_api_url(cx),
@@ -164,10 +163,12 @@ fn render_provider_dropdown(_window: &mut Window, cx: &mut App) -> AnyElement {
             h_flex()
                 .pt_2p5()
                 .w_full()
+                .min_w_0()
                 .justify_between()
                 .child(
                     v_flex()
                         .w_full()
+                        .min_w_0()
                         .max_w_1_2()
                         .child(Label::new("Provider"))
                         .child(
@@ -242,13 +243,15 @@ fn render_api_key_provider(
         .no_padding(true);
     let button_link_label = format!("{} dashboard", title);
     let description = match docs {
-        ApiKeyDocs::Custom { message } => h_flex().min_w_0().gap_0p5().child(
+        ApiKeyDocs::Custom { message } => div().min_w_0().w_full().child(
             Label::new(message)
                 .size(LabelSize::Small)
                 .color(Color::Muted),
         ),
         ApiKeyDocs::Link { dashboard_url } => h_flex()
+            .w_full()
             .min_w_0()
+            .flex_wrap()
             .gap_0p5()
             .child(
                 Label::new("Visit the")
@@ -296,10 +299,12 @@ fn render_api_key_provider(
             h_flex()
                 .pt_2p5()
                 .w_full()
+                .min_w_0()
                 .justify_between()
                 .child(
                     v_flex()
                         .w_full()
+                        .min_w_0()
                         .max_w_1_2()
                         .child(Label::new("API Key"))
                         .child(description)
@@ -462,7 +467,7 @@ fn ollama_settings() -> Box<[SettingsPageItem]> {
         }),
         SettingsPageItem::SettingItem(SettingItem {
             title: "Prompt Format",
-            description: "The prompt format to use when requesting predictions. Set to Infer to have the format inferred based on the model name",
+            description: "The prompt format to use when requesting predictions. Set to Infer to have the format inferred based on the model name.",
             field: Box::new(SettingField {
                 pick: |settings| {
                     settings
@@ -593,7 +598,7 @@ fn open_ai_compatible_settings() -> Box<[SettingsPageItem]> {
         }),
         SettingsPageItem::SettingItem(SettingItem {
             title: "Prompt Format",
-            description: "The prompt format to use when requesting predictions. Set to Infer to have the format inferred based on the model name",
+            description: "The prompt format to use when requesting predictions. Set to Infer to have the format inferred based on the model name.",
             field: Box::new(SettingField {
                 pick: |settings| {
                     settings

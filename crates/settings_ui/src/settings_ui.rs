@@ -2863,7 +2863,7 @@ impl SettingsWindow {
     }
 
     fn render_sub_page_breadcrumbs(&self) -> impl IntoElement {
-        h_flex().gap_1().children(
+        h_flex().min_w_0().gap_1().overflow_x_hidden().children(
             itertools::intersperse(
                 std::iter::once(self.current_page().title.into()).chain(
                     self.sub_page_stack
@@ -3093,9 +3093,11 @@ impl SettingsWindow {
         if let Some(current_sub_page) = self.sub_page_stack.last() {
             page_header = h_flex()
                 .w_full()
+                .min_w_0()
                 .justify_between()
                 .child(
                     h_flex()
+                        .min_w_0()
                         .ml_neg_1p5()
                         .gap_1()
                         .child(
@@ -3284,6 +3286,7 @@ impl SettingsWindow {
             .pt_6()
             .gap_4()
             .flex_1()
+            .min_w_0()
             .bg(cx.theme().colors().editor_background)
             .child(
                 v_flex()
