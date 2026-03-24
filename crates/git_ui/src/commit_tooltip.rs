@@ -14,7 +14,7 @@ use settings::Settings;
 use std::hash::Hash;
 use theme::ThemeSettings;
 use time::{OffsetDateTime, UtcOffset};
-use ui::{Avatar, CopyButton, Divider, prelude::*, tooltip_container};
+use ui::{Avatar, CopyButton, prelude::*, tooltip_container};
 use workspace::Workspace;
 
 #[derive(Clone, Debug)]
@@ -346,7 +346,6 @@ impl Render for CommitTooltip {
                                                     cx.open_url(pr.url.as_str())
                                                 }),
                                             )
-                                            .child(Divider::vertical())
                                         })
                                         .child(
                                             Button::new(
@@ -373,7 +372,6 @@ impl Render for CommitTooltip {
                                                 },
                                             ),
                                         )
-                                        .child(Divider::vertical())
                                         .child(
                                             CopyButton::new("copy-commit-sha", full_sha)
                                                 .tooltip_label("Copy SHA"),

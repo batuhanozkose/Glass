@@ -19,7 +19,7 @@ use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrevious};
 use project::{AgentId, AgentServerStore};
 use theme::ActiveTheme;
 use ui::{
-    ButtonLike, CommonAnimationExt, ContextMenu, ContextMenuEntry, Divider, HighlightedLabel,
+    ButtonLike, CommonAnimationExt, ContextMenu, ContextMenuEntry, HighlightedLabel,
     KeyBinding, PopoverMenu, PopoverMenuHandle, TintColor, Tooltip, WithScrollbar, prelude::*,
     utils::platform_title_bar_height,
 };
@@ -812,7 +812,6 @@ impl ThreadsArchiveView {
             .justify_between()
             .border_b_1()
             .border_color(cx.theme().colors().border)
-            .child(Divider::vertical().color(ui::DividerColor::Border))
             .child(
                 h_flex()
                     .ml_1()

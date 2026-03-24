@@ -16,7 +16,7 @@ use project::{
 };
 use settings::Settings;
 use std::{cell::RefCell, ops::Range, rc::Rc, sync::Arc};
-use ui::{ActiveTheme, Divider, Element as _, Styled, Window, prelude::*};
+use ui::{ActiveTheme, Element as _, Styled, Window, prelude::*};
 use util::{ResultExt as _, debug_panic, maybe};
 use workspace::{Workspace, notifications::simple_message_notification::MessageNotification};
 use zed_actions::agent::{
@@ -447,7 +447,7 @@ fn render_conflict_buttons(
                 }),
         )
         .when(is_ai_enabled, |this| {
-            this.child(Divider::vertical()).child(
+            this.child(
                 Button::new("resolve-with-agent", "Resolve with Agent")
                     .label_size(LabelSize::Small)
                     .start_icon(

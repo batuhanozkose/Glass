@@ -925,7 +925,6 @@ impl TitleBar {
                         window.dispatch_action(ToggleWorkspaceSidebar.boxed_clone(), cx);
                     }),
                 )
-                .child(Divider::vertical().color(ui::DividerColor::Border))
                 .into_any_element(),
         )
     }

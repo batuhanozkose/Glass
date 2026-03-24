@@ -2887,9 +2887,6 @@ impl Sidebar {
             .when(!no_open_projects, |this| {
                 this.border_b_1()
                     .border_color(cx.theme().colors().border)
-                    .when(traffic_lights, |this| {
-                        this.child(Divider::vertical().color(ui::DividerColor::Border))
-                    })
                     .child(
                         div().ml_1().child(
                             Icon::new(IconName::MagnifyingGlass)

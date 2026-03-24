@@ -2715,7 +2715,6 @@ impl ThreadView {
                                 window.dispatch_action(OpenAgentDiff.boxed_clone(), cx);
                             })),
                     )
-                    .child(Divider::vertical().color(DividerColor::Border))
                     .child(
                         Button::new("reject-all-changes", "Reject All")
                             .label_size(LabelSize::Small)
@@ -5264,7 +5263,6 @@ impl ThreadView {
                             .color(Color::Muted)
                             .with_rotate_animation(2)
                     )
-                    .child(div().h(relative(0.6)).ml_1p5().child(Divider::vertical().color(DividerColor::Border)))
                     .child(
                         IconButton::new(
                             SharedString::from(format!("stop-terminal-{}", terminal.entity_id())),

@@ -716,7 +716,7 @@ impl DebugPanel {
         };
 
         let close_bottom_panel_button = {
-            h_flex().pl_0p5().gap_1().child(Divider::vertical()).child(
+            h_flex().pl_0p5().gap_1().child(
                 IconButton::new("debug-close-panel", IconName::Close)
                     .icon_size(IconSize::Small)
                     .on_click(move |_, window, cx| {
@@ -871,7 +871,6 @@ impl DebugPanel {
                                                 }
                                             }),
                                     )
-                                    .child(Divider::vertical())
                                     .child(
                                         IconButton::new("debug-restart", IconName::RotateCcw)
                                             .icon_size(IconSize::Small)
@@ -970,7 +969,7 @@ impl DebugPanel {
                                     .when(
                                         cx.has_flag::<DebuggerHistoryFeatureFlag>(),
                                         |this| {
-                                            this.child(Divider::vertical()).child(
+                                            this.child(
                                                 SplitButton::new(
                                                     self.render_history_button(
                                                         &running_state,
@@ -1029,7 +1028,7 @@ impl DebugPanel {
                                         })
                                     })
                                     .when(!is_side, |this| {
-                                        this.gap_0p5().child(Divider::vertical())
+                                        this.gap_0p5()
                                     })
                                 },
                             ),
@@ -1995,9 +1994,7 @@ impl Render for DebugPanel {
                                         h_flex()
                                             .size_full()
                                             .child(breakpoint_list)
-                                            .child(Divider::vertical())
-                                            .child(welcome_experience)
-                                            .child(Divider::vertical()),
+                                            .child(welcome_experience),
                                     )
                                 } else {
                                     this.child(

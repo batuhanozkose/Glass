@@ -1602,7 +1602,6 @@ impl PickerDelegate for RecentProjectsDelegate {
                         )
                     }
                 })
-                .child(Divider::vertical())
                 .child(
                     PopoverMenu::new("actions-menu-popover")
                         .with_handle(self.actions_menu_handle.clone())

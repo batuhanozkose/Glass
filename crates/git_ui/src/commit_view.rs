@@ -28,7 +28,7 @@ use std::{
     sync::Arc,
 };
 use theme::ActiveTheme;
-use ui::{DiffStat, Divider, Tooltip, prelude::*};
+use ui::{DiffStat, Tooltip, prelude::*};
 use util::{ResultExt, paths::PathStyle, rel_path::RelPath, truncate_and_trailoff};
 use workspace::item::TabTooltipContent;
 use workspace::{
@@ -1051,8 +1051,7 @@ impl Render for CommitViewToolbar {
                             "toolbar-diff-stat",
                             additions as usize,
                             deletions as usize,
-                        ))
-                        .child(Divider::vertical()),
+                        )),
                 )
             })
             .child(

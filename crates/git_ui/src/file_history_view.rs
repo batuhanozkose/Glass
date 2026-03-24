@@ -14,7 +14,7 @@ use std::any::{Any, TypeId};
 use std::sync::Arc;
 
 use time::OffsetDateTime;
-use ui::{Chip, Divider, ListItem, WithScrollbar, prelude::*};
+use ui::{Chip, ListItem, WithScrollbar, prelude::*};
 use util::ResultExt;
 use workspace::{
     Item, Workspace,
@@ -425,7 +425,7 @@ impl Render for FileHistoryView {
                                     .when(self.has_more, |this| this.mr_1()),
                             )
                             .when(self.has_more, |this| {
-                                this.child(Divider::vertical()).child(
+                                this.child(
                                     Button::new("load-more", "Load More")
                                         .disabled(self.loading_more)
                                         .label_size(LabelSize::Small)

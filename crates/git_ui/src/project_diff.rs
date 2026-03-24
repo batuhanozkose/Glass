@@ -38,7 +38,7 @@ use smol::future::yield_now;
 use std::any::{Any, TypeId};
 use std::sync::Arc;
 use theme::ActiveTheme;
-use ui::{DiffStat, Divider, KeyBinding, Tooltip, prelude::*, vertical_divider};
+use ui::{DiffStat, KeyBinding, Tooltip, prelude::*};
 use util::{ResultExt as _, rel_path::RelPath};
 use workspace::{
     CloseActiveItem, ItemNavHistory, SerializableItem, ToolbarItemEvent, ToolbarItemLocation,
@@ -1489,7 +1489,6 @@ impl Render for ProjectDiffToolbar {
                             })),
                     ),
             )
-            .child(vertical_divider())
             .child(
                 h_group_sm()
                     .when(
@@ -1522,7 +1521,7 @@ impl Render for ProjectDiffToolbar {
             )
             // "Send Review to Agent" button (only shown when there are review comments)
             .when(review_count > 0, |el| {
-                el.child(vertical_divider()).child(
+                el.child(
                     render_send_review_to_agent_button(review_count, &focus_handle).on_click(
                         cx.listener(|this, _, window, cx| {
                             this.dispatch_action(&SendReviewToAgent, window, cx)
@@ -1633,7 +1632,7 @@ impl Render for BranchDiffToolbar {
             })
             .when(show_review_button, |this| {
                 let focus_handle = focus_handle.clone();
-                this.child(Divider::vertical()).child(
+                this.child(
                     Button::new("review-diff", "Review Diff")
                         .start_icon(
                             Icon::new(IconName::ZedAssistant)
@@ -1656,7 +1655,7 @@ impl Render for BranchDiffToolbar {
                 )
             })
             .when(review_count > 0, |this| {
-                this.child(vertical_divider()).child(
+                this.child(
                     render_send_review_to_agent_button(review_count, &focus_handle).on_click(
                         cx.listener(|this, _, window, cx| {
                             this.dispatch_action(&SendReviewToAgent, window, cx)
