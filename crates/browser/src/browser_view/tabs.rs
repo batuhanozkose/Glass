@@ -531,23 +531,19 @@ impl BrowserView {
         self.switch_to_tab(previous_index, window, cx);
     }
 
-    pub(super) fn handle_toggle_sidebar(
-        &mut self,
-        _: &ToggleSidebar,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    pub(crate) fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
         match self.tab_bar_mode {
             TabBarMode::Horizontal => {
                 self.tab_bar_mode = TabBarMode::Sidebar;
                 self.sidebar_collapsed = false;
+                self.set_sidebar_visibility(true, cx);
             }
             TabBarMode::Sidebar => {
                 self.tab_bar_mode = TabBarMode::Horizontal;
                 self.sidebar_collapsed = false;
+                self.set_sidebar_visibility(false, cx);
             }
         }
-        self.sync_mode_sidebar_state(cx);
         self.hovered_top_tab_index = None;
         self.hovered_top_tab_close_index = None;
         self.hovered_top_new_tab_button = false;
@@ -561,6 +557,15 @@ impl BrowserView {
         }
         self.schedule_save(cx);
         cx.notify();
+    }
+
+    pub(super) fn handle_toggle_sidebar(
+        &mut self,
+        _: &ToggleSidebar,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.toggle_sidebar(cx);
     }
 
     pub(super) fn close_tab_at(

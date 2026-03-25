@@ -16,6 +16,8 @@ pub struct SerializedBrowserTabs {
     pub active_index: usize,
     #[serde(default)]
     pub sidebar: bool,
+    #[serde(default)]
+    pub sidebar_visible: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]

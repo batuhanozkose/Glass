@@ -718,6 +718,16 @@ impl MultiWorkspace {
         }));
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn create_test_workspace(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Task<()> {
+        self.create_workspace(window, cx);
+        self._create_task.take().unwrap_or_else(|| Task::ready(()))
+    }
+
     pub fn remove_workspace(
         &mut self,
         index: usize,
@@ -953,7 +963,7 @@ impl Render for MultiWorkspace {
                     #[cfg(target_os = "macos")]
                     let workspace_content = {
                         let ws = self.workspace().read(cx);
-                        let sidebar_collapsed = ws.left_dock().read(cx).visible_panel().is_none();
+                        let sidebar_collapsed = ws.unified_sidebar_collapsed(window, cx);
                         let sidebar_width = self.unified_sidebar.read(cx).width();
                         let sidebar_titlebar_fill = match cx.theme().window_background_appearance()
                         {
@@ -1052,8 +1062,7 @@ mod tests {
                         view: browser_view.into(),
                         focus_handle,
                         titlebar_center_view: None,
-                        sidebar_view: None,
-                        sidebar_visibility: None,
+                        sidebar: None,
                         on_deactivate: None,
                     }
                 }),

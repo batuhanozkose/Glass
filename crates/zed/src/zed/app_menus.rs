@@ -24,7 +24,7 @@ pub fn app_menus(cx: &mut App) -> Vec<Menu> {
             zed_actions::ResetAllZoom { persist: false },
         ),
         MenuItem::separator(),
-        MenuItem::action("Toggle Left Dock", workspace::ToggleLeftDock),
+        MenuItem::action("Toggle Sidebar", workspace::ToggleSidebar),
         MenuItem::action("Toggle Right Dock", workspace::ToggleRightDock),
         MenuItem::action("Toggle Bottom Dock", workspace::ToggleBottomDock),
         MenuItem::action("Toggle All Docks", workspace::ToggleAllDocks),

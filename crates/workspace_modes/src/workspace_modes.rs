@@ -21,12 +21,11 @@ mod mode_view_registry;
 
 pub use mode_switcher::ModeSwitcher;
 pub use mode_view_registry::{
-    ModeDeactivateCallback, ModeSidebarVisibilityFn, ModeViewFactory, ModeViewRegistry,
-    RegisteredModeView,
+    ModeDeactivateCallback, ModeSidebarController, ModeSidebarToggleFn, ModeSidebarVisibilityFn,
+    ModeViewFactory, ModeViewRegistry, RegisteredModeView,
 };
 
-use collections::HashMap;
-use gpui::{App, Global, actions};
+use gpui::{App, actions};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -68,33 +67,7 @@ impl std::fmt::Display for ModeId {
     }
 }
 
-/// Tracks whether a mode-owned hosted sidebar should be visible.
-/// Set by mode crates, read by the workspace crate.
-#[derive(Default)]
-pub struct ModeSidebarState {
-    pub visible_by_mode: HashMap<ModeId, bool>,
-}
-
-impl Global for ModeSidebarState {}
-
-pub fn set_mode_sidebar_visible(cx: &mut App, mode_id: ModeId, visible: bool) {
-    let state = cx.default_global::<ModeSidebarState>();
-    if state.visible_by_mode.get(&mode_id).copied() == Some(visible) {
-        return;
-    }
-
-    let state = cx.global_mut::<ModeSidebarState>();
-    state.visible_by_mode.insert(mode_id, visible);
-    cx.refresh_windows();
-}
-
-pub fn mode_sidebar_visible(cx: &App, mode_id: ModeId) -> Option<bool> {
-    cx.try_global::<ModeSidebarState>()
-        .and_then(|state| state.visible_by_mode.get(&mode_id).copied())
-}
-
 /// Initialize the workspace_modes crate
 pub fn init(cx: &mut App) {
     ModeViewRegistry::init(cx);
-    cx.set_global(ModeSidebarState::default());
 }

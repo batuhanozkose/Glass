@@ -30,7 +30,7 @@ use gpui::{
     px,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
-use workspace_modes::{ModeId, ModeViewRegistry, set_mode_sidebar_visible};
+use workspace_modes::{ModeId, ModeViewRegistry};
 
 const MAX_CLOSED_TABS: usize = 20;
 
@@ -172,6 +172,7 @@ pub struct BrowserView {
     hovered_sidebar_tab_close_index: Option<usize>,
     hovered_sidebar_new_tab_button: bool,
     sidebar_collapsed: bool,
+    sidebar_visible: bool,
     native_sidebar_panel: Option<Entity<tab_strip::BrowserSidebarPanel>>,
     toast_layer: Entity<toast::ToastLayer>,
     swipe_state: SwipeNavigationState,
@@ -230,6 +231,7 @@ impl BrowserView {
             hovered_sidebar_tab_close_index: None,
             hovered_sidebar_new_tab_button: false,
             sidebar_collapsed: false,
+            sidebar_visible: false,
             native_sidebar_panel: None,
             toast_layer,
             swipe_state: SwipeNavigationState::default(),
@@ -253,22 +255,26 @@ impl BrowserView {
             }
         }
 
-        // The tab owner has the authoritative restored state (including
-        // tab_bar_mode from the saved session), so it must always sync.
-        // Non-tab-owner BrowserViews keep the default mode and must not
-        // overwrite the owner's state.
-        if this.is_tab_owner {
-            this.sync_mode_sidebar_state(cx);
-        }
         this
     }
 
-    pub(crate) fn sync_mode_sidebar_state(&self, cx: &mut App) {
-        set_mode_sidebar_visible(
-            cx,
-            ModeId::BROWSER,
-            self.tab_bar_mode == TabBarMode::Sidebar,
-        );
+    pub(crate) fn sidebar_visible(&self) -> bool {
+        self.sidebar_visible
+    }
+
+    pub(crate) fn set_sidebar_visibility(&mut self, visible: bool, cx: &mut Context<Self>) {
+        if self.sidebar_visible == visible {
+            return;
+        }
+
+        self.sidebar_visible = visible;
+        cx.refresh_windows();
+    }
+
+    pub(crate) fn toggle_sidebar_visibility(&mut self, cx: &mut Context<Self>) {
+        self.set_sidebar_visibility(!self.sidebar_visible, cx);
+        self.schedule_save(cx);
+        cx.notify();
     }
 
     /// Tell CEF to release focus on the active tab.

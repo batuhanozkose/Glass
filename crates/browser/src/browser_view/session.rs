@@ -42,6 +42,7 @@ impl BrowserView {
         } else {
             TabBarMode::Horizontal
         };
+        self.sidebar_visible = saved.sidebar_visible.unwrap_or(saved.sidebar);
         self.sync_bookmark_bar_visibility(cx);
         true
     }
@@ -116,6 +117,7 @@ impl BrowserView {
             tabs,
             active_index: self.active_tab_index,
             sidebar: self.tab_bar_mode == TabBarMode::Sidebar,
+            sidebar_visible: Some(self.sidebar_visible),
         };
 
         serde_json::to_string(&data).log_err()

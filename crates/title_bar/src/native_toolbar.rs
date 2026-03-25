@@ -651,7 +651,7 @@ impl NativeToolbarController {
             .shows_baseline_separator(false);
 
         toolbar = toolbar.item(NativeToolbarItem::FlexibleSpace);
-        toolbar = toolbar.item(NativeToolbarItem::SidebarToggle);
+        toolbar = toolbar.item(self.build_sidebar_toggle_item());
         toolbar = toolbar.item(NativeToolbarItem::SidebarTrackingSeparator);
         toolbar = toolbar.item(self.build_mode_switcher_item(active_mode, cx));
 
@@ -1230,6 +1230,17 @@ impl NativeToolbarController {
                             }
                         });
                     }
+                }),
+        )
+    }
+
+    fn build_sidebar_toggle_item(&self) -> NativeToolbarItem {
+        NativeToolbarItem::Button(
+            NativeToolbarButton::new("glass.sidebar.toggle", "")
+                .tool_tip("Toggle Sidebar")
+                .icon("sidebar.left")
+                .on_click(move |_event, window, cx| {
+                    window.dispatch_action(workspace::ToggleSidebar.boxed_clone(), cx);
                 }),
         )
     }

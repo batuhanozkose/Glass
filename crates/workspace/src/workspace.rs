@@ -140,8 +140,6 @@ use util::{
     serde::default_true,
 };
 use uuid::Uuid;
-#[cfg(target_os = "macos")]
-use workspace_modes::mode_sidebar_visible;
 use workspace_modes::{
     ModeDeactivateCallback, ModeId, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode,
     SwitchToTerminalMode,
@@ -217,10 +215,6 @@ impl UnifiedSidebar {
 
     pub fn active_mode_sidebar_view(&self) -> Option<&AnyView> {
         self.mode_sidebar_view(self.active_mode)
-    }
-
-    pub fn update_mode_sidebar_visibility(&mut self, cx: &mut Context<Self>) {
-        cx.notify();
     }
 
     pub fn set_left_dock(&mut self, left_dock: Entity<Dock>, cx: &mut Context<Self>) {
@@ -408,6 +402,8 @@ actions!(
         ToggleEditPrediction,
         /// Toggles the left dock.
         ToggleLeftDock,
+        /// Toggles the active sidebar.
+        ToggleSidebar,
         /// Toggles the right dock.
         ToggleRightDock,
         /// Toggles zoom on the active pane.
@@ -1337,8 +1333,7 @@ struct DispatchingKeystrokes {
 struct PerWorkspaceModeView {
     view: AnyView,
     focus_handle: FocusHandle,
-    sidebar_view: Option<AnyView>,
-    sidebar_visibility: Option<workspace_modes::ModeSidebarVisibilityFn>,
+    sidebar: Option<workspace_modes::ModeSidebarController>,
     on_deactivate: Option<ModeDeactivateCallback>,
 }
 
@@ -1693,12 +1688,6 @@ impl Workspace {
         });
 
         let subscriptions = vec![
-            #[cfg(target_os = "macos")]
-            cx.observe_global::<workspace_modes::ModeSidebarState>(|this, cx| {
-                this.unified_sidebar.update(cx, |sidebar, cx| {
-                    sidebar.update_mode_sidebar_visibility(cx);
-                });
-            }),
             #[cfg(target_os = "macos")]
             cx.observe_in(&left_dock, window, |this, _, window, cx| {
                 // In multi-workspace mode, the NSSplitView controls the
@@ -5092,8 +5081,7 @@ impl Workspace {
         PerWorkspaceModeView {
             view: registered.view,
             focus_handle: registered.focus_handle,
-            sidebar_view: registered.sidebar_view,
-            sidebar_visibility: registered.sidebar_visibility,
+            sidebar: registered.sidebar,
             on_deactivate: registered.on_deactivate,
         }
     }
@@ -5103,17 +5091,53 @@ impl Workspace {
         self.mode_view_entry(self.active_mode)
             .and_then(|mode_view| {
                 mode_view
-                    .sidebar_visibility
-                    .map(|sidebar_visibility| sidebar_visibility(&mode_view.view, cx))
+                    .sidebar
+                    .as_ref()
+                    .map(|sidebar| (sidebar.is_visible)(&mode_view.view, cx))
             })
-            .or_else(|| mode_sidebar_visible(cx, self.active_mode))
             .unwrap_or(true)
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(crate) fn unified_sidebar_collapsed(&self, window: &Window, cx: &App) -> bool {
+        if self
+            .unified_sidebar
+            .read(cx)
+            .has_mode_sidebar_view(self.active_mode)
+        {
+            !self.active_mode_sidebar_visible(cx)
+        } else {
+            !self.left_dock.read(cx).has_visible_content(window, cx)
+        }
     }
 
     fn mode_view_entry(&self, mode_id: ModeId) -> Option<&PerWorkspaceModeView> {
         self.shared_mode_views
             .get(&mode_id)
             .or_else(|| self.per_workspace_mode_views.get(&mode_id))
+    }
+
+    #[cfg(target_os = "macos")]
+    fn toggle_active_mode_sidebar(&mut self, cx: &mut Context<Self>) -> bool {
+        let Some(mode_view) = self.mode_view_entry(self.active_mode) else {
+            return false;
+        };
+        let Some(sidebar) = mode_view.sidebar.as_ref() else {
+            return false;
+        };
+
+        (sidebar.toggle)(&mode_view.view, cx);
+        true
+    }
+
+    fn toggle_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        #[cfg(target_os = "macos")]
+        if self.toggle_active_mode_sidebar(cx) {
+            cx.notify();
+            return;
+        }
+
+        self.toggle_dock(DockPosition::Left, window, cx);
     }
 
     pub(crate) fn set_shared_mode_view(
@@ -5125,9 +5149,9 @@ impl Workspace {
         let mode_view = Self::registered_mode_view_to_workspace_mode_view(registered);
 
         #[cfg(target_os = "macos")]
-        if let Some(sidebar_view) = mode_view.sidebar_view.clone() {
+        if let Some(mode_sidebar) = mode_view.sidebar.as_ref() {
             self.unified_sidebar.update(cx, |sidebar, cx| {
-                sidebar.set_mode_sidebar_view(mode_id, sidebar_view, cx);
+                sidebar.set_mode_sidebar_view(mode_id, mode_sidebar.sidebar_view.clone(), cx);
             });
         }
 
@@ -5155,17 +5179,20 @@ impl Workspace {
                 let registered = factory(cx);
 
                 #[cfg(target_os = "macos")]
-                if let Some(sidebar_view) = registered.sidebar_view.clone() {
+                if let Some(mode_sidebar) = registered.sidebar.as_ref() {
                     self.unified_sidebar.update(cx, |sidebar, cx| {
-                        sidebar.set_mode_sidebar_view(mode_id, sidebar_view, cx);
+                        sidebar.set_mode_sidebar_view(
+                            mode_id,
+                            mode_sidebar.sidebar_view.clone(),
+                            cx,
+                        );
                     });
                 }
 
                 entry.insert(PerWorkspaceModeView {
                     view: registered.view,
                     focus_handle: registered.focus_handle,
-                    sidebar_view: registered.sidebar_view,
-                    sidebar_visibility: registered.sidebar_visibility,
+                    sidebar: registered.sidebar,
                     on_deactivate: registered.on_deactivate,
                 });
             }
@@ -6351,6 +6378,9 @@ impl Workspace {
             .on_action(cx.listener(|this, _: &ToggleLeftDock, window, cx| {
                 this.toggle_dock(DockPosition::Left, window, cx);
             }))
+            .on_action(cx.listener(|this, _: &ToggleSidebar, window, cx| {
+                this.toggle_sidebar(window, cx);
+            }))
             .on_action(cx.listener(
                 |workspace: &mut Workspace, _: &ToggleRightDock, window, cx| {
                     workspace.toggle_dock(DockPosition::Right, window, cx);
@@ -6792,14 +6822,7 @@ impl Workspace {
     ) -> AnyElement {
         let sidebar_width = unified_sidebar.read(cx).width();
 
-        let sidebar_collapsed = if unified_sidebar
-            .read(cx)
-            .has_mode_sidebar_view(self.active_mode)
-        {
-            !self.active_mode_sidebar_visible(cx)
-        } else {
-            !self.left_dock.read(cx).has_visible_content(window, cx)
-        };
+        let sidebar_collapsed = self.unified_sidebar_collapsed(window, cx);
 
         // For opaque (non-glass) themes, fill the sidebar's native titlebar area
         // with the panel background color so it matches the rest of the sidebar.
@@ -9357,14 +9380,14 @@ mod tests {
     use fs::FakeFs;
     use gpui::{
         DismissEvent, Empty, EventEmitter, FocusHandle, Focusable, Render, TestAppContext,
-        UpdateGlobal, VisualTestContext, px,
+        UpdateGlobal, VisualTestContext, div, px,
     };
     use project::{Project, ProjectEntryId};
     use serde_json::json;
     use settings::SettingsStore;
     use util::path;
     use util::rel_path::rel_path;
-    use workspace_modes::RegisteredModeView;
+    use workspace_modes::{ModeSidebarController, RegisteredModeView};
 
     #[cfg(target_os = "macos")]
     struct TestBrowserChromeView {
@@ -9379,6 +9402,11 @@ mod tests {
                 focus_handle: cx.focus_handle(),
                 shows_sidebar,
             }
+        }
+
+        fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
+            self.shows_sidebar = !self.shows_sidebar;
+            cx.notify();
         }
     }
 
@@ -9402,6 +9430,15 @@ mod tests {
             .downcast::<TestBrowserChromeView>()
             .ok()
             .is_some_and(|browser_view| browser_view.read(cx).shows_sidebar)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn test_toggle_browser_sidebar(view: &AnyView, cx: &mut App) {
+        if let Ok(browser_view) = view.clone().downcast::<TestBrowserChromeView>() {
+            let _ = browser_view.update(cx, |browser_view, cx| {
+                browser_view.toggle_sidebar(cx);
+            });
+        }
     }
 
     #[gpui::test]
@@ -13000,8 +13037,11 @@ mod tests {
                             view: browser_view.clone().into(),
                             focus_handle,
                             titlebar_center_view: None,
-                            sidebar_view: Some(browser_view.into()),
-                            sidebar_visibility: Some(test_browser_sidebar_visible),
+                            sidebar: Some(ModeSidebarController {
+                                sidebar_view: browser_view.into(),
+                                is_visible: test_browser_sidebar_visible,
+                                toggle: test_toggle_browser_sidebar,
+                            }),
                             on_deactivate: None,
                         }
                     }),
@@ -13030,6 +13070,52 @@ mod tests {
         });
         workspace_b.read_with(cx, |workspace, cx| {
             assert!(!workspace.active_mode_sidebar_visible(cx));
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    #[gpui::test]
+    async fn test_toggle_sidebar_uses_mode_sidebar_toggle(cx: &mut TestAppContext) {
+        init_test(cx);
+
+        cx.update(|cx| {
+            workspace_modes::init(cx);
+            ModeViewRegistry::global_mut(cx).register_factory(
+                ModeId::BROWSER,
+                Arc::new(|cx| {
+                    let browser_view: Entity<TestBrowserChromeView> =
+                        cx.new(|cx| TestBrowserChromeView::new(true, cx));
+                    let focus_handle = browser_view.focus_handle(cx);
+
+                    RegisteredModeView {
+                        view: browser_view.clone().into(),
+                        focus_handle,
+                        titlebar_center_view: None,
+                        sidebar: Some(ModeSidebarController {
+                            sidebar_view: browser_view.into(),
+                            is_visible: test_browser_sidebar_visible,
+                            toggle: test_toggle_browser_sidebar,
+                        }),
+                        on_deactivate: None,
+                    }
+                }),
+            );
+        });
+
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
+
+        workspace.update_in(cx, |workspace, window, cx| {
+            workspace.mode_view(ModeId::BROWSER, cx);
+            assert!(workspace.active_mode_sidebar_visible(cx));
+
+            workspace.toggle_sidebar(window, cx);
+            assert!(!workspace.active_mode_sidebar_visible(cx));
+
+            workspace.toggle_sidebar(window, cx);
+            assert!(workspace.active_mode_sidebar_visible(cx));
         });
     }
 

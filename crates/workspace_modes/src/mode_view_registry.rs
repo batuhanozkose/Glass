@@ -11,8 +11,22 @@ use std::sync::Arc;
 
 /// Callback invoked when a mode is deactivated (switched away from).
 pub type ModeDeactivateCallback = Arc<dyn Fn(&mut App) + Send + Sync>;
-/// Computes whether a mode-owned sidebar should be visible for a given mode view.
+
+/// Callback that computes whether a mode-owned sidebar should be visible.
 pub type ModeSidebarVisibilityFn = fn(&AnyView, &App) -> bool;
+/// Callback that toggles a mode-owned sidebar.
+pub type ModeSidebarToggleFn = fn(&AnyView, &mut App);
+
+/// Hosted sidebar content and behavior for a mode view.
+#[derive(Clone)]
+pub struct ModeSidebarController {
+    /// View shown in the unified native sidebar when this mode is active.
+    pub sidebar_view: AnyView,
+    /// Computes whether the hosted sidebar should be visible.
+    pub is_visible: ModeSidebarVisibilityFn,
+    /// Toggles the hosted sidebar visibility.
+    pub toggle: ModeSidebarToggleFn,
+}
 
 /// A view that can be displayed for a workspace mode.
 ///
@@ -26,10 +40,8 @@ pub struct RegisteredModeView {
     pub focus_handle: FocusHandle,
     /// Optional view to render in the title bar center when this mode is active
     pub titlebar_center_view: Option<AnyView>,
-    /// Optional sidebar view shown in the unified native sidebar when this mode is active
-    pub sidebar_view: Option<AnyView>,
-    /// Optional function that derives whether the mode sidebar should be visible.
-    pub sidebar_visibility: Option<ModeSidebarVisibilityFn>,
+    /// Optional hosted sidebar controller for the active mode view.
+    pub sidebar: Option<ModeSidebarController>,
     /// Optional callback invoked when this mode is deactivated
     pub on_deactivate: Option<ModeDeactivateCallback>,
 }

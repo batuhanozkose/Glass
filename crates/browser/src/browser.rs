@@ -38,9 +38,24 @@ pub fn handle_cef_subprocess() -> anyhow::Result<()> {
     CefInstance::handle_subprocess()
 }
 
-use gpui::{App, AppContext as _, Entity, Focusable};
+use gpui::{AnyView, App, AppContext as _, Entity, Focusable};
 use std::sync::Arc;
-use workspace_modes::{ModeId, ModeViewRegistry, RegisteredModeView};
+use workspace_modes::{ModeId, ModeSidebarController, ModeViewRegistry, RegisteredModeView};
+
+fn browser_sidebar_visible(view: &AnyView, cx: &App) -> bool {
+    view.clone()
+        .downcast::<BrowserView>()
+        .ok()
+        .is_some_and(|browser_view| browser_view.read(cx).sidebar_visible())
+}
+
+fn toggle_browser_sidebar(view: &AnyView, cx: &mut App) {
+    if let Ok(browser_view) = view.clone().downcast::<BrowserView>() {
+        let _ = browser_view.update(cx, |browser_view, cx| {
+            browser_view.toggle_sidebar_visibility(cx);
+        });
+    }
+}
 
 pub fn init(cx: &mut App) {
     match CefInstance::initialize(cx) {
@@ -72,12 +87,16 @@ pub fn init(cx: &mut App) {
             let focus_handle = browser_view.focus_handle(cx);
 
             #[cfg(target_os = "macos")]
-            let sidebar_view = {
+            let sidebar = {
                 let panel = browser_view.update(cx, |bv, cx| bv.ensure_native_sidebar_panel(cx));
-                Some(gpui::AnyView::from(panel))
+                Some(ModeSidebarController {
+                    sidebar_view: gpui::AnyView::from(panel),
+                    is_visible: browser_sidebar_visible,
+                    toggle: toggle_browser_sidebar,
+                })
             };
             #[cfg(not(target_os = "macos"))]
-            let sidebar_view = None;
+            let sidebar = None;
 
             let deactivate_view = browser_view.downgrade();
             let on_deactivate: Arc<dyn Fn(&mut App) + Send + Sync> =
@@ -93,8 +112,7 @@ pub fn init(cx: &mut App) {
                 view: browser_view.into(),
                 focus_handle,
                 titlebar_center_view: None,
-                sidebar_view,
-                sidebar_visibility: None,
+                sidebar,
                 on_deactivate: Some(on_deactivate),
             }
         }),

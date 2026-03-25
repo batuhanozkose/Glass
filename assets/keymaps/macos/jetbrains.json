@@ -47,7 +47,6 @@
       "cmd-]": "pane::GoForward",
       "alt-f7": "editor::FindAllReferences",
       "cmd-alt-f7": "editor::FindAllReferences",
-      "cmd-b": "editor::GoToDefinition", // Conflicts with workspace::ToggleLeftDock
       "cmd-alt-b": "editor::GoToImplementation",
       "cmd-shift-b": "editor::GoToTypeDefinition",
       "cmd-alt-shift-b": "editor::GoToTypeDefinitionSplit",
