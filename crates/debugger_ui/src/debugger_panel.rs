@@ -1027,9 +1027,7 @@ impl DebugPanel {
                                             )
                                         })
                                     })
-                                    .when(!is_side, |this| {
-                                        this.gap_0p5()
-                                    })
+                                    .when(!is_side, |this| this.gap_0p5())
                                 },
                             ),
                         )

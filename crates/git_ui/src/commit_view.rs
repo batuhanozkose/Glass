@@ -1044,15 +1044,11 @@ impl Render for CommitViewToolbar {
         h_flex()
             .gap_1()
             .when(additions > 0 || deletions > 0, |this| {
-                this.child(
-                    h_flex()
-                        .gap_2()
-                        .child(DiffStat::new(
-                            "toolbar-diff-stat",
-                            additions as usize,
-                            deletions as usize,
-                        )),
-                )
+                this.child(h_flex().gap_2().child(DiffStat::new(
+                    "toolbar-diff-stat",
+                    additions as usize,
+                    deletions as usize,
+                )))
             })
             .child(
                 IconButton::new("buffer-search", IconName::MagnifyingGlass)
