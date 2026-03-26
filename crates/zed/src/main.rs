@@ -739,7 +739,6 @@ fn main() {
         notifications::init(app_state.client.clone(), app_state.user_store.clone(), cx);
         title_bar::init(cx);
         git_ui::init(cx);
-        native_platforms_ui::init(cx);
         git_graph::init(cx);
         feedback::init(cx);
         markdown_preview::init(cx);

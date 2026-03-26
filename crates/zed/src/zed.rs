@@ -49,7 +49,6 @@ use language_tools::lsp_log_view::LspLogToolbarItemView;
 use markdown::{Markdown, MarkdownElement, MarkdownFont, MarkdownStyle};
 use migrate::{MigrationBanner, MigrationEvent, MigrationNotification, MigrationType};
 use migrator::migrate_keymap;
-use native_platforms_ui::panel::NativePlatformsPanel;
 use onboarding::DOCS_URL;
 use onboarding::multibuffer_hint::MultibufferHint;
 pub use open_listener::*;
@@ -716,8 +715,6 @@ fn initialize_panels(
         let project_panel = ProjectPanel::load(workspace_handle.clone(), cx.clone());
         let terminal_panel = TerminalPanel::load(workspace_handle.clone(), cx.clone());
         let git_panel = GitPanel::load(workspace_handle.clone(), cx.clone());
-        let native_platforms_panel =
-            NativePlatformsPanel::load(workspace_handle.clone(), cx.clone());
         let debug_panel = DebugPanel::load(workspace_handle.clone(), cx);
 
         async fn add_panel_when_ready(
@@ -740,7 +737,6 @@ fn initialize_panels(
             add_panel_when_ready(terminal_panel, workspace_handle.clone(), cx.clone()),
             add_panel_when_ready(git_panel, workspace_handle.clone(), cx.clone()),
             add_panel_when_ready(debug_panel, workspace_handle.clone(), cx.clone()),
-            add_panel_when_ready(native_platforms_panel, workspace_handle.clone(), cx.clone()),
             initialize_agent_panel(workspace_handle, prompt_builder, cx.clone()).map(|r| r.log_err()),
         );
 

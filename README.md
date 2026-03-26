@@ -1,6 +1,6 @@
 # Glass
 
-Glass is a browser, code editor, and terminal in one app. Instead of switching between separate applications, everything lives in the same environment. Anyone can use the browser — developers also get an editor, terminal, and native platform tooling alongside it.
+Glass is a browser, code editor, and terminal in one app. Instead of switching between separate applications, everything lives in the same environment. Anyone can use the browser — developers also get an editor and terminal alongside it.
 
 > **Glass is a fork of [Zed](https://github.com/zed-industries/zed).** We actively sync with upstream every week. Glass would not be possible without the incredible work the Zed team continues to do.
 
@@ -13,9 +13,8 @@ Glass is in **active development**. The focus right now is macOS, with Windows, 
 - **Browser** — A full browser. Browse, stream, work — you never have to touch the editor if you don't want to.
 - **Code editor** — Inherited from Zed, with significant UI changes and native macOS components.
 - **Terminal** — Built into the same environment.
-- **Native platform tooling** — Build, run, and test iOS and macOS apps without opening Xcode. Manage App Store Connect without opening the web app.
 
-For developers, everything is connected. Build a web app and test it in the same browser. Build a native app and run it without leaving Glass. Deep integration between these workspaces is the long-term vision.
+For developers, everything is connected. Deep integration between coding, execution, and service management is the long-term vision.
 
 ### GPUI
 
