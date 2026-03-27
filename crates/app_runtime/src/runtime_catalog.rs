@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn detects_apple_workspace_and_marks_missing_toolchain_as_setup_required() {
         let temp_dir = tempfile::tempdir().unwrap();
-        create_workspace_fixture(temp_dir.path());
+        create_workspace_fixture(temp_dir.path(), "Demo");
 
         let runner = FakeCommandRunner::new(BTreeMap::from([(
             "xcodebuild -version".to_string(),
@@ -367,9 +367,109 @@ mod tests {
     }
 
     #[test]
+    fn detects_multiple_apple_projects_within_one_workspace_root() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        create_workspace_fixture(temp_dir.path(), "ios-sample");
+        create_workspace_fixture(temp_dir.path(), "mac-sample");
+
+        let runner = FakeCommandRunner::new(BTreeMap::from([
+            (
+                "xcodebuild -version".to_string(),
+                CommandOutput {
+                    success: true,
+                    stdout: "Xcode 16.2".to_string(),
+                    stderr: String::new(),
+                },
+            ),
+            (
+                format!(
+                    "xcodebuild -workspace {} -scheme ios-sample -showdestinations -quiet",
+                    temp_dir.path().join("ios-sample.xcworkspace").display()
+                ),
+                CommandOutput {
+                    success: true,
+                    stdout: "{ platform:iOS Simulator, id:SIM-1, OS:18.2, name:iPhone 16 }"
+                        .to_string(),
+                    stderr: String::new(),
+                },
+            ),
+            (
+                format!(
+                    "xcodebuild -workspace {} -scheme mac-sample -showdestinations -quiet",
+                    temp_dir.path().join("mac-sample.xcworkspace").display()
+                ),
+                CommandOutput {
+                    success: true,
+                    stdout: "{ platform:macOS, arch:arm64, id:MAC-1, name:My Mac }".to_string(),
+                    stderr: String::new(),
+                },
+            ),
+        ]));
+
+        let catalog = RuntimeCatalog::discover(&[temp_dir.path().to_path_buf()], &runner);
+        let apple_projects = catalog
+            .projects
+            .iter()
+            .filter(|project| {
+                matches!(
+                    project.kind,
+                    crate::ProjectKind::AppleWorkspace | crate::ProjectKind::AppleProject
+                )
+            })
+            .map(|project| project.label.clone())
+            .collect::<Vec<_>>();
+
+        assert_eq!(apple_projects, vec!["ios-sample".to_string(), "mac-sample".to_string()]);
+    }
+
+    #[test]
+    fn detects_xcode_project_targets_from_xcodebuild_list_when_shared_schemes_are_missing() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        create_project_fixture(temp_dir.path(), "GeneratedApp");
+        let project_path = temp_dir.path().join("GeneratedApp.xcodeproj");
+
+        let runner = FakeCommandRunner::new(BTreeMap::from([
+            (
+                "xcodebuild -version".to_string(),
+                CommandOutput {
+                    success: true,
+                    stdout: "Xcode 16.2".to_string(),
+                    stderr: String::new(),
+                },
+            ),
+            (
+                format!("xcodebuild -project {} -list -json", project_path.display()),
+                CommandOutput {
+                    success: true,
+                    stdout: r#"{"project":{"schemes":["GeneratedApp"]}}"#.to_string(),
+                    stderr: String::new(),
+                },
+            ),
+            (
+                format!(
+                    "xcodebuild -project {} -scheme GeneratedApp -showdestinations -quiet",
+                    project_path.display()
+                ),
+                CommandOutput {
+                    success: true,
+                    stdout: "{ platform:iOS Simulator, id:SIM-1, OS:18.2, name:iPhone 16 }"
+                        .to_string(),
+                    stderr: String::new(),
+                },
+            ),
+        ]));
+
+        let catalog = RuntimeCatalog::discover(&[temp_dir.path().to_path_buf()], &runner);
+        let project = catalog.projects.first().unwrap();
+
+        assert_eq!(project.label, "GeneratedApp");
+        assert_eq!(project.targets[0].label, "GeneratedApp");
+    }
+
+    #[test]
     fn detects_schemes_and_simulators_before_ui_integration() {
         let temp_dir = tempfile::tempdir().unwrap();
-        create_workspace_fixture(temp_dir.path());
+        create_workspace_fixture(temp_dir.path(), "Demo");
         let workspace_path = temp_dir.path().join("Demo.xcworkspace");
 
         let runner = FakeCommandRunner::new(BTreeMap::from([
@@ -407,7 +507,7 @@ mod tests {
     #[test]
     fn validates_that_run_requires_a_device() {
         let temp_dir = tempfile::tempdir().unwrap();
-        create_workspace_fixture(temp_dir.path());
+        create_workspace_fixture(temp_dir.path(), "Demo");
         let workspace_path = temp_dir.path().join("Demo.xcworkspace");
 
         let runner = FakeCommandRunner::new(BTreeMap::from([
@@ -449,7 +549,7 @@ mod tests {
     #[test]
     fn builds_an_xcodebuild_plan_for_build_and_run() {
         let temp_dir = tempfile::tempdir().unwrap();
-        create_workspace_fixture(temp_dir.path());
+        create_workspace_fixture(temp_dir.path(), "Demo");
         let workspace_path = temp_dir.path().join("Demo.xcworkspace");
 
         let runner = FakeCommandRunner::new(BTreeMap::from([
@@ -504,7 +604,7 @@ mod tests {
     #[test]
     fn builds_a_macos_run_plan_when_a_mac_destination_is_available() {
         let temp_dir = tempfile::tempdir().unwrap();
-        create_workspace_fixture(temp_dir.path());
+        create_workspace_fixture(temp_dir.path(), "Demo");
         let workspace_path = temp_dir.path().join("Demo.xcworkspace");
 
         let runner = FakeCommandRunner::new(BTreeMap::from([
@@ -600,8 +700,8 @@ mod tests {
         assert!(run_plan.args.contains(&"--bin".to_string()));
     }
 
-    fn create_workspace_fixture(root: &Path) {
-        let workspace = root.join("Demo.xcworkspace");
+    fn create_workspace_fixture(root: &Path, name: &str) {
+        let workspace = root.join(format!("{name}.xcworkspace"));
         let scheme_dir = workspace.join("xcshareddata").join("xcschemes");
         fs::create_dir_all(&scheme_dir).unwrap();
         fs::write(
@@ -610,7 +710,7 @@ mod tests {
 <Workspace version = "1.0"></Workspace>"#,
         )
         .unwrap();
-        fs::write(scheme_dir.join("Demo.xcscheme"), "<Scheme />").unwrap();
+        fs::write(scheme_dir.join(format!("{name}.xcscheme")), "<Scheme />").unwrap();
     }
 
     fn create_gpui_fixture(root: &Path, package_name: &str, bins: &[&str]) {
@@ -657,5 +757,11 @@ gpui = "0.1"
         };
 
         fs::write(root.join("Cargo.toml"), manifest).unwrap();
+    }
+
+    fn create_project_fixture(root: &Path, name: &str) {
+        let project = root.join(format!("{name}.xcodeproj"));
+        fs::create_dir_all(&project).unwrap();
+        fs::write(project.join("project.pbxproj"), "// placeholder").unwrap();
     }
 }

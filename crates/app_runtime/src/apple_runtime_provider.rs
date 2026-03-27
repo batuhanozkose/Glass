@@ -18,17 +18,7 @@ impl<'a> AppleRuntimeProvider<'a> {
         Self { runner }
     }
 
-    fn detect_project(&self, workspace_root: &Path) -> Option<DetectedProject> {
-        let project_path = match detect_xcode_project(workspace_root) {
-            Some(project_path) => project_path,
-            None => return None,
-        };
-
-        let targets = list_targets(&project_path);
-        if targets.is_empty() {
-            return None;
-        }
-
+    fn detect_project(&self, workspace_root: &Path, project_path: PathBuf) -> Option<DetectedProject> {
         let toolchain_ready = self
             .runner
             .run("xcodebuild", &["-version"])
@@ -41,6 +31,20 @@ impl<'a> AppleRuntimeProvider<'a> {
             } else {
                 ProjectKind::AppleProject
             };
+
+        let targets = if toolchain_ready {
+            let listed_targets = list_targets_from_xcodebuild(&project_path, &project_kind, self.runner);
+            if listed_targets.is_empty() {
+                list_targets_from_filesystem(&project_path)
+            } else {
+                listed_targets
+            }
+        } else {
+            list_targets_from_filesystem(&project_path)
+        };
+        if targets.is_empty() {
+            return None;
+        }
 
         let devices = if toolchain_ready {
             list_supported_devices(&project_path, &project_kind, &targets, self.runner)
@@ -92,11 +96,14 @@ impl<'a> AppleRuntimeProvider<'a> {
 
 impl RuntimeProvider for AppleRuntimeProvider<'_> {
     fn detect(&self, workspace_root: &Path) -> Vec<DetectedProject> {
-        self.detect_project(workspace_root).into_iter().collect()
+        detect_xcode_projects(workspace_root)
+            .into_iter()
+            .filter_map(|project_path| self.detect_project(workspace_root, project_path))
+            .collect()
     }
 }
 
-fn detect_xcode_project(workspace_root: &Path) -> Option<PathBuf> {
+fn detect_xcode_projects(workspace_root: &Path) -> Vec<PathBuf> {
     let mut workspaces = Vec::new();
     let mut projects = Vec::new();
 
@@ -131,16 +138,54 @@ fn detect_xcode_project(workspace_root: &Path) -> Option<PathBuf> {
         }
     }
 
-    workspaces.sort_by_key(|path| path.components().count());
-    projects.sort_by_key(|path| path.components().count());
+    workspaces.sort_by(|left, right| {
+        left.components()
+            .count()
+            .cmp(&right.components().count())
+            .then_with(|| left.cmp(right))
+    });
+    projects.sort_by(|left, right| {
+        left.components()
+            .count()
+            .cmp(&right.components().count())
+            .then_with(|| left.cmp(right))
+    });
 
-    workspaces
-        .into_iter()
-        .next()
-        .or_else(|| projects.into_iter().next())
+    workspaces.into_iter().chain(projects).collect()
 }
 
-fn list_targets(project_path: &Path) -> Vec<RuntimeTarget> {
+fn list_targets_from_xcodebuild(
+    project_path: &Path,
+    project_kind: &ProjectKind,
+    runner: &dyn CommandRunner,
+) -> Vec<RuntimeTarget> {
+    let output = match runner.run("xcodebuild", &list_targets_args(project_path, project_kind)) {
+        Ok(output) if output.success => output,
+        _ => return Vec::new(),
+    };
+
+    let response: XcodeListResponse = match serde_json::from_str(&output.stdout) {
+        Ok(response) => response,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut targets = response
+        .project
+        .into_iter()
+        .chain(response.workspace)
+        .flat_map(|container| container.schemes.unwrap_or_default())
+        .map(|scheme| RuntimeTarget {
+            id: scheme.clone(),
+            label: scheme,
+        })
+        .collect::<Vec<_>>();
+
+    targets.sort_by(|left, right| left.label.cmp(&right.label));
+    targets.dedup_by(|left, right| left.id == right.id);
+    targets
+}
+
+fn list_targets_from_filesystem(project_path: &Path) -> Vec<RuntimeTarget> {
     let mut scheme_directories = vec![project_path.join("xcshareddata").join("xcschemes")];
 
     let user_data_dir = project_path.join("xcuserdata");
@@ -197,6 +242,16 @@ fn list_targets(project_path: &Path) -> Vec<RuntimeTarget> {
 
     targets.sort_by(|left, right| left.label.cmp(&right.label));
     targets
+}
+
+fn list_targets_args<'a>(project_path: &'a Path, project_kind: &'a ProjectKind) -> Vec<&'a str> {
+    let selector_flag = match project_kind {
+        ProjectKind::AppleWorkspace => "-workspace",
+        ProjectKind::AppleProject => "-project",
+        ProjectKind::GpuiApplication => unreachable!("Apple provider cannot receive GPUI projects"),
+    };
+
+    vec![selector_flag, project_path.to_str().unwrap_or_default(), "-list", "-json"]
 }
 
 fn referenced_workspace_scheme_directories(project_path: &Path) -> Vec<PathBuf> {
@@ -347,6 +402,17 @@ struct XcodeDestination {
     name: String,
     #[serde(rename = "OS")]
     os: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct XcodeListResponse {
+    project: Option<XcodeListContainer>,
+    workspace: Option<XcodeListContainer>,
+}
+
+#[derive(Deserialize)]
+struct XcodeListContainer {
+    schemes: Option<Vec<String>>,
 }
 
 fn coerce_destination(destination: XcodeDestination) -> Option<RuntimeDevice> {

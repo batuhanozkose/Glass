@@ -30,6 +30,7 @@ pub struct ServiceProviderDescriptor {
     pub id: String,
     pub label: String,
     pub auth_kind: ServiceAuthKind,
+    pub auth: Option<ServiceAuthConfiguration>,
     pub capabilities: ServiceCapabilitySet,
 }
 
@@ -38,6 +39,43 @@ pub enum ServiceAuthKind {
     None,
     ApiKey,
     OAuth,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServiceAuthConfiguration {
+    pub kind: ServiceAuthKind,
+    pub actions: Vec<ServiceAuthActionDescriptor>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ServiceAuthAction {
+    Authenticate,
+    Logout,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServiceAuthActionDescriptor {
+    pub action: ServiceAuthAction,
+    pub label: String,
+    pub description: String,
+    pub inputs: Vec<ServiceInputDescriptor>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServiceInputDescriptor {
+    pub key: String,
+    pub label: String,
+    pub kind: ServiceInputKind,
+    pub required: bool,
+    pub placeholder: Option<String>,
+    pub help: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ServiceInputKind {
+    Text,
+    FilePath,
+    Toggle,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -72,6 +110,13 @@ pub struct ServiceOperationRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServiceAuthActionRequest {
+    pub provider_id: String,
+    pub action: ServiceAuthAction,
+    pub input: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ServiceCommandPlan {
     pub label: String,
     pub command: String,
@@ -100,6 +145,8 @@ pub enum ServiceError {
     UnknownProvider(String),
     #[error("service operation `{0}` is not supported")]
     UnsupportedOperation(String),
+    #[error("service authentication action `{0}` is not supported")]
+    UnsupportedAuthAction(String),
     #[error("service operation requires resource kind `{expected}`, got `{actual}`")]
     UnexpectedResourceKind { expected: String, actual: String },
     #[error("service operation requires an artifact")]
@@ -112,6 +159,10 @@ pub enum ServiceError {
 
 pub trait ServiceProvider {
     fn descriptor(&self) -> ServiceProviderDescriptor;
+    fn build_auth_action(
+        &self,
+        request: &ServiceAuthActionRequest,
+    ) -> Result<ServiceCommandPlan, ServiceError>;
     fn build_operation(
         &self,
         request: &ServiceOperationRequest,
@@ -149,6 +200,18 @@ impl ServiceHub {
             .ok_or_else(|| ServiceError::UnknownProvider(request.provider_id.clone()))?;
         provider.build_operation(request)
     }
+
+    pub fn build_auth_action(
+        &self,
+        request: &ServiceAuthActionRequest,
+    ) -> Result<ServiceCommandPlan, ServiceError> {
+        let provider = self
+            .providers
+            .iter()
+            .find(|provider| provider.descriptor().id == request.provider_id)
+            .ok_or_else(|| ServiceError::UnknownProvider(request.provider_id.clone()))?;
+        provider.build_auth_action(request)
+    }
 }
 
 pub struct AscServiceProvider;
@@ -159,6 +222,83 @@ impl ServiceProvider for AscServiceProvider {
             id: "app-store-connect".to_string(),
             label: "App Store Connect".to_string(),
             auth_kind: ServiceAuthKind::ApiKey,
+            auth: Some(ServiceAuthConfiguration {
+                kind: ServiceAuthKind::ApiKey,
+                actions: vec![
+                    ServiceAuthActionDescriptor {
+                        action: ServiceAuthAction::Authenticate,
+                        label: "Authenticate".to_string(),
+                        description:
+                            "Register an App Store Connect API key for this machine or repository."
+                                .to_string(),
+                        inputs: vec![
+                            ServiceInputDescriptor {
+                                key: "profile_name".to_string(),
+                                label: "Profile Name".to_string(),
+                                kind: ServiceInputKind::Text,
+                                required: true,
+                                placeholder: Some("Personal".to_string()),
+                                help: Some(
+                                    "Friendly label used for the stored App Store Connect credential."
+                                        .to_string(),
+                                ),
+                            },
+                            ServiceInputDescriptor {
+                                key: "key_id".to_string(),
+                                label: "Key ID".to_string(),
+                                kind: ServiceInputKind::Text,
+                                required: true,
+                                placeholder: Some("ABC123".to_string()),
+                                help: None,
+                            },
+                            ServiceInputDescriptor {
+                                key: "issuer_id".to_string(),
+                                label: "Issuer ID".to_string(),
+                                kind: ServiceInputKind::Text,
+                                required: true,
+                                placeholder: Some("00000000-0000-0000-0000-000000000000".to_string()),
+                                help: None,
+                            },
+                            ServiceInputDescriptor {
+                                key: "private_key_path".to_string(),
+                                label: "Private Key".to_string(),
+                                kind: ServiceInputKind::FilePath,
+                                required: true,
+                                placeholder: Some("/path/to/AuthKey_ABC123.p8".to_string()),
+                                help: Some("Choose the downloaded App Store Connect API key file.".to_string()),
+                            },
+                            ServiceInputDescriptor {
+                                key: "repo_local".to_string(),
+                                label: "Store In Repository".to_string(),
+                                kind: ServiceInputKind::Toggle,
+                                required: false,
+                                placeholder: None,
+                                help: Some(
+                                    "Store credentials in ./.asc/config.json instead of the system keychain."
+                                        .to_string(),
+                                ),
+                            },
+                            ServiceInputDescriptor {
+                                key: "validate_network".to_string(),
+                                label: "Validate Network Access".to_string(),
+                                kind: ServiceInputKind::Toggle,
+                                required: false,
+                                placeholder: None,
+                                help: Some(
+                                    "Run a lightweight App Store Connect request during authentication."
+                                        .to_string(),
+                                ),
+                            },
+                        ],
+                    },
+                    ServiceAuthActionDescriptor {
+                        action: ServiceAuthAction::Logout,
+                        label: "Log Out".to_string(),
+                        description: "Remove stored App Store Connect credentials.".to_string(),
+                        inputs: Vec::new(),
+                    },
+                ],
+            }),
             capabilities: ServiceCapabilitySet {
                 capabilities: [
                     ServiceCapability::Authenticate,
@@ -170,6 +310,16 @@ impl ServiceProvider for AscServiceProvider {
                 .into_iter()
                 .collect(),
             },
+        }
+    }
+
+    fn build_auth_action(
+        &self,
+        request: &ServiceAuthActionRequest,
+    ) -> Result<ServiceCommandPlan, ServiceError> {
+        match request.action {
+            ServiceAuthAction::Authenticate => build_asc_authenticate(request),
+            ServiceAuthAction::Logout => Ok(build_asc_logout()),
         }
     }
 
@@ -200,6 +350,79 @@ fn build_asc_auth_status() -> ServiceCommandPlan {
             "--output".to_string(),
             "json".to_string(),
             "--pretty".to_string(),
+        ],
+        cwd: None,
+        env: BTreeMap::new(),
+    }
+}
+
+fn build_asc_authenticate(
+    request: &ServiceAuthActionRequest,
+) -> Result<ServiceCommandPlan, ServiceError> {
+    let profile_name = request
+        .input
+        .get("profile_name")
+        .ok_or(ServiceError::MissingInput("profile_name"))?;
+    let key_id = request
+        .input
+        .get("key_id")
+        .ok_or(ServiceError::MissingInput("key_id"))?;
+    let issuer_id = request
+        .input
+        .get("issuer_id")
+        .ok_or(ServiceError::MissingInput("issuer_id"))?;
+    let private_key_path = request
+        .input
+        .get("private_key_path")
+        .ok_or(ServiceError::MissingInput("private_key_path"))?;
+
+    let mut args = vec![
+        "auth".to_string(),
+        "login".to_string(),
+        "--name".to_string(),
+        profile_name.clone(),
+        "--key-id".to_string(),
+        key_id.clone(),
+        "--issuer-id".to_string(),
+        issuer_id.clone(),
+        "--private-key".to_string(),
+        private_key_path.clone(),
+    ];
+
+    if request
+        .input
+        .get("repo_local")
+        .is_some_and(|value| value == "true")
+    {
+        args.push("--bypass-keychain".to_string());
+        args.push("--local".to_string());
+    }
+
+    if request
+        .input
+        .get("validate_network")
+        .is_some_and(|value| value == "true")
+    {
+        args.push("--network".to_string());
+    }
+
+    Ok(ServiceCommandPlan {
+        label: "Authenticate App Store Connect".to_string(),
+        command: "asc".to_string(),
+        args,
+        cwd: None,
+        env: BTreeMap::new(),
+    })
+}
+
+fn build_asc_logout() -> ServiceCommandPlan {
+    ServiceCommandPlan {
+        label: "Log out of App Store Connect".to_string(),
+        command: "asc".to_string(),
+        args: vec![
+            "auth".to_string(),
+            "logout".to_string(),
+            "--all".to_string(),
         ],
         cwd: None,
         env: BTreeMap::new(),
@@ -469,9 +692,9 @@ fn ensure_resource_kind(resource: &ServiceResourceRef, expected: &str) -> Result
 #[cfg(test)]
 mod tests {
     use super::{
-        AscServiceProvider, ServiceArtifactKind, ServiceArtifactRef, ServiceAuthKind,
-        ServiceCapability, ServiceHub, ServiceOperationRequest, ServiceProvider,
-        ServiceResourceRef,
+        AscServiceProvider, ServiceArtifactKind, ServiceArtifactRef, ServiceAuthAction,
+        ServiceAuthActionRequest, ServiceAuthKind, ServiceCapability, ServiceHub,
+        ServiceOperationRequest, ServiceProvider, ServiceResourceRef,
     };
     use std::{collections::BTreeMap, path::PathBuf};
 
@@ -508,6 +731,70 @@ mod tests {
         assert_eq!(plan.command, "asc");
         assert_eq!(plan.args[0], "auth");
         assert!(plan.args.contains(&"--validate".to_string()));
+    }
+
+    #[test]
+    fn advertises_reusable_auth_actions_for_app_store_connect() {
+        let descriptor = AscServiceProvider.descriptor();
+        let auth = descriptor.auth.as_ref().unwrap();
+
+        assert_eq!(auth.kind, ServiceAuthKind::ApiKey);
+        assert!(auth
+            .actions
+            .iter()
+            .any(|action| action.action == ServiceAuthAction::Authenticate));
+        assert!(auth
+            .actions
+            .iter()
+            .any(|action| action.action == ServiceAuthAction::Logout));
+    }
+
+    #[test]
+    fn builds_real_asc_authenticate_command() {
+        let hub = ServiceHub::default();
+        let plan = hub
+            .build_auth_action(&ServiceAuthActionRequest {
+                provider_id: "app-store-connect".to_string(),
+                action: ServiceAuthAction::Authenticate,
+                input: [
+                    ("profile_name".to_string(), "Personal".to_string()),
+                    ("key_id".to_string(), "ABC123".to_string()),
+                    ("issuer_id".to_string(), "ISSUER456".to_string()),
+                    (
+                        "private_key_path".to_string(),
+                        "/tmp/AuthKey_ABC123.p8".to_string(),
+                    ),
+                    ("repo_local".to_string(), "true".to_string()),
+                    ("validate_network".to_string(), "true".to_string()),
+                ]
+                .into_iter()
+                .collect(),
+            })
+            .unwrap();
+
+        assert_eq!(plan.command, "asc");
+        assert_eq!(plan.args[0], "auth");
+        assert_eq!(plan.args[1], "login");
+        assert!(plan.args.contains(&"--name".to_string()));
+        assert!(plan.args.contains(&"Personal".to_string()));
+        assert!(plan.args.contains(&"--local".to_string()));
+        assert!(plan.args.contains(&"--bypass-keychain".to_string()));
+        assert!(plan.args.contains(&"--network".to_string()));
+    }
+
+    #[test]
+    fn builds_real_asc_logout_command() {
+        let hub = ServiceHub::default();
+        let plan = hub
+            .build_auth_action(&ServiceAuthActionRequest {
+                provider_id: "app-store-connect".to_string(),
+                action: ServiceAuthAction::Logout,
+                input: BTreeMap::new(),
+            })
+            .unwrap();
+
+        assert_eq!(plan.command, "asc");
+        assert_eq!(plan.args, vec!["auth", "logout", "--all"]);
     }
 
     #[test]

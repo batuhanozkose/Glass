@@ -14052,6 +14052,7 @@ dependencies = [
  "service_hub",
  "task",
  "ui",
+ "ui_input",
  "util",
  "workspace",
 ]

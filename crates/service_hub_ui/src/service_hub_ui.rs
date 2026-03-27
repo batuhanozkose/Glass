@@ -1,4 +1,6 @@
+mod app_store_connect_auth;
 mod app_store_connect_page;
+mod command_runner;
 
 use app_store_connect_page::AppStoreConnectPage;
 use gpui::{App, actions};
