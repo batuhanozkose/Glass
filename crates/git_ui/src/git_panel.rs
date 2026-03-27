@@ -29,11 +29,11 @@ use git::repository::{
 };
 use git::stash::GitStash;
 use git::status::{DiffStat, StageStatus};
+use git::{Amend, Signoff, ToggleStaged, repository::RepoPath, status::FileStatus};
 use git::{
     ExpandCommitEditor, GitHostingProviderRegistry, RestoreTrackedFiles, StageAll, StashAll,
     StashApply, StashPop, TrashUntrackedFiles, UnstageAll,
 };
-use git::{Signoff, ToggleStaged, repository::RepoPath, status::FileStatus};
 use gpui::{
     Action, AsyncApp, AsyncWindowContext, Bounds, ClickEvent, Corner, Empty, Entity, EventEmitter,
     FocusHandle, Focusable, KeyContext, MouseButton, MouseDownEvent, Point, PromptLevel,
@@ -68,7 +68,8 @@ use time::OffsetDateTime;
 use toast::{StatusToast, ToastIcon};
 use ui::{
     ButtonLike, Checkbox, CommonAnimationExt, ContextMenu, ElevationIndex, IndentGuideColors,
-    RenderedIndentGuide, ScrollAxes, Scrollbars, SplitButton, Tooltip, WithScrollbar, prelude::*,
+    PopoverMenu, RenderedIndentGuide, ScrollAxes, Scrollbars, SplitButton, Tooltip, WithScrollbar,
+    prelude::*,
 };
 use util::paths::PathStyle;
 use util::{ResultExt, TryFutureExt, maybe, rel_path::RelPath};
@@ -160,7 +161,6 @@ struct GitMenuState {
     tree_view: bool,
 }
 
-#[cfg(not(target_os = "macos"))]
 fn git_panel_context_menu(
     focus_handle: FocusHandle,
     state: GitMenuState,
@@ -3913,119 +3913,30 @@ impl GitPanel {
         let has_new_changes = self.new_count > 0;
         let has_stash_items = self.stash_entries.entries.len() > 0;
 
-        #[cfg(target_os = "macos")]
-        {
-            use gpui::{InteractiveElement, ParentElement, div};
-            use gpui::{NativeMenuItem, show_native_popup_menu};
-
-            let _ = id;
-            let focus = focus_handle;
-            return div()
-                .child(
-                    IconButton::new("overflow-menu-trigger", IconName::Ellipsis)
-                        .icon_size(IconSize::Small)
-                        .icon_color(Color::Muted),
-                )
-                .on_mouse_down(MouseButton::Left, move |event, window, cx| {
-                    let sort_by_path = GitPanelSettings::get_global(cx).sort_by_path;
-                    let tree_view = GitPanelSettings::get_global(cx).tree_view;
-
-                    let mut items = vec![
-                        NativeMenuItem::Action {
-                            title: "Stage All".into(),
-                            enabled: has_unstaged_changes,
-                        },
-                        NativeMenuItem::Action {
-                            title: "Unstage All".into(),
-                            enabled: has_staged_changes,
-                        },
-                        NativeMenuItem::separator(),
-                        NativeMenuItem::Action {
-                            title: "Stash All".into(),
-                            enabled: has_new_changes || has_tracked_changes,
-                        },
-                        NativeMenuItem::Action {
-                            title: "Stash Pop".into(),
-                            enabled: has_stash_items,
-                        },
-                        NativeMenuItem::action("View Stash"),
-                        NativeMenuItem::separator(),
-                        NativeMenuItem::action("Open Diff"),
-                        NativeMenuItem::separator(),
-                        NativeMenuItem::Action {
-                            title: "Discard Tracked Changes".into(),
-                            enabled: has_tracked_changes,
-                        },
-                        NativeMenuItem::Action {
-                            title: "Trash Untracked Files".into(),
-                            enabled: has_new_changes,
-                        },
-                        NativeMenuItem::separator(),
-                        NativeMenuItem::action(if tree_view { "Flat View" } else { "Tree View" }),
-                    ];
-                    let mut actions: Vec<Box<dyn gpui::Action>> = vec![
-                        StageAll.boxed_clone(),
-                        UnstageAll.boxed_clone(),
-                        StashAll.boxed_clone(),
-                        StashPop.boxed_clone(),
-                        zed_actions::git::ViewStash.boxed_clone(),
-                        project_diff::Diff.boxed_clone(),
-                        RestoreTrackedFiles.boxed_clone(),
-                        TrashUntrackedFiles.boxed_clone(),
-                        Box::new(ToggleTreeView),
-                    ];
-                    if !tree_view {
-                        items.push(NativeMenuItem::action(if sort_by_path {
-                            "Sort by Status"
-                        } else {
-                            "Sort by Path"
-                        }));
-                        actions.push(Box::new(ToggleSortByPath));
-                    }
-
-                    let f = focus.clone();
-                    show_native_popup_menu(
-                        &items,
-                        event.position,
-                        window,
-                        cx,
-                        move |index, window, cx| {
-                            if let Some(action) = actions.into_iter().nth(index) {
-                                f.dispatch_action(&*action, window, cx);
-                            }
-                        },
-                    );
-                })
-                .into_any_element();
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            PopoverMenu::new(id.into())
-                .trigger(
-                    IconButton::new("overflow-menu-trigger", IconName::Ellipsis)
-                        .icon_size(IconSize::Small)
-                        .icon_color(Color::Muted),
-                )
-                .menu(move |window, cx| {
-                    Some(git_panel_context_menu(
-                        focus_handle.clone(),
-                        GitMenuState {
-                            has_tracked_changes,
-                            has_staged_changes,
-                            has_unstaged_changes,
-                            has_new_changes,
-                            sort_by_path: GitPanelSettings::get_global(cx).sort_by_path,
-                            has_stash_items,
-                            tree_view: GitPanelSettings::get_global(cx).tree_view,
-                        },
-                        window,
-                        cx,
-                    ))
-                })
-                .anchor(Corner::TopRight)
-                .into_any_element()
-        }
+        PopoverMenu::new(id.into())
+            .trigger(
+                IconButton::new("overflow-menu-trigger", IconName::Ellipsis)
+                    .icon_size(IconSize::Small)
+                    .icon_color(Color::Muted),
+            )
+            .menu(move |window, cx| {
+                Some(git_panel_context_menu(
+                    focus_handle.clone(),
+                    GitMenuState {
+                        has_tracked_changes,
+                        has_staged_changes,
+                        has_unstaged_changes,
+                        has_new_changes,
+                        sort_by_path: GitPanelSettings::get_global(cx).sort_by_path,
+                        has_stash_items,
+                        tree_view: GitPanelSettings::get_global(cx).tree_view,
+                    },
+                    window,
+                    cx,
+                ))
+            })
+            .anchor(Corner::TopRight)
+            .into_any_element()
     }
 
     pub(crate) fn render_generate_commit_message_button(
@@ -4142,124 +4053,63 @@ impl GitPanel {
         keybinding_target: Option<FocusHandle>,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        let has_previous_commit = self.head_commit(cx).is_some();
-        let amend = self.amend_pending();
-        let signoff = self.signoff_enabled;
+        PopoverMenu::new(id.into())
+            .trigger(
+                ui::ButtonLike::new_rounded_right("commit-split-button-right")
+                    .layer(ui::ElevationIndex::ModalSurface)
+                    .size(ButtonSize::None)
+                    .child(
+                        h_flex()
+                            .px_1()
+                            .h_full()
+                            .justify_center()
+                            .border_l_1()
+                            .border_color(cx.theme().colors().border)
+                            .child(Icon::new(IconName::ChevronDown).size(IconSize::XSmall)),
+                    ),
+            )
+            .menu({
+                let git_panel = cx.entity();
+                let has_previous_commit = self.head_commit(cx).is_some();
+                let amend = self.amend_pending();
+                let signoff = self.signoff_enabled;
 
-        let trigger = ui::ButtonLike::new_rounded_right("commit-split-button-right")
-            .layer(ui::ElevationIndex::ModalSurface)
-            .size(ButtonSize::None)
-            .child(
-                h_flex()
-                    .px_1()
-                    .h_full()
-                    .justify_center()
-                    .border_l_1()
-                    .border_color(cx.theme().colors().border)
-                    .child(Icon::new(IconName::ChevronDown).size(IconSize::XSmall)),
-            );
-
-        #[cfg(target_os = "macos")]
-        {
-            use gpui::{IntoElement, NativeMenuItem, show_native_popup_menu};
-
-            let _ = (id, keybinding_target);
-            let git_panel = cx.entity().downgrade();
-            let focus = self.focus_handle.clone();
-            return gpui::div()
-                .child(trigger)
-                .on_mouse_down(MouseButton::Left, move |event, window, cx| {
-                    let mut items = Vec::new();
-                    let mut action_index = 0usize;
-                    let amend_idx;
-                    let signoff_idx;
-
-                    if has_previous_commit {
-                        let title = if amend { "\u{2713} Amend" } else { "Amend" };
-                        items.push(NativeMenuItem::action(title));
-                        amend_idx = Some(action_index);
-                        action_index += 1;
-                    } else {
-                        amend_idx = None;
-                    }
-
-                    let title = if signoff {
-                        "\u{2713} Signoff"
-                    } else {
-                        "Signoff"
-                    };
-                    items.push(NativeMenuItem::action(title));
-                    signoff_idx = action_index;
-
-                    let git_panel = git_panel.clone();
-                    let f = focus.clone();
-                    show_native_popup_menu(
-                        &items,
-                        event.position,
-                        window,
-                        cx,
-                        move |index, window, cx| {
-                            if amend_idx == Some(index) {
-                                git_panel
-                                    .update(cx, |git_panel, cx| {
-                                        git_panel.toggle_amend_pending(cx);
-                                    })
-                                    .ok();
-                            } else if index == signoff_idx {
-                                f.dispatch_action(&Signoff, window, cx);
-                            }
-                        },
-                    );
-                })
-                .into_any_element();
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            use git::Amend;
-
-            let git_panel = cx.entity();
-
-            PopoverMenu::new(id.into())
-                .trigger(trigger)
-                .menu({
-                    move |window, cx| {
-                        Some(ContextMenu::build(window, cx, |context_menu, _, _| {
-                            context_menu
-                                .when_some(keybinding_target.clone(), |el, keybinding_target| {
-                                    el.context(keybinding_target)
-                                })
-                                .when(has_previous_commit, |this| {
-                                    this.toggleable_entry(
-                                        "Amend",
-                                        amend,
-                                        IconPosition::Start,
-                                        Some(Box::new(Amend)),
-                                        {
-                                            let git_panel = git_panel.downgrade();
-                                            move |_, cx| {
-                                                git_panel
-                                                    .update(cx, |git_panel, cx| {
-                                                        git_panel.toggle_amend_pending(cx);
-                                                    })
-                                                    .ok();
-                                            }
-                                        },
-                                    )
-                                })
-                                .toggleable_entry(
-                                    "Signoff",
-                                    signoff,
+                move |window, cx| {
+                    Some(ContextMenu::build(window, cx, |context_menu, _, _| {
+                        context_menu
+                            .when_some(keybinding_target.clone(), |el, keybinding_target| {
+                                el.context(keybinding_target)
+                            })
+                            .when(has_previous_commit, |this| {
+                                this.toggleable_entry(
+                                    "Amend",
+                                    amend,
                                     IconPosition::Start,
-                                    Some(Box::new(Signoff)),
-                                    move |window, cx| window.dispatch_action(Box::new(Signoff), cx),
+                                    Some(Box::new(Amend)),
+                                    {
+                                        let git_panel = git_panel.downgrade();
+                                        move |_, cx| {
+                                            git_panel
+                                                .update(cx, |git_panel, cx| {
+                                                    git_panel.toggle_amend_pending(cx);
+                                                })
+                                                .ok();
+                                        }
+                                    },
                                 )
-                        }))
-                    }
-                })
-                .anchor(Corner::TopRight)
-                .into_any_element()
-        }
+                            })
+                            .toggleable_entry(
+                                "Signoff",
+                                signoff,
+                                IconPosition::Start,
+                                Some(Box::new(Signoff)),
+                                move |window, cx| window.dispatch_action(Box::new(Signoff), cx),
+                            )
+                    }))
+                }
+            })
+            .anchor(Corner::TopRight)
+            .into_any_element()
     }
 
     pub fn configure_commit_button(&self, cx: &mut Context<Self>) -> (bool, &'static str) {
@@ -5075,68 +4925,23 @@ impl GitPanel {
         let is_created = entry.status.is_created();
         self.selected_entry = Some(ix);
 
-        #[cfg(target_os = "macos")]
-        {
-            use gpui::{NativeMenuItem, show_native_popup_menu};
-
-            let items = vec![
-                NativeMenuItem::action(stage_title),
-                NativeMenuItem::action(restore_title),
-                NativeMenuItem::Action {
-                    title: "Add to .gitignore".into(),
-                    enabled: is_created,
-                },
-                NativeMenuItem::separator(),
-                NativeMenuItem::action("Open Diff"),
-                NativeMenuItem::action("Open File"),
-                NativeMenuItem::separator(),
-                NativeMenuItem::Action {
-                    title: "View File History".into(),
-                    enabled: !is_created,
-                },
-            ];
-            let actions: Vec<Box<dyn gpui::Action>> = vec![
-                ToggleStaged.boxed_clone(),
-                git::RestoreFile::default().boxed_clone(),
-                git::AddToGitignore.boxed_clone(),
-                menu::Confirm.boxed_clone(),
-                menu::SecondaryConfirm.boxed_clone(),
-                Box::new(git::FileHistory),
-            ];
-            let focus = self.focus_handle.clone();
-            show_native_popup_menu(&items, position, window, cx, move |index, window, cx| {
-                if let Some(action) = actions.into_iter().nth(index) {
-                    focus.dispatch_action(&*action, window, cx);
-                }
-            });
-            cx.notify();
-            return;
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let context_menu = ContextMenu::build(window, cx, |context_menu, _, _| {
-                context_menu
-                    .context(self.focus_handle.clone())
-                    .action(stage_title, ToggleStaged.boxed_clone())
-                    .action(restore_title, git::RestoreFile::default().boxed_clone())
-                    .action_disabled_when(
-                        !is_created,
-                        "Add to .gitignore",
-                        git::AddToGitignore.boxed_clone(),
-                    )
-                    .separator()
-                    .action("Open Diff", menu::Confirm.boxed_clone())
-                    .action("Open File", menu::SecondaryConfirm.boxed_clone())
-                    .separator()
-                    .action_disabled_when(
-                        is_created,
-                        "View File History",
-                        Box::new(git::FileHistory),
-                    )
-            });
-            self.set_context_menu(context_menu, position, window, cx);
-        }
+        let context_menu = ContextMenu::build(window, cx, |context_menu, _, _| {
+            context_menu
+                .context(self.focus_handle.clone())
+                .action(stage_title, ToggleStaged.boxed_clone())
+                .action(restore_title, git::RestoreFile::default().boxed_clone())
+                .action_disabled_when(
+                    !is_created,
+                    "Add to .gitignore",
+                    git::AddToGitignore.boxed_clone(),
+                )
+                .separator()
+                .action("Open Diff", menu::Confirm.boxed_clone())
+                .action("Open File", menu::SecondaryConfirm.boxed_clone())
+                .separator()
+                .action_disabled_when(is_created, "View File History", Box::new(git::FileHistory))
+        });
+        self.set_context_menu(context_menu, position, window, cx);
     }
 
     fn deploy_panel_context_menu(
@@ -5155,85 +4960,10 @@ impl GitPanel {
             tree_view: GitPanelSettings::get_global(cx).tree_view,
         };
 
-        #[cfg(target_os = "macos")]
-        {
-            use gpui::{NativeMenuItem, show_native_popup_menu};
-
-            let mut items = vec![
-                NativeMenuItem::Action {
-                    title: "Stage All".into(),
-                    enabled: state.has_unstaged_changes,
-                },
-                NativeMenuItem::Action {
-                    title: "Unstage All".into(),
-                    enabled: state.has_staged_changes,
-                },
-                NativeMenuItem::separator(),
-                NativeMenuItem::Action {
-                    title: "Stash All".into(),
-                    enabled: state.has_new_changes || state.has_tracked_changes,
-                },
-                NativeMenuItem::Action {
-                    title: "Stash Pop".into(),
-                    enabled: state.has_stash_items,
-                },
-                NativeMenuItem::action("View Stash"),
-                NativeMenuItem::separator(),
-                NativeMenuItem::action("Open Diff"),
-                NativeMenuItem::separator(),
-                NativeMenuItem::Action {
-                    title: "Discard Tracked Changes".into(),
-                    enabled: state.has_tracked_changes,
-                },
-                NativeMenuItem::Action {
-                    title: "Trash Untracked Files".into(),
-                    enabled: state.has_new_changes,
-                },
-                NativeMenuItem::separator(),
-                NativeMenuItem::action(if state.tree_view {
-                    "Flat View"
-                } else {
-                    "Tree View"
-                }),
-            ];
-            let mut actions: Vec<Box<dyn gpui::Action>> = vec![
-                StageAll.boxed_clone(),
-                UnstageAll.boxed_clone(),
-                StashAll.boxed_clone(),
-                StashPop.boxed_clone(),
-                zed_actions::git::ViewStash.boxed_clone(),
-                project_diff::Diff.boxed_clone(),
-                RestoreTrackedFiles.boxed_clone(),
-                TrashUntrackedFiles.boxed_clone(),
-                Box::new(ToggleTreeView),
-            ];
-            if !state.tree_view {
-                items.push(NativeMenuItem::action(if state.sort_by_path {
-                    "Sort by Status"
-                } else {
-                    "Sort by Path"
-                }));
-                actions.push(Box::new(ToggleSortByPath));
-            }
-
-            let focus = self.focus_handle.clone();
-            show_native_popup_menu(&items, position, window, cx, move |index, window, cx| {
-                if let Some(action) = actions.into_iter().nth(index) {
-                    focus.dispatch_action(&*action, window, cx);
-                }
-            });
-            cx.notify();
-            return;
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let context_menu = git_panel_context_menu(self.focus_handle.clone(), state, window, cx);
-            self.set_context_menu(context_menu, position, window, cx);
-        }
+        let context_menu = git_panel_context_menu(self.focus_handle.clone(), state, window, cx);
+        self.set_context_menu(context_menu, position, window, cx);
     }
 
-    #[cfg(not(target_os = "macos"))]
     fn set_context_menu(
         &mut self,
         context_menu: Entity<ContextMenu>,

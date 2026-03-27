@@ -1,8 +1,6 @@
 use db::kvp::Dismissable;
 use editor::Editor;
-use gpui::{
-    Context, EventEmitter, NativeButtonStyle, Subscription, native_button, native_icon_button,
-};
+use gpui::{Context, EventEmitter, Subscription};
 use ui::{Banner, FluentBuilder as _, prelude::*};
 use workspace::{ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView, Workspace};
 
@@ -57,13 +55,18 @@ impl Render for BasedPyrightBanner {
                             h_flex()
                                 .gap_0p5()
                                 .child(
-                                    native_button("learn-more", "Learn More")
-                                        .button_style(NativeButtonStyle::Inline)
+                                    Button::new("learn-more", "Learn More")
+                                        .label_size(LabelSize::Small)
+                                        .end_icon(
+                                            Icon::new(IconName::ArrowUpRight)
+                                                .size(IconSize::XSmall)
+                                                .color(Color::Muted),
+                                        )
                                         .on_click(|_, _, cx| {
                                             cx.open_url("https://zed.dev/docs/languages/python")
                                         }),
                                 )
-                                .child(native_icon_button("dismiss", "xmark").on_click(cx.listener(
+                                .child(IconButton::new("dismiss", IconName::Close).icon_size(IconSize::Small).on_click(cx.listener(
                                     |this, _, _, cx| {
                                         this.dismissed = true;
                                         Self::set_dismissed(true, cx);

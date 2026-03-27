@@ -11,9 +11,9 @@ use collections::HashMap;
 use db::kvp::KeyValueStore;
 use futures::{channel::oneshot, future::join_all};
 use gpui::{
-    Action, AnyView, App, AsyncApp, AsyncWindowContext, Context, Entity, EventEmitter, FocusHandle,
-    Focusable, IntoElement, ParentElement, Pixels, Render, Styled, Task, WeakEntity, Window,
-    actions,
+    Action, AnyView, App, AsyncApp, AsyncWindowContext, Context, Corner, Entity, EventEmitter,
+    FocusHandle, Focusable, IntoElement, ParentElement, Pixels, Render, Styled, Task, WeakEntity,
+    Window, actions,
 };
 use itertools::Itertools;
 use project::{Fs, Project};
@@ -21,7 +21,9 @@ use project::{Fs, Project};
 use settings::{Settings, TerminalDockPosition};
 use task::{RevealStrategy, RevealTarget, Shell, ShellBuilder, SpawnInTerminal, TaskId};
 use terminal::{Terminal, terminal_settings::TerminalSettings};
-use ui::{ButtonLike, Clickable, SplitButton, Toggleable, Tooltip, prelude::*};
+use ui::{
+    ButtonLike, Clickable, ContextMenu, PopoverMenu, SplitButton, Toggleable, Tooltip, prelude::*,
+};
 use util::{ResultExt, TryFutureExt};
 use workspace::{
     ActivateNextPane, ActivatePane, ActivatePaneDown, ActivatePaneLeft, ActivatePaneRight,
@@ -138,7 +140,7 @@ impl TerminalPanel {
         let assistant_tab_bar_button = self.assistant_tab_bar_button.clone();
         terminal_pane.update(cx, |pane, cx| {
             pane.set_render_tab_bar_buttons(cx, move |pane, window, cx| {
-                let _split_context = pane
+                let split_context = pane
                     .active_item()
                     .and_then(|item| item.downcast::<TerminalView>())
                     .map(|terminal_view| terminal_view.read(cx).focus_handle.clone());
@@ -169,95 +171,6 @@ impl TerminalPanel {
                         )
                     });
 
-                #[cfg(target_os = "macos")]
-                let right_children: Option<AnyElement> = {
-                    use gpui::{NativeMenuItem, show_native_popup_menu};
-
-                    h_flex()
-                        .gap(DynamicSpacing::Base02.rems(cx))
-                        .child(
-                            div()
-                                .child(
-                                    IconButton::new("plus", IconName::Plus)
-                                        .icon_size(IconSize::Small)
-                                        .tooltip(Tooltip::text("New…")),
-                                )
-                                .on_mouse_down(gpui::MouseButton::Left, {
-                                    let focus_handle = focus_handle.clone();
-                                    move |event, window, cx| {
-                                        let items = vec![
-                                            NativeMenuItem::action("New Terminal"),
-                                            NativeMenuItem::action("Spawn Task"),
-                                        ];
-                                        let focus_handle = focus_handle.clone();
-                                        show_native_popup_menu(
-                                            &items,
-                                            event.position,
-                                            window,
-                                            cx,
-                                            move |index, window, cx| match index {
-                                                0 => {
-                                                    focus_handle.dispatch_action(
-                                                        &workspace::NewTerminal::default(),
-                                                        window,
-                                                        cx,
-                                                    );
-                                                }
-                                                1 => {
-                                                    focus_handle.dispatch_action(
-                                                        &zed_actions::Spawn::modal(),
-                                                        window,
-                                                        cx,
-                                                    );
-                                                }
-                                                _ => {}
-                                            },
-                                        );
-                                    }
-                                }),
-                        )
-                        .children(assistant_tab_bar_button.clone())
-                        .child(
-                            div()
-                                .child(
-                                    IconButton::new("terminal-pane-split", IconName::Split)
-                                        .icon_size(IconSize::Small)
-                                        .tooltip(Tooltip::text("Split Pane")),
-                                )
-                                .on_mouse_down(
-                                    gpui::MouseButton::Left,
-                                    move |event, window, cx| {
-                                        let items = vec![
-                                            NativeMenuItem::action("Split Right"),
-                                            NativeMenuItem::action("Split Left"),
-                                            NativeMenuItem::action("Split Up"),
-                                            NativeMenuItem::action("Split Down"),
-                                        ];
-                                        show_native_popup_menu(
-                                            &items,
-                                            event.position,
-                                            window,
-                                            cx,
-                                            move |index, window, cx| {
-                                                let action: Box<dyn Action> = match index {
-                                                    0 => SplitRight::default().boxed_clone(),
-                                                    1 => SplitLeft::default().boxed_clone(),
-                                                    2 => SplitUp::default().boxed_clone(),
-                                                    3 => SplitDown::default().boxed_clone(),
-                                                    _ => return,
-                                                };
-                                                window.dispatch_action(action, cx);
-                                            },
-                                        );
-                                    },
-                                ),
-                        )
-                        .child(zoom_button)
-                        .into_any_element()
-                        .into()
-                };
-
-                #[cfg(not(target_os = "macos"))]
                 let right_children: Option<AnyElement> = h_flex()
                     .gap(DynamicSpacing::Base02.rems(cx))
                     .child(
@@ -1366,42 +1279,6 @@ impl Focusable for FailedToSpawnTerminal {
 
 impl Render for FailedToSpawnTerminal {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        #[cfg(target_os = "macos")]
-        let popover_menu = {
-            use gpui::{NativeMenuItem, show_native_popup_menu};
-
-            div()
-                .child(
-                    IconButton::new("icon-button-popover", IconName::ChevronDown)
-                        .icon_size(IconSize::XSmall),
-                )
-                .on_mouse_down(gpui::MouseButton::Left, move |event, window, cx| {
-                    let items = vec![
-                        NativeMenuItem::action("Open Settings"),
-                        NativeMenuItem::action("Edit settings.json"),
-                    ];
-                    show_native_popup_menu(
-                        &items,
-                        event.position,
-                        window,
-                        cx,
-                        move |index, window, cx| match index {
-                            0 => {
-                                window.dispatch_action(zed_actions::OpenSettings.boxed_clone(), cx);
-                            }
-                            1 => {
-                                window.dispatch_action(
-                                    zed_actions::OpenSettingsFile.boxed_clone(),
-                                    cx,
-                                );
-                            }
-                            _ => {}
-                        },
-                    );
-                })
-        };
-
-        #[cfg(not(target_os = "macos"))]
         let popover_menu = PopoverMenu::new("settings-popover")
             .trigger(
                 IconButton::new("icon-button-popover", IconName::ChevronDown)

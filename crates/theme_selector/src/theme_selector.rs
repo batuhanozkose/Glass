@@ -3,8 +3,8 @@ mod icon_theme_selector;
 use fs::Fs;
 use fuzzy::{StringMatch, StringMatchCandidate, match_strings};
 use gpui::{
-    App, Context, DismissEvent, Entity, EventEmitter, Focusable, NativeButtonStyle,
-    NativeButtonTint, Render, UpdateGlobal, WeakEntity, Window, actions, native_button,
+    App, Context, DismissEvent, Entity, EventEmitter, Focusable, Render, UpdateGlobal, WeakEntity,
+    Window, actions,
 };
 use picker::{Picker, PickerDelegate};
 use settings::{Settings, SettingsStore, update_settings_file};
@@ -507,20 +507,17 @@ impl PickerDelegate for ThemeSelectorDelegate {
                         })),
                 )
                 .child(
-                    native_button("more-themes", "Install Themes")
-                        .button_style(NativeButtonStyle::Filled)
-                        .tint(NativeButtonTint::Accent)
-                        .on_click(cx.listener({
-                            move |_, _, window, cx| {
-                                window.dispatch_action(
-                                    Box::new(Extensions {
-                                        category_filter: Some(ExtensionCategoryFilter::Themes),
-                                        id: None,
-                                    }),
-                                    cx,
-                                );
-                            }
-                        })),
+                    Button::new("more-themes", "Install Themes").on_click(cx.listener({
+                        move |_, _, window, cx| {
+                            window.dispatch_action(
+                                Box::new(Extensions {
+                                    category_filter: Some(ExtensionCategoryFilter::Themes),
+                                    id: None,
+                                }),
+                                cx,
+                            );
+                        }
+                    })),
                 )
                 .into_any_element(),
         )

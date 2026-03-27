@@ -5,15 +5,15 @@ use crate::{
 use editor::{BlameRenderer, Editor, hover_markdown_style};
 use git::{blame::BlameEntry, commit::ParsedCommitMessage, repository::CommitSummary};
 use gpui::{
-    ClipboardItem, Entity, Hsla, MouseButton, ScrollHandle, TextStyle, TextStyleRefinement,
-    UnderlineStyle, WeakEntity, prelude::*,
+    ClipboardItem, Entity, Hsla, MouseButton, ScrollHandle, Subscription, TextStyle,
+    TextStyleRefinement, UnderlineStyle, WeakEntity, prelude::*,
 };
 use markdown::{Markdown, MarkdownElement};
 use project::{git_store::Repository, project_settings::ProjectSettings};
 use settings::Settings as _;
 use theme::ThemeSettings;
 use time::OffsetDateTime;
-use ui::{CopyButton, prelude::*, tooltip_container};
+use ui::{ContextMenu, CopyButton, prelude::*, tooltip_container};
 use workspace::Workspace;
 
 const GIT_BLAME_MAX_AUTHOR_CHARS_DISPLAYED: usize = 20;
@@ -397,66 +397,27 @@ fn deploy_blame_entry_context_menu(
     window: &mut Window,
     cx: &mut App,
 ) {
-    #[cfg(target_os = "macos")]
-    {
-        use gpui::{NativeMenuItem, show_native_popup_menu};
-
+    let context_menu = ContextMenu::build(window, cx, move |menu, _, _| {
         let sha = format!("{}", blame_entry.sha);
-        let permalink = details.and_then(|details| details.permalink.clone());
+        menu.on_blur_subscription(Subscription::new(|| {}))
+            .entry("Copy Commit SHA", None, move |_, cx| {
+                cx.write_to_clipboard(ClipboardItem::new_string(sha.clone()));
+            })
+            .when_some(
+                details.and_then(|details| details.permalink.clone()),
+                |this, url| {
+                    this.entry("Open Permalink", None, move |_, cx| {
+                        cx.open_url(url.as_str())
+                    })
+                },
+            )
+    });
 
-        let mut items = vec![NativeMenuItem::action("Copy commit SHA")];
-        if permalink.is_some() {
-            items.push(NativeMenuItem::action("Open permalink"));
-        }
-
-        editor.update(cx, |editor, cx| {
-            editor.hide_blame_popover(false, cx);
-            cx.notify();
-        });
-
-        show_native_popup_menu(
-            &items,
-            position,
-            window,
-            cx,
-            move |index, _window, cx| match index {
-                0 => {
-                    cx.write_to_clipboard(ClipboardItem::new_string(sha.clone()));
-                }
-                1 => {
-                    if let Some(url) = &permalink {
-                        cx.open_url(url.as_str());
-                    }
-                }
-                _ => {}
-            },
-        );
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        let context_menu = ContextMenu::build(window, cx, move |menu, _, _| {
-            let sha = format!("{}", blame_entry.sha);
-            menu.on_blur_subscription(Subscription::new(|| {}))
-                .entry("Copy commit SHA", None, move |_, cx| {
-                    cx.write_to_clipboard(ClipboardItem::new_string(sha.clone()));
-                })
-                .when_some(
-                    details.and_then(|details| details.permalink.clone()),
-                    |this, url| {
-                        this.entry("Open permalink", None, move |_, cx| {
-                            cx.open_url(url.as_str())
-                        })
-                    },
-                )
-        });
-
-        editor.update(cx, move |editor, cx| {
-            editor.hide_blame_popover(false, cx);
-            editor.deploy_mouse_context_menu(position, context_menu, window, cx);
-            cx.notify();
-        });
-    }
+    editor.update(cx, move |editor, cx| {
+        editor.hide_blame_popover(false, cx);
+        editor.deploy_mouse_context_menu(position, context_menu, window, cx);
+        cx.notify();
+    });
 }
 
 fn blame_entry_relative_timestamp(blame_entry: &BlameEntry) -> String {

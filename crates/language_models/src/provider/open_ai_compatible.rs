@@ -1,10 +1,7 @@
 use anyhow::Result;
 use convert_case::{Case, Casing};
 use futures::{FutureExt, StreamExt, future::BoxFuture};
-use gpui::{
-    AnyView, App, AsyncApp, Context, Entity, NativeButtonStyle, SharedString, Task, Window,
-    native_button,
-};
+use gpui::{AnyView, App, AsyncApp, Context, Entity, SharedString, Task, Window};
 use http_client::HttpClient;
 use language_model::{
     ApiKeyState, AuthenticateError, EnvVar, IconOrSvg, LanguageModel, LanguageModelCompletionError,
@@ -20,7 +17,7 @@ use open_ai::{
 };
 use settings::{Settings, SettingsStore};
 use std::sync::Arc;
-use ui::prelude::*;
+use ui::{ElevationIndex, Tooltip, prelude::*};
 use ui_input::InputField;
 use util::ResultExt;
 
@@ -537,20 +534,18 @@ impl Render for ConfigurationView {
                         )),
                 )
                 .child(
-                    h_flex().flex_shrink_0().child(
-                        native_button(
-                            "reset-api-key",
-                            if env_var_set {
-                                SharedString::from(format!("Reset API Key ({env_var_name})"))
-                            } else {
-                                SharedString::from("Reset API Key")
-                            },
-                        )
-                        .button_style(NativeButtonStyle::Inline)
-                        .on_click(
-                            cx.listener(|this, _, window, cx| this.reset_api_key(window, cx)),
+                    h_flex()
+                        .flex_shrink_0()
+                        .child(
+                            Button::new("reset-api-key", "Reset API Key")
+                                .label_size(LabelSize::Small)
+                                .start_icon(Icon::new(IconName::Undo).size(IconSize::Small))
+                                .layer(ElevationIndex::ModalSurface)
+                                .when(env_var_set, |this| {
+                                    this.tooltip(Tooltip::text(format!("To reset your API key, unset the {env_var_name} environment variable.")))
+                                })
+                                .on_click(cx.listener(|this, _, window, cx| this.reset_api_key(window, cx))),
                         ),
-                    ),
                 )
                 .into_any()
         };

@@ -14,8 +14,8 @@ use editor::Editor;
 use futures::{FutureExt, channel::oneshot, future::Shared};
 use gpui::{
     Action, AnyElement, App, ClickEvent, ClipboardItem, Context, DismissEvent, Entity,
-    EventEmitter, FocusHandle, Focusable, NativeButtonStyle, PromptLevel, ScrollHandle,
-    Subscription, Task, WeakEntity, Window, canvas, native_button, native_icon_button,
+    EventEmitter, FocusHandle, Focusable, PromptLevel, ScrollHandle, Subscription, Task,
+    WeakEntity, Window, canvas, native_icon_button,
 };
 use log::{debug, info};
 use open_path_prompt::OpenPathDelegate;
@@ -2114,8 +2114,12 @@ impl RemoteServerProjects {
                                         .size(LabelSize::Small),
                                     )
                                     .child(
-                                        native_button("learn-more", "Learn More")
-                                            .button_style(NativeButtonStyle::Inline)
+                                        Button::new("learn-more", "Learn More")
+                                            .label_size(LabelSize::Small)
+                                            .end_icon(
+                                                Icon::new(IconName::ArrowUpRight)
+                                                    .size(IconSize::XSmall),
+                                            )
                                             .on_click(|_, _, cx| {
                                                 cx.open_url(
                                                     "https://zed.dev/docs/remote-development",

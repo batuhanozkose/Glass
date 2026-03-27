@@ -8,10 +8,10 @@ use futures::{StreamExt, channel::mpsc};
 use fuzzy::StringMatchCandidate;
 use gpui::{
     Action, App, AsyncApp, ClipboardItem, DEFAULT_ADDITIONAL_WINDOW_SIZE, Div, Entity, FocusHandle,
-    Focusable, Global, KeyContext, ListState, NativeButtonStyle, NativeButtonTint, ReadGlobal as _,
-    ScrollHandle, Stateful, Subscription, Task, Tiling, TitlebarOptions, UniformListScrollHandle,
-    WeakEntity, Window, WindowBounds, WindowHandle, WindowOptions, actions, div, list,
-    native_button, point, prelude::*, px, uniform_list,
+    Focusable, Global, KeyContext, ListState, ReadGlobal as _, ScrollHandle, Stateful,
+    Subscription, Task, Tiling, TitlebarOptions, UniformListScrollHandle, WeakEntity, Window,
+    WindowBounds, WindowHandle, WindowOptions, actions, div, list, point, prelude::*, px,
+    uniform_list,
 };
 
 use language::Buffer;
@@ -430,8 +430,15 @@ fn init_renderers(cx: &mut App) {
                     settings_window,
                     item,
                     settings_file,
-                    native_button("open-in-settings-file", "Edit in settings.json")
-                        .button_style(NativeButtonStyle::Inline)
+                    Button::new("open-in-settings-file", "Edit in settings.json")
+                        .style(ButtonStyle::Outlined)
+                        .size(ButtonSize::Medium)
+                        .tab_index(0_isize)
+                        .tooltip(Tooltip::for_action_title_in(
+                            "Edit in settings.json",
+                            &OpenCurrentFile,
+                            &settings_window.focus_handle,
+                        ))
                         .on_click(cx.listener(|this, _, window, cx| {
                             this.open_current_settings_file(window, cx);
                         }))
@@ -2390,8 +2397,14 @@ impl SettingsWindow {
                     }),
             )
             .child(
-                native_button(edit_in_json_id, "Edit in settings.json")
-                    .button_style(NativeButtonStyle::Inline)
+                Button::new(edit_in_json_id, "Edit in settings.json")
+                    .tab_index(0_isize)
+                    .style(ButtonStyle::OutlinedGhost)
+                    .tooltip(Tooltip::for_action_title_in(
+                        "Edit in settings.json",
+                        &OpenCurrentFile,
+                        &self.focus_handle,
+                    ))
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.open_current_settings_file(window, cx);
                     })),
@@ -3108,11 +3121,19 @@ impl SettingsWindow {
                 )
                 .when(current_sub_page.link.in_json, |this| {
                     this.child(
-                        native_button("open-in-settings-file", "Edit in settings.json")
-                            .button_style(NativeButtonStyle::Inline)
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.open_current_settings_file(window, cx);
-                            })),
+                        div().flex_shrink_0().child(
+                            Button::new("open-in-settings-file", "Edit in settings.json")
+                                .tab_index(0_isize)
+                                .style(ButtonStyle::OutlinedGhost)
+                                .tooltip(Tooltip::for_action_title_in(
+                                    "Edit in settings.json",
+                                    &OpenCurrentFile,
+                                    &self.focus_handle,
+                                ))
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.open_current_settings_file(window, cx);
+                                })),
+                        ),
                     )
                 })
                 .into_any_element();
@@ -3154,9 +3175,9 @@ impl SettingsWindow {
                     )
                     .action_slot(
                         div().pr_1().pb_1().child(
-                            native_button("fix-in-json", "Fix in settings.json")
-                                .button_style(NativeButtonStyle::Filled)
-                                .tint(NativeButtonTint::Warning)
+                            Button::new("fix-in-json", "Fix in settings.json")
+                                .style(ButtonStyle::Filled)
+                                .color(Color::Warning)
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.open_current_settings_file(window, cx);
                                 })),

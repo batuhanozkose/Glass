@@ -1,13 +1,11 @@
-use gpui::{
-    ClickEvent, DismissEvent, EventEmitter, FocusHandle, Focusable, NativeButtonStyle, Render,
-    WeakEntity, native_button,
-};
+use gpui::{ClickEvent, DismissEvent, EventEmitter, FocusHandle, Focusable, Render, WeakEntity};
 use project::project_settings::ProjectSettings;
 use remote::RemoteConnectionOptions;
 use settings::Settings;
 use ui::{
-    Context, FluentBuilder, Headline, HeadlineSize, InteractiveElement, IntoElement, Label, Modal,
-    ModalFooter, ModalHeader, ParentElement, Section, Styled, StyledExt, Window, div, h_flex, rems,
+    Button, ButtonCommon, ButtonStyle, Clickable, Context, ElevationIndex, FluentBuilder, Headline,
+    HeadlineSize, Icon, IconName, InteractiveElement, IntoElement, Label, Modal, ModalFooter,
+    ModalHeader, ParentElement, Section, Styled, StyledExt, Window, div, h_flex, rems,
 };
 use workspace::{
     ModalView, MultiWorkspace, OpenOptions, Workspace, notifications::DetachAndPromptErr,
@@ -197,16 +195,19 @@ impl Render for DisconnectedOverlay {
                             h_flex()
                                 .gap_2()
                                 .child(
-                                    native_button("close-window", "Close Window")
-                                        .button_style(NativeButtonStyle::Filled)
+                                    Button::new("close-window", "Close Window")
+                                        .style(ButtonStyle::Filled)
+                                        .layer(ElevationIndex::ModalSurface)
                                         .on_click(cx.listener(move |_, _, window, _| {
                                             window.remove_window();
                                         })),
                                 )
                                 .when(can_reconnect, |el| {
                                     el.child(
-                                        native_button("reconnect", "Reconnect")
-                                            .button_style(NativeButtonStyle::Filled)
+                                        Button::new("reconnect", "Reconnect")
+                                            .style(ButtonStyle::Filled)
+                                            .layer(ElevationIndex::ModalSurface)
+                                            .start_icon(Icon::new(IconName::ArrowCircle))
                                             .on_click(cx.listener(Self::handle_reconnect)),
                                     )
                                 }),

@@ -499,26 +499,25 @@ pub fn initialize_workspace(
         let lsp_button =
             cx.new(|cx| LspButton::new(workspace, lsp_button_menu_handle.clone(), window, cx));
 
-        // On macOS, ToggleMenu opens native popovers directly.
         #[cfg(target_os = "macos")]
-        {
-            let lsp_button_for_action = lsp_button.clone();
-            workspace.register_action(move |_, _: &lsp_button::ToggleMenu, window, cx| {
-                lsp_button_for_action.update(cx, |this, cx| {
-                    this.show_native_popover(window, cx);
+        workspace.register_action(move |workspace, _: &lsp_button::ToggleMenu, window, cx| {
+            if let Some(controller) = workspace
+                .titlebar_item()
+                .and_then(|item| item.downcast::<title_bar::NativeToolbarController>().ok())
+            {
+                controller.update(cx, |controller, cx| {
+                    controller.show_lsp_menu(window, cx);
                 });
-            });
-        }
+            }
+        });
 
         #[cfg(not(target_os = "macos"))]
-        {
-            workspace.register_action({
-                let lsp_button_menu_handle = lsp_button_menu_handle.clone();
-                move |_, _: &lsp_button::ToggleMenu, window, cx| {
-                    lsp_button_menu_handle.toggle(window, cx);
-                }
-            });
-        }
+        workspace.register_action({
+            let lsp_button_menu_handle = lsp_button_menu_handle.clone();
+            move |_, _: &lsp_button::ToggleMenu, window, cx| {
+                lsp_button_menu_handle.toggle(window, cx);
+            }
+        });
 
         workspace.register_action(
             move |workspace, _: &edit_prediction_ui::ToggleMenu, window, cx| {

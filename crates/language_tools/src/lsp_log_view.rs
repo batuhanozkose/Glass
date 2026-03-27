@@ -3,7 +3,7 @@ use edit_prediction::EditPredictionStore;
 use editor::{Editor, EditorEvent, MultiBufferOffset, actions::MoveToEnd, scroll::Autoscroll};
 use gpui::{
     App, Context, Corner, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, ParentElement,
-    Render, Styled, Subscription, Task, WeakEntity, Window, actions, div, native_button,
+    Render, Styled, Subscription, Task, WeakEntity, Window, actions, div,
 };
 use itertools::Itertools as _;
 use language::{LanguageServerId, language_settings::SoftWrap};
@@ -1264,7 +1264,7 @@ impl Render for LspLogToolbarItemView {
                     ),
             )
             .child(
-                native_button("clear_log_button", "Clear").on_click(cx.listener(
+                Button::new("clear_log_button", "Clear").on_click(cx.listener(
                     |this, _, window, cx| {
                         if let Some(log_view) = this.log_view.as_ref() {
                             log_view.update(cx, |log_view, cx| {

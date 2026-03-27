@@ -14,10 +14,9 @@ use editor::{Editor, EditorElement, EditorStyle};
 use extension_host::{ExtensionManifest, ExtensionOperation, ExtensionStore};
 use fuzzy::{StringMatchCandidate, match_strings};
 use gpui::{
-    Action, AnyElement, App, ClipboardItem, Context, Entity, EventEmitter, Focusable,
-    InteractiveElement, KeyContext, NativeButtonStyle, NativeButtonTint, NativeSegmentedShape,
-    ParentElement, Render, SegmentSelectEvent, Styled, Task, TextStyle, UniformListScrollHandle,
-    WeakEntity, Window, actions, native_button, native_toggle_group, point, uniform_list,
+    Action, App, ClipboardItem, Context, Corner, Entity, EventEmitter, Focusable,
+    InteractiveElement, KeyContext, ParentElement, Point, Render, Styled, Task, TextStyle,
+    UniformListScrollHandle, WeakEntity, Window, actions, point, uniform_list,
 };
 use num_format::{Locale, ToFormattedString};
 use project::DirectoryLister;
@@ -25,7 +24,11 @@ use release_channel::ReleaseChannel;
 use settings::Settings;
 use strum::IntoEnumIterator as _;
 use theme::ThemeSettings;
-use ui::{Banner, Chip, ScrollableHandle, Tooltip, WithScrollbar, prelude::*};
+use ui::{
+    Banner, Chip, ContextMenu, PopoverMenu, ScrollableHandle, ToggleButtonGroup,
+    ToggleButtonGroupSize, ToggleButtonGroupStyle, ToggleButtonSimple, Tooltip, WithScrollbar,
+    prelude::*,
+};
 use workspace::{
     Workspace,
     item::{Item, ItemEvent},
@@ -303,9 +306,9 @@ fn extension_button_id(extension_id: &Arc<str>, operation: ExtensionOperation) -
 }
 
 struct ExtensionCardButtons {
-    install_or_uninstall: AnyElement,
-    upgrade: Option<AnyElement>,
-    configure: Option<AnyElement>,
+    install_or_uninstall: Button,
+    upgrade: Option<Button>,
+    configure: Option<Button>,
 }
 
 pub struct ExtensionsPage {
@@ -663,12 +666,11 @@ impl ExtensionsPage {
                             .gap_1()
                             .justify_between()
                             .child(
-                                native_button(
+                                Button::new(
                                     SharedString::from(format!("rebuild-{}", extension.id)),
                                     "Rebuild",
                                 )
-                                .button_style(NativeButtonStyle::Filled)
-                                .tint(NativeButtonTint::Accent)
+                                .color(Color::Accent)
                                 .disabled(matches!(status, ExtensionStatus::Upgrading))
                                 .on_click({
                                     let extension_id = extension.id.clone();
@@ -680,9 +682,8 @@ impl ExtensionsPage {
                                 }),
                             )
                             .child(
-                                native_button(extension_button_id(&extension.id, ExtensionOperation::Remove), "Uninstall")
-                                    .button_style(NativeButtonStyle::Filled)
-                                    .tint(NativeButtonTint::Destructive)
+                                Button::new(extension_button_id(&extension.id, ExtensionOperation::Remove), "Uninstall")
+                                    .color(Color::Accent)
                                     .disabled(matches!(status, ExtensionStatus::Removing))
                                     .on_click({
                                         let extension_id = extension.id.clone();
@@ -695,12 +696,11 @@ impl ExtensionsPage {
                             )
                             .when(can_configure, |this| {
                                 this.child(
-                                    native_button(
+                                    Button::new(
                                         SharedString::from(format!("configure-{}", extension.id)),
                                         "Configure",
                                     )
-                                    .button_style(NativeButtonStyle::Filled)
-                                    .tint(NativeButtonTint::Accent)
+                                    .color(Color::Accent)
                                     .disabled(matches!(status, ExtensionStatus::Installing))
                                     .on_click({
                                         let manifest = Arc::new(extension.clone());
@@ -912,113 +912,39 @@ impl ExtensionsPage {
                                     },
                                 ))
                             })
-                            .child({
-                                #[cfg(target_os = "macos")]
-                                {
-                                    use gpui::{
-                                        InteractiveElement, NativeMenuItem, ParentElement, div,
-                                        show_native_popup_menu,
-                                    };
-
-                                    div()
-                                        .child(
-                                            IconButton::new(
-                                                SharedString::from(format!(
-                                                    "more-{}",
-                                                    extension.id
-                                                )),
-                                                IconName::Ellipsis,
-                                            )
-                                            .icon_size(IconSize::Small),
-                                        )
-                                        .on_mouse_down(
-                                            gpui::MouseButton::Left,
-                                            move |event, window, cx| {
-                                                let items = vec![
-                                                    NativeMenuItem::action(
-                                                        "Install Another Version\u{2026}",
-                                                    ),
-                                                    NativeMenuItem::action("Copy Extension ID"),
-                                                    NativeMenuItem::action("Copy Author Info"),
-                                                ];
-                                                let this = this.clone();
-                                                let ext_id = extension_id.clone();
-                                                let auth = authors.clone();
-                                                show_native_popup_menu(
-                                                    &items,
-                                                    event.position,
-                                                    window,
-                                                    cx,
-                                                    move |index, window, cx| match index {
-                                                        0 => {
-                                                            let _ = this.update(cx, |this, cx| {
-                                                                this.show_extension_version_list(
-                                                                    ext_id.clone(),
-                                                                    window,
-                                                                    cx,
-                                                                );
-                                                            });
-                                                        }
-                                                        1 => {
-                                                            cx.write_to_clipboard(
-                                                                ClipboardItem::new_string(
-                                                                    ext_id.to_string(),
-                                                                ),
-                                                            );
-                                                        }
-                                                        2 => {
-                                                            cx.write_to_clipboard(
-                                                                ClipboardItem::new_string(
-                                                                    auth.join(", "),
-                                                                ),
-                                                            );
-                                                        }
-                                                        _ => {}
-                                                    },
-                                                );
-                                            },
-                                        )
-                                        .into_any_element()
-                                }
-                                #[cfg(not(target_os = "macos"))]
-                                {
-                                    use gpui::{Corner, Point};
-                                    use ui::{ContextMenu, PopoverMenu};
-                                    PopoverMenu::new(SharedString::from(format!(
-                                        "more-{}",
-                                        extension.id
-                                    )))
-                                    .trigger(
-                                        IconButton::new(
-                                            SharedString::from(format!("more-{}", extension.id)),
-                                            IconName::Ellipsis,
-                                        )
-                                        .icon_size(IconSize::Small),
+                            .child(
+                                PopoverMenu::new(SharedString::from(format!(
+                                    "more-{}",
+                                    extension.id
+                                )))
+                                .trigger(
+                                    IconButton::new(
+                                        SharedString::from(format!("more-{}", extension.id)),
+                                        IconName::Ellipsis,
                                     )
-                                    .anchor(Corner::TopRight)
-                                    .offset(Point {
-                                        x: px(0.0),
-                                        y: px(2.0),
+                                    .icon_size(IconSize::Small),
+                                )
+                                .anchor(Corner::TopRight)
+                                .offset(Point {
+                                    x: px(0.0),
+                                    y: px(2.0),
+                                })
+                                .menu(move |window, cx| {
+                                    this.upgrade().map(|this| {
+                                        Self::render_remote_extension_context_menu(
+                                            &this,
+                                            extension_id.clone(),
+                                            authors.clone(),
+                                            window,
+                                            cx,
+                                        )
                                     })
-                                    .menu(move |window, cx| {
-                                        this.upgrade().map(|this| {
-                                            Self::render_remote_extension_context_menu(
-                                                &this,
-                                                extension_id.clone(),
-                                                authors.clone(),
-                                                window,
-                                                cx,
-                                            )
-                                        })
-                                    })
-                                    .into_any_element()
-                                }
-                            }),
+                                }),
+                            ),
                     ),
             )
     }
 
-    #[cfg(not(target_os = "macos"))]
     fn render_remote_extension_context_menu(
         this: &Entity<Self>,
         extension_id: Arc<str>,
@@ -1106,14 +1032,10 @@ impl ExtensionsPage {
             // If we have a dev extension for the given extension, just treat it as uninstalled.
             // The button here is a placeholder, as it won't be interactable anyways.
             return ExtensionCardButtons {
-                install_or_uninstall: native_button(
+                install_or_uninstall: Button::new(
                     extension_button_id(&extension.id, ExtensionOperation::Install),
                     "Install",
-                )
-                .button_style(NativeButtonStyle::Filled)
-                .tint(NativeButtonTint::Accent)
-                .disabled(true)
-                .into_any_element(),
+                ),
                 configure: None,
                 upgrade: None,
             };
@@ -1126,12 +1048,16 @@ impl ExtensionsPage {
 
         match status.clone() {
             ExtensionStatus::NotInstalled => ExtensionCardButtons {
-                install_or_uninstall: native_button(
+                install_or_uninstall: Button::new(
                     extension_button_id(&extension.id, ExtensionOperation::Install),
                     "Install",
                 )
-                .button_style(NativeButtonStyle::Filled)
-                .tint(NativeButtonTint::Accent)
+                .style(ButtonStyle::Tinted(ui::TintColor::Accent))
+                .start_icon(
+                    Icon::new(IconName::Download)
+                        .size(IconSize::Small)
+                        .color(Color::Muted),
+                )
                 .on_click({
                     let extension_id = extension.id.clone();
                     move |_, _, cx| {
@@ -1140,57 +1066,53 @@ impl ExtensionsPage {
                             store.install_latest_extension(extension_id.clone(), cx)
                         });
                     }
-                })
-                .into_any_element(),
+                }),
                 configure: None,
                 upgrade: None,
             },
             ExtensionStatus::Installing => ExtensionCardButtons {
-                install_or_uninstall: native_button(
+                install_or_uninstall: Button::new(
                     extension_button_id(&extension.id, ExtensionOperation::Install),
                     "Install",
                 )
-                .button_style(NativeButtonStyle::Filled)
-                .tint(NativeButtonTint::Accent)
-                .disabled(true)
-                .into_any_element(),
+                .style(ButtonStyle::Tinted(ui::TintColor::Accent))
+                .start_icon(
+                    Icon::new(IconName::Download)
+                        .size(IconSize::Small)
+                        .color(Color::Muted),
+                )
+                .disabled(true),
                 configure: None,
                 upgrade: None,
             },
             ExtensionStatus::Upgrading => ExtensionCardButtons {
-                install_or_uninstall: native_button(
+                install_or_uninstall: Button::new(
                     extension_button_id(&extension.id, ExtensionOperation::Remove),
                     "Uninstall",
                 )
-                .button_style(NativeButtonStyle::Inline)
-                .disabled(true)
-                .into_any_element(),
+                .style(ButtonStyle::OutlinedGhost)
+                .disabled(true),
                 configure: is_configurable.then(|| {
-                    native_button(
+                    Button::new(
                         SharedString::from(format!("configure-{}", extension.id)),
                         "Configure",
                     )
                     .disabled(true)
-                    .button_style(NativeButtonStyle::Inline)
-                    .into_any_element()
                 }),
                 upgrade: Some(
-                    native_button(
+                    Button::new(
                         extension_button_id(&extension.id, ExtensionOperation::Upgrade),
                         "Upgrade",
                     )
-                    .button_style(NativeButtonStyle::Filled)
-                    .tint(NativeButtonTint::Accent)
-                    .disabled(true)
-                    .into_any_element(),
+                    .disabled(true),
                 ),
             },
             ExtensionStatus::Installed(installed_version) => ExtensionCardButtons {
-                install_or_uninstall: native_button(
+                install_or_uninstall: Button::new(
                     extension_button_id(&extension.id, ExtensionOperation::Remove),
                     "Uninstall",
                 )
-                .button_style(NativeButtonStyle::Inline)
+                .style(ButtonStyle::OutlinedGhost)
                 .on_click({
                     let extension_id = extension.id.clone();
                     move |_, _, cx| {
@@ -1201,14 +1123,13 @@ impl ExtensionsPage {
                                 .detach_and_log_err(cx);
                         });
                     }
-                })
-                .into_any_element(),
+                }),
                 configure: is_configurable.then(|| {
-                    native_button(
+                    Button::new(
                         SharedString::from(format!("configure-{}", extension.id)),
                         "Configure",
                     )
-                    .button_style(NativeButtonStyle::Inline)
+                    .style(ButtonStyle::OutlinedGhost)
                     .on_click({
                         let extension_id = extension.id.clone();
                         move |_, _, cx| {
@@ -1227,18 +1148,26 @@ impl ExtensionsPage {
                             }
                         }
                     })
-                    .into_any_element()
                 }),
                 upgrade: if installed_version == extension.manifest.version {
                     None
                 } else {
                     Some(
-                        native_button(
-                            extension_button_id(&extension.id, ExtensionOperation::Upgrade),
-                            "Upgrade",
-                        )
-                        .button_style(NativeButtonStyle::Filled)
-                        .tint(NativeButtonTint::Accent)
+                        Button::new(extension_button_id(&extension.id, ExtensionOperation::Upgrade), "Upgrade")
+                        .style(ButtonStyle::Tinted(ui::TintColor::Accent))
+                        .when(!is_compatible, |upgrade_button| {
+                            upgrade_button.disabled(true).tooltip({
+                                let version = extension.manifest.version.clone();
+                                move |_, cx| {
+                                    Tooltip::simple(
+                                        format!(
+                                            "v{version} is not compatible with this version of Zed.",
+                                        ),
+                                         cx,
+                                    )
+                                }
+                            })
+                        })
                         .disabled(!is_compatible)
                         .on_click({
                             let extension_id = extension.id.clone();
@@ -1255,27 +1184,23 @@ impl ExtensionsPage {
                                         .detach_and_log_err(cx)
                                 });
                             }
-                        })
-                        .into_any_element(),
+                        }),
                     )
                 },
             },
             ExtensionStatus::Removing => ExtensionCardButtons {
-                install_or_uninstall: native_button(
+                install_or_uninstall: Button::new(
                     extension_button_id(&extension.id, ExtensionOperation::Remove),
                     "Uninstall",
                 )
-                .button_style(NativeButtonStyle::Inline)
-                .disabled(true)
-                .into_any_element(),
+                .style(ButtonStyle::OutlinedGhost)
+                .disabled(true),
                 configure: is_configurable.then(|| {
-                    native_button(
+                    Button::new(
                         SharedString::from(format!("configure-{}", extension.id)),
                         "Configure",
                     )
                     .disabled(true)
-                    .button_style(NativeButtonStyle::Inline)
-                    .into_any_element()
                 }),
                 upgrade: None,
             },
@@ -1571,18 +1496,16 @@ impl ExtensionsPage {
         docs_url: SharedString,
         _cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let docs_url_button = native_button("open_docs", "View Documentation")
-            .button_style(NativeButtonStyle::Rounded)
-            .on_click({
-                move |_event, _window, cx| {
-                    telemetry::event!(
-                        "Documentation Viewed",
-                        source = "Feature Upsell",
-                        url = docs_url,
-                    );
-                    cx.open_url(&docs_url)
-                }
-            });
+        let docs_url_button = Button::new("open_docs", "View Documentation").on_click({
+            move |_event, _window, cx| {
+                telemetry::event!(
+                    "Documentation Viewed",
+                    source = "Feature Upsell",
+                    url = docs_url,
+                );
+                cx.open_url(&docs_url)
+            }
+        });
 
         div()
             .pt_4()
@@ -1712,8 +1635,9 @@ impl Render for ExtensionsPage {
                             .justify_between()
                             .child(Headline::new("Extensions").size(HeadlineSize::Large))
                             .child(
-                                native_button("install-dev-extension", "Install Dev Extension")
-                                    .button_style(NativeButtonStyle::Rounded)
+                                Button::new("install-dev-extension", "Install Dev Extension")
+                                    .style(ButtonStyle::Outlined)
+                                    .size(ButtonSize::Medium)
                                     .on_click(|_event, window, cx| {
                                         window.dispatch_action(Box::new(InstallDevExtension), cx)
                                     }),
@@ -1726,27 +1650,47 @@ impl Render for ExtensionsPage {
                             .gap_2()
                             .child(self.render_search(cx))
                             .child(
-                                native_toggle_group(
-                                    "filter-buttons",
-                                    &["All", "Installed", "Not Installed"],
-                                )
-                                .selected_index(match self.filter {
-                                    ExtensionFilter::All => 0,
-                                    ExtensionFilter::Installed => 1,
-                                    ExtensionFilter::NotInstalled => 2,
-                                })
-                                .border_shape(NativeSegmentedShape::Capsule)
-                                .on_select(cx.listener(
-                                    |this, event: &SegmentSelectEvent, _, cx| {
-                                        this.filter = match event.index {
-                                            0 => ExtensionFilter::All,
-                                            1 => ExtensionFilter::Installed,
-                                            _ => ExtensionFilter::NotInstalled,
-                                        };
-                                        this.filter_extension_entries(cx);
-                                        this.scroll_to_top(cx);
-                                    },
-                                )),
+                                div().child(
+                                    ToggleButtonGroup::single_row(
+                                        "filter-buttons",
+                                        [
+                                            ToggleButtonSimple::new(
+                                                "All",
+                                                cx.listener(|this, _event, _, cx| {
+                                                    this.filter = ExtensionFilter::All;
+                                                    this.filter_extension_entries(cx);
+                                                    this.scroll_to_top(cx);
+                                                }),
+                                            ),
+                                            ToggleButtonSimple::new(
+                                                "Installed",
+                                                cx.listener(|this, _event, _, cx| {
+                                                    this.filter = ExtensionFilter::Installed;
+                                                    this.filter_extension_entries(cx);
+                                                    this.scroll_to_top(cx);
+                                                }),
+                                            ),
+                                            ToggleButtonSimple::new(
+                                                "Not Installed",
+                                                cx.listener(|this, _event, _, cx| {
+                                                    this.filter = ExtensionFilter::NotInstalled;
+                                                    this.filter_extension_entries(cx);
+                                                    this.scroll_to_top(cx);
+                                                }),
+                                            ),
+                                        ],
+                                    )
+                                    .style(ToggleButtonGroupStyle::Outlined)
+                                    .size(ToggleButtonGroupSize::Custom(rems_from_px(30.)))
+                                    .label_size(LabelSize::Default)
+                                    .auto_width()
+                                    .selected_index(match self.filter {
+                                        ExtensionFilter::All => 0,
+                                        ExtensionFilter::Installed => 1,
+                                        ExtensionFilter::NotInstalled => 2,
+                                    })
+                                    .into_any_element(),
+                                ),
                             ),
                     ),
             )
@@ -1760,15 +1704,14 @@ impl Render for ExtensionsPage {
                     .border_color(cx.theme().colors().border_variant)
                     .overflow_x_scroll()
                     .child(
-                        native_button("filter-all-categories", "All")
-                            .button_style(if self.provides_filter.is_none() {
-                                NativeButtonStyle::Filled
-                            } else {
-                                NativeButtonStyle::Inline
-                            })
+                        Button::new("filter-all-categories", "All")
                             .when(self.provides_filter.is_none(), |button| {
-                                button.tint(NativeButtonTint::Accent)
+                                button.style(ButtonStyle::Filled)
                             })
+                            .when(self.provides_filter.is_some(), |button| {
+                                button.style(ButtonStyle::Subtle)
+                            })
+                            .toggle_state(self.provides_filter.is_none())
                             .on_click(cx.listener(|this, _event, _, cx| {
                                 this.change_provides_filter(None, cx);
                             })),
@@ -1784,15 +1727,14 @@ impl Render for ExtensionsPage {
                         let button_id = SharedString::from(format!("filter-category-{}", label));
 
                         Some(
-                            native_button(button_id, label)
-                                .button_style(if self.provides_filter == Some(provides) {
-                                    NativeButtonStyle::Filled
-                                } else {
-                                    NativeButtonStyle::Inline
-                                })
+                            Button::new(button_id, label)
                                 .when(self.provides_filter == Some(provides), |button| {
-                                    button.tint(NativeButtonTint::Accent)
+                                    button.style(ButtonStyle::Filled)
                                 })
+                                .when(self.provides_filter != Some(provides), |button| {
+                                    button.style(ButtonStyle::Subtle)
+                                })
+                                .toggle_state(self.provides_filter == Some(provides))
                                 .on_click({
                                     cx.listener(move |this, _event, _, cx| {
                                         this.change_provides_filter(Some(provides), cx);
