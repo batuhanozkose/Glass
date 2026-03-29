@@ -56,6 +56,7 @@ use workspace::{
     ToolbarItemLocation, Workspace, WorkspaceId, delete_unloaded_items,
     item::{
         HighlightedText, Item, ItemEvent, SerializableItem, TabContentParams, TabTooltipContent,
+        WorkspaceItemKind,
     },
     register_serializable_item,
     searchable::{
@@ -1403,6 +1404,10 @@ impl Item for TerminalView {
         None
     }
 
+    fn workspace_item_kind(&self) -> Option<WorkspaceItemKind> {
+        Some(WorkspaceItemKind::Terminal)
+    }
+
     fn handle_drop(
         &self,
         active_pane: &Pane,
@@ -1454,7 +1459,11 @@ impl Item for TerminalView {
                     return false;
                 };
 
-                if !terminal_panel.read(cx).center.panes().contains(&&this_pane) {
+                if !terminal_panel
+                    .read(cx)
+                    .current_panes(cx)
+                    .contains(&this_pane)
+                {
                     return false;
                 }
 
@@ -1462,10 +1471,11 @@ impl Item for TerminalView {
                 let item_id_to_move = item.item_id();
                 let is_zoomed = {
                     let terminal_panel = terminal_panel.read(cx);
-                    if terminal_panel.active_pane == this_pane {
+                    let active_terminal_pane = terminal_panel.current_active_pane(cx);
+                    if active_terminal_pane == this_pane {
                         active_pane.is_zoomed()
                     } else {
-                        terminal_panel.active_pane.read(cx).is_zoomed()
+                        active_terminal_pane.read(cx).is_zoomed()
                     }
                 };
 
@@ -1482,7 +1492,7 @@ impl Item for TerminalView {
                                     workspace, project, is_zoomed, window, cx,
                                 );
                                 terminal_panel.apply_tab_bar_buttons(&new_pane, cx);
-                                terminal_panel.center.split(
+                                terminal_panel.split_current_session(
                                     &this_pane,
                                     &new_pane,
                                     split_direction,

@@ -116,9 +116,11 @@ pub(crate) fn deserialize_terminal_panel(
                 .await;
                 let active_item = serialized_panel.active_item_id;
                 terminal_panel.update_in(cx, |terminal_panel, window, cx| {
-                    terminal_panel.active_pane.update(cx, |pane, cx| {
-                        populate_pane_items(pane, items, active_item, window, cx);
-                    });
+                    terminal_panel
+                        .current_active_pane(cx)
+                        .update(cx, |pane, cx| {
+                            populate_pane_items(pane, items, active_item, window, cx);
+                        });
                 })?;
             }
             SerializedItems::WithSplits(serialized_pane_group) => {
@@ -132,10 +134,11 @@ pub(crate) fn deserialize_terminal_panel(
                 )
                 .await;
                 if let Some((center_group, active_pane)) = center_pane {
-                    terminal_panel.update(cx, |terminal_panel, _| {
-                        terminal_panel.center = PaneGroup::with_root(center_group);
-                        terminal_panel.active_pane =
-                            active_pane.unwrap_or_else(|| terminal_panel.center.first_pane());
+                    terminal_panel.update(cx, |terminal_panel, cx| {
+                        let center = PaneGroup::with_root(center_group);
+                        let active_pane = active_pane.unwrap_or_else(|| center.first_pane());
+                        terminal_panel.sync_current_session_manager(center, active_pane, cx);
+                        terminal_panel.refresh_current_session(cx);
                     });
                 }
             }
@@ -220,7 +223,7 @@ async fn deserialize_pane_group(
                     new_terminal_pane(
                         workspace.clone(),
                         project.clone(),
-                        terminal_panel.active_pane.read(cx).is_zoomed(),
+                        terminal_panel.current_active_pane(cx).read(cx).is_zoomed(),
                         window,
                         cx,
                     )

@@ -739,14 +739,16 @@ mod tests {
         let auth = descriptor.auth.as_ref().unwrap();
 
         assert_eq!(auth.kind, ServiceAuthKind::ApiKey);
-        assert!(auth
-            .actions
-            .iter()
-            .any(|action| action.action == ServiceAuthAction::Authenticate));
-        assert!(auth
-            .actions
-            .iter()
-            .any(|action| action.action == ServiceAuthAction::Logout));
+        assert!(
+            auth.actions
+                .iter()
+                .any(|action| action.action == ServiceAuthAction::Authenticate)
+        );
+        assert!(
+            auth.actions
+                .iter()
+                .any(|action| action.action == ServiceAuthAction::Logout)
+        );
     }
 
     #[test]

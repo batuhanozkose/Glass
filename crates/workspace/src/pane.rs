@@ -1375,7 +1375,7 @@ impl Pane {
         self.index_for_item_id(item.item_id())
     }
 
-    fn index_for_item_id(&self, item_id: EntityId) -> Option<usize> {
+    pub(crate) fn index_for_item_id(&self, item_id: EntityId) -> Option<usize> {
         self.items.iter().position(|i| i.item_id() == item_id)
     }
 

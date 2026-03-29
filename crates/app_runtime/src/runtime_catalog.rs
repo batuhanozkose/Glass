@@ -419,7 +419,10 @@ mod tests {
             .map(|project| project.label.clone())
             .collect::<Vec<_>>();
 
-        assert_eq!(apple_projects, vec!["ios-sample".to_string(), "mac-sample".to_string()]);
+        assert_eq!(
+            apple_projects,
+            vec!["ios-sample".to_string(), "mac-sample".to_string()]
+        );
     }
 
     #[test]

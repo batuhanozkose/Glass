@@ -1599,7 +1599,7 @@ impl Panel for DebugPanel {
         Box::new(ToggleFocus)
     }
 
-    fn pane(&self) -> Option<Entity<Pane>> {
+    fn pane(&self, _cx: &App) -> Option<Entity<Pane>> {
         None
     }
 

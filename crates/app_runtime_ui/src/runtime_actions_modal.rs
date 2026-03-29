@@ -40,7 +40,12 @@ impl RuntimeActionsModal {
         let workspace_handle = workspace.weak_handle();
 
         workspace.toggle_modal(window, cx, |window, cx| {
-            Self::new(workspace_handle.clone(), workspace_paths.clone(), window, cx)
+            Self::new(
+                workspace_handle.clone(),
+                workspace_paths.clone(),
+                window,
+                cx,
+            )
         });
     }
 
@@ -156,8 +161,9 @@ impl RuntimeActionsModal {
                     None
                 }
             }
-            CapabilityState::RequiresSetup { reason }
-            | CapabilityState::Unavailable { reason } => Some(reason.clone()),
+            CapabilityState::RequiresSetup { reason } | CapabilityState::Unavailable { reason } => {
+                Some(reason.clone())
+            }
         }
     }
 
@@ -196,8 +202,7 @@ impl RuntimeActionsModal {
         self.workspace
             .update(cx, |workspace, cx| {
                 workspace.show_toast(
-                    Toast::new(NotificationId::unique::<RuntimeActionsModal>(), message)
-                        .autohide(),
+                    Toast::new(NotificationId::unique::<RuntimeActionsModal>(), message).autohide(),
                     cx,
                 );
             })
@@ -208,7 +213,11 @@ impl RuntimeActionsModal {
         cx.emit(DismissEvent);
     }
 
-    fn render_project_dropdown(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_project_dropdown(
+        &self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let label = self
             .selected_project()
             .map(|project| project.label.clone())
@@ -232,9 +241,11 @@ impl RuntimeActionsModal {
                         ContextMenuEntry::new(project.label.clone())
                             .toggleable(IconPosition::End, is_selected)
                             .handler(move |_, cx| {
-                                modal.update(cx, |this, cx| {
-                                    this.select_project(project_id.clone(), cx);
-                                }).ok();
+                                modal
+                                    .update(cx, |this, cx| {
+                                        this.select_project(project_id.clone(), cx);
+                                    })
+                                    .ok();
                             }),
                     );
                 }
@@ -246,10 +257,20 @@ impl RuntimeActionsModal {
             .style(DropdownStyle::Outlined)
             .trigger_size(ButtonSize::Large)
             .full_width(true)
-            .disabled(self.loading || self.catalog.as_ref().is_none_or(|catalog| catalog.projects.is_empty()))
+            .disabled(
+                self.loading
+                    || self
+                        .catalog
+                        .as_ref()
+                        .is_none_or(|catalog| catalog.projects.is_empty()),
+            )
     }
 
-    fn render_target_dropdown(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_target_dropdown(
+        &self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let label = self
             .selected_target()
             .map(|target| target.label.clone())
@@ -272,9 +293,11 @@ impl RuntimeActionsModal {
                     ContextMenuEntry::new(target.label.clone())
                         .toggleable(IconPosition::End, is_selected)
                         .handler(move |_, cx| {
-                            modal.update(cx, |this, cx| {
-                                this.select_target(target_id.clone(), cx);
-                            }).ok();
+                            modal
+                                .update(cx, |this, cx| {
+                                    this.select_target(target_id.clone(), cx);
+                                })
+                                .ok();
                         }),
                 );
             }
@@ -288,7 +311,11 @@ impl RuntimeActionsModal {
             .disabled(self.loading || !has_targets)
     }
 
-    fn render_device_dropdown(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_device_dropdown(
+        &self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let label = self
             .selected_device()
             .map(|device| {
@@ -322,9 +349,11 @@ impl RuntimeActionsModal {
                     ContextMenuEntry::new(item_label)
                         .toggleable(IconPosition::End, is_selected)
                         .handler(move |_, cx| {
-                            modal.update(cx, |this, cx| {
-                                this.select_device(device_id.clone(), cx);
-                            }).ok();
+                            modal
+                                .update(cx, |this, cx| {
+                                    this.select_device(device_id.clone(), cx);
+                                })
+                                .ok();
                         }),
                 );
             }
@@ -392,15 +421,13 @@ impl RuntimeActionsModal {
             .justify_between()
             .items_center()
             .gap_3()
-            .child(
-                Label::new(status_message)
-                    .size(LabelSize::Small)
-                    .color(if run_reason.is_some() || build_reason.is_some() {
-                        Color::Muted
-                    } else {
-                        Color::Success
-                    }),
-            )
+            .child(Label::new(status_message).size(LabelSize::Small).color(
+                if run_reason.is_some() || build_reason.is_some() {
+                    Color::Muted
+                } else {
+                    Color::Success
+                },
+            ))
             .child(
                 h_flex()
                     .gap_2()
@@ -527,10 +554,12 @@ fn selected_project<'a>(
     catalog: &'a RuntimeCatalog,
     selection: &RuntimeSelectionState,
 ) -> Option<&'a app_runtime::DetectedProject> {
-    selection
-        .project_id
-        .as_ref()
-        .and_then(|project_id| catalog.projects.iter().find(|project| &project.id == project_id))
+    selection.project_id.as_ref().and_then(|project_id| {
+        catalog
+            .projects
+            .iter()
+            .find(|project| &project.id == project_id)
+    })
 }
 
 fn select_project(
@@ -538,7 +567,11 @@ fn select_project(
     selection: &mut RuntimeSelectionState,
     project_id: String,
 ) {
-    if let Some(project) = catalog.projects.iter().find(|project| project.id == project_id) {
+    if let Some(project) = catalog
+        .projects
+        .iter()
+        .find(|project| project.id == project_id)
+    {
         *selection = selection_for_project(project);
     }
 }
@@ -619,7 +652,10 @@ mod tests {
     #[test]
     fn chooses_initial_selection_from_first_project() {
         let catalog = app_runtime::RuntimeCatalog {
-            projects: vec![project("alpha", &["app"], &["mac"]), project("beta", &["tool"], &[])],
+            projects: vec![
+                project("alpha", &["app"], &["mac"]),
+                project("beta", &["tool"], &[]),
+            ],
         };
 
         let selection = choose_initial_selection(&catalog);
@@ -637,7 +673,10 @@ mod tests {
     #[test]
     fn resets_target_and_device_when_project_changes() {
         let catalog = app_runtime::RuntimeCatalog {
-            projects: vec![project("alpha", &["app"], &["mac"]), project("beta", &["tool"], &[])],
+            projects: vec![
+                project("alpha", &["app"], &["mac"]),
+                project("beta", &["tool"], &[]),
+            ],
         };
         let mut selection = selection_for_project(&catalog.projects[0]);
 

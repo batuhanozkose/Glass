@@ -6,11 +6,13 @@ use std::time::Duration;
 
 use super::{
     BrowserView, CloseTab, MAX_CLOSED_TABS, NewTab, NextTab, PendingTabOpenRequest, PreviousTab,
-    ReopenClosedTab, TabBarMode, ToggleSidebar,
+    ReopenClosedTab,
 };
+#[cfg(not(target_os = "macos"))]
+use super::{TabBarMode, ToggleSidebar};
 
 impl BrowserView {
-    pub(super) fn add_tab(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn add_tab(&mut self, cx: &mut Context<Self>) {
         let tab = cx.new(|cx| BrowserTab::new(cx));
         self.configure_tab_request_context(&tab, cx);
 
@@ -221,7 +223,7 @@ impl BrowserView {
         }
     }
 
-    pub(super) fn switch_to_tab(
+    pub(crate) fn switch_to_tab(
         &mut self,
         index: usize,
         window: &mut Window,
@@ -582,6 +584,7 @@ impl BrowserView {
         self.switch_to_tab(previous_index, window, cx);
     }
 
+#[cfg(not(target_os = "macos"))]
     pub(crate) fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
         match self.tab_bar_mode {
             TabBarMode::Horizontal => {
@@ -610,6 +613,7 @@ impl BrowserView {
         cx.notify();
     }
 
+    #[cfg(not(target_os = "macos"))]
     pub(super) fn handle_toggle_sidebar(
         &mut self,
         _: &ToggleSidebar,
@@ -619,7 +623,7 @@ impl BrowserView {
         self.toggle_sidebar(cx);
     }
 
-    pub(super) fn close_tab_at(
+    pub(crate) fn close_tab_at(
         &mut self,
         index: usize,
         window: &mut Window,
@@ -676,9 +680,11 @@ impl BrowserView {
         if self.hovered_top_tab_close_index == Some(index) {
             self.hovered_top_tab_close_index = None;
         }
+        #[cfg(not(target_os = "macos"))]
         if self.hovered_sidebar_tab_index == Some(index) {
             self.hovered_sidebar_tab_index = None;
         }
+        #[cfg(not(target_os = "macos"))]
         if self.hovered_sidebar_tab_close_index == Some(index) {
             self.hovered_sidebar_tab_close_index = None;
         }

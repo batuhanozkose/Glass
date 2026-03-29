@@ -102,6 +102,7 @@ fn open_performance_profiler(
                     title: Some("Profiler Window".into()),
                     appears_transparent: false,
                     traffic_light_position: None,
+                    ..Default::default()
                 }),
                 focus: true,
                 show: true,

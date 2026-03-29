@@ -16,13 +16,11 @@
 //! This allows workspace to render mode views without depending on the specific
 //! crate that implements them.
 
-mod mode_switcher;
 mod mode_view_registry;
 
-pub use mode_switcher::ModeSwitcher;
 pub use mode_view_registry::{
-    ModeDeactivateCallback, ModeSidebarHost, ModeSidebarToggleFn, ModeSidebarVisibilityFn,
-    ModeViewFactory, ModeViewRegistry, RegisteredModeView,
+    ModeDeactivateCallback, ModeNavigationEntry, ModeNavigationHost, ModeViewFactory,
+    ModeViewRegistry, RegisteredModeView,
 };
 
 use gpui::{App, actions};

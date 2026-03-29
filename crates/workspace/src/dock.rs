@@ -1,23 +1,22 @@
-use crate::{MultiWorkspace, Workspace};
 use crate::persistence::model::DockData;
 use crate::{DraggedDock, Event, ModalLayer, Pane};
+use crate::{MultiWorkspace, Workspace};
 use anyhow::Context as _;
 use client::proto;
 
 use gpui::{
     Action, AnyView, App, Axis, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
-    IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent, NativeSegmentedShape,
-    ParentElement, Render, SegmentSelectEvent, SharedString, StyleRefinement, Styled, Subscription,
-    WeakEntity, Window, actions, deferred, div, native_toggle_group,
+    IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent, ParentElement, Render,
+    SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window, actions, deferred,
+    div,
 };
 use settings::SettingsStore;
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::sync::Arc;
 use theme::{ActiveTheme, active_component_radius};
-use ui::{Tab, prelude::*};
+use ui::{Divider, IconButtonShape, Tooltip, prelude::*};
+use workspace_chrome::SidebarRow;
+use workspace_modes::ModeId;
+use zed_actions::OpenRecent;
 
 actions!(
     workspace,
@@ -33,7 +32,7 @@ actions!(
 
 pub(crate) const RESIZE_HANDLE_SIZE: Pixels = px(6.);
 
-/// A unified button bar that shows buttons for ALL panels from ALL docks.
+/// Shared sidebar chrome rendered above dock or hosted sidebar content.
 /// This is a separate entity to avoid borrow conflicts when reading workspace
 /// state during render - when this entity renders, the workspace update is complete.
 pub struct DockButtonBar {
@@ -52,167 +51,294 @@ impl DockButtonBar {
 
 impl Render for DockButtonBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        #[derive(Clone, Copy)]
-        enum DockBarEntry {
-            Panel(EntityId),
-            WorkspaceSidebar,
-        }
-
         let Some(workspace) = self.workspace.upgrade() else {
             return div().into_any_element();
         };
 
         let workspace_read = workspace.read(cx);
-        if workspace_read.root_paths(cx).is_empty() {
-            return div().into_any_element();
-        }
-
-        let all_docks = [
-            (&workspace_read.left_dock, DockPosition::Left),
-            (&workspace_read.bottom_dock, DockPosition::Bottom),
-            (&workspace_read.right_dock, DockPosition::Right),
-        ];
-
-        // Collect all panels from all docks for the segmented control.
-        let mut panel_labels: Vec<SharedString> = Vec::new();
-        let mut panel_symbols: Vec<SharedString> = Vec::new();
-        let mut panel_entries: Vec<DockBarEntry> = Vec::new();
-        let mut selected_segment: Option<usize> = None;
-
-        for (dock_entity, dock_position) in &all_docks {
-            // Skip bottom dock panels — they have their own dock and shouldn't
-            // appear in the sidebar segmented control.
-            if *dock_position == DockPosition::Bottom {
-                continue;
-            }
-
-            let dock = dock_entity.read(cx);
-            let active_index = dock.active_panel_index();
-            let is_open = dock.is_open();
-
-            for (i, entry) in dock.panel_entries.iter().enumerate() {
-                let panel = &entry.panel;
-                // Skip the agent panel — it has a dedicated button in the native toolbar.
-                if panel.persistent_name() == "AgentPanel" {
-                    continue;
-                }
-                let Some(icon) = panel.icon(window, cx) else {
-                    continue;
-                };
-                let name = panel
-                    .icon_tooltip(window, cx)
-                    .unwrap_or(panel.persistent_name());
-                let segment_idx = panel_labels.len();
-
-                // Track the first active+visible panel as the selected segment
-                if is_open && Some(i) == active_index && selected_segment.is_none() {
-                    selected_segment = Some(segment_idx);
-                }
-
-                panel_labels.push(name.into());
-                panel_symbols.push(icon_to_sf_symbol(icon).into());
-                panel_entries.push(DockBarEntry::Panel(panel.panel_id()));
-            }
-        }
 
         let multi_workspace = window.root::<MultiWorkspace>().flatten();
-        if let Some(multi_workspace) = multi_workspace.clone()
-            && multi_workspace.read(cx).multi_workspace_enabled(cx)
-            && multi_workspace.read(cx).sidebar().is_some()
-        {
-            if multi_workspace.read(cx).sidebar_open() {
-                selected_segment = Some(panel_labels.len());
+        let active_mode = workspace_read.active_mode_id();
+        let active_sidebar_section = workspace_read.active_sidebar_section();
+        let project = workspace_read.project();
+        let selected_worktree = workspace_read
+            .active_worktree_override()
+            .and_then(|worktree_id| project.read(cx).worktree_for_id(worktree_id, cx))
+            .or_else(|| project.read(cx).visible_worktrees(cx).next());
+
+        let project_label: SharedString = selected_worktree
+            .as_ref()
+            .map(|worktree| worktree.read(cx).root_name().as_unix_str().to_string())
+            .unwrap_or_else(|| "Open Recent Project".to_string())
+            .into();
+
+        let selected_repository = selected_worktree.as_ref().and_then(|worktree| {
+            let worktree_root = worktree.read(cx).abs_path().to_path_buf();
+            project
+                .read(cx)
+                .repositories(cx)
+                .values()
+                .find(|repository| {
+                    let snapshot = repository.read(cx).snapshot();
+                    let repo_root: &std::path::Path = snapshot.work_directory_abs_path.as_ref();
+                    repo_root == worktree_root.as_path()
+                })
+                .cloned()
+        });
+
+        let branch_label = selected_repository
+            .as_ref()
+            .and_then(|repository| {
+                let repository = repository.read(cx);
+                repository
+                    .branch
+                    .as_ref()
+                    .map(|branch| util::truncate_and_trailoff(branch.name(), 32))
+                    .or_else(|| {
+                        repository
+                            .head_commit
+                            .as_ref()
+                            .map(|commit| commit.sha.chars().take(8).collect::<String>())
+                    })
+            })
+            .unwrap_or_else(|| "Switch Branch".to_string());
+
+        let mut project_panel_badge = None;
+        let mut git_panel_badge = None;
+
+        for dock_entity in [&workspace_read.left_dock, &workspace_read.right_dock] {
+            let dock = dock_entity.read(cx);
+
+            for entry in &dock.panel_entries {
+                match entry.panel.panel_key() {
+                    "ProjectPanel" => {
+                        project_panel_badge = entry.panel.icon_label(window, cx);
+                    }
+                    "GitPanel" => {
+                        git_panel_badge = entry.panel.icon_label(window, cx);
+                    }
+                    _ => {}
+                }
             }
-            panel_labels.push("Projects".into());
-            panel_symbols.push("square.grid.2x2".into());
-            panel_entries.push(DockBarEntry::WorkspaceSidebar);
         }
 
-        if panel_labels.is_empty() {
-            return div().into_any_element();
-        }
+        let show_workspaces_row = multi_workspace.as_ref().is_some_and(|multi_workspace| {
+            multi_workspace.read(cx).multi_workspace_enabled(cx)
+                && multi_workspace.read(cx).sidebar().is_some()
+        });
 
-        let callback_panel_entries = panel_entries.clone();
-        let callback_multi_workspace = multi_workspace.clone();
-        let label_strs: Vec<&str> = panel_labels.iter().map(|s| s.as_ref()).collect();
-        let symbol_strs: Vec<&str> = panel_symbols.iter().map(|s| s.as_ref()).collect();
-        let mut segmented_control_hasher = DefaultHasher::new();
-        panel_labels.hash(&mut segmented_control_hasher);
-        panel_symbols.hash(&mut segmented_control_hasher);
-        let segmented_control_id = ("dock-panels", segmented_control_hasher.finish());
+        let mut rows = Vec::new();
 
-        let mut group = native_toggle_group(segmented_control_id, &label_strs)
-            .sf_symbols(&symbol_strs)
-            .border_shape(NativeSegmentedShape::Capsule)
-            .w_full()
-            .on_select(
-                cx.listener(move |this, event: &SegmentSelectEvent, window, cx| {
-                    let Some(entry) = callback_panel_entries.get(event.index).copied() else {
-                        return;
-                    };
-
-                    match entry {
-                        DockBarEntry::Panel(panel_id) => {
-                            if let Some(multi_workspace) = callback_multi_workspace.as_ref()
-                                && multi_workspace.read(cx).sidebar_open()
-                            {
-                                multi_workspace.update(cx, |multi_workspace, cx| {
-                                    multi_workspace.close_sidebar(window, cx);
-                                });
-                            }
-
-                            if let Some(workspace) = this.workspace.upgrade() {
-                                workspace.update(cx, |workspace, cx| {
-                                    workspace.toggle_panel_for_id(panel_id, window, cx);
-                                });
-                            }
+        if active_mode != ModeId::BROWSER {
+            rows.push(
+                SidebarRow::new(
+                    "sidebar-project-picker",
+                    project_label,
+                    IconName::OpenFolder,
+                )
+                .end_slot(
+                    IconButton::new("sidebar-branch-picker", IconName::GitBranchAlt)
+                        .shape(IconButtonShape::Square)
+                        .icon_size(IconSize::Small)
+                        .icon_color(Color::Muted)
+                        .tooltip(Tooltip::text(branch_label.clone()))
+                        .on_click(|_, window, cx| {
+                            cx.stop_propagation();
+                            window.dispatch_action(zed_actions::git::Branch.boxed_clone(), cx);
+                        }),
+                )
+                .on_click(|_, window, cx| {
+                    window.dispatch_action(
+                        OpenRecent {
+                            create_new_window: false,
                         }
-                        DockBarEntry::WorkspaceSidebar => {
-                            if let Some(multi_workspace) = callback_multi_workspace.as_ref() {
+                        .boxed_clone(),
+                        cx,
+                    );
+                })
+                .into_any_element(),
+            );
+
+            rows.push(Divider::horizontal().into_any_element());
+        }
+
+        rows.push(
+            SidebarRow::new("sidebar-project-panel", "Project", IconName::FileTree)
+                .selected(active_sidebar_section == crate::WorkspaceSidebarSection::Project)
+                .when_some(project_panel_badge, |row, badge| {
+                    row.end_slot(
+                        Label::new(badge)
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+                })
+                .on_click({
+                    let workspace = self.workspace.clone();
+                    let multi_workspace = multi_workspace.clone();
+                    move |_, window, cx| {
+                        if let Some(multi_workspace) = multi_workspace.as_ref()
+                            && multi_workspace.read(cx).sidebar_open()
+                        {
+                            multi_workspace.update(cx, |multi_workspace, cx| {
+                                multi_workspace.close_sidebar(window, cx);
+                            });
+                        }
+
+                        if let Some(workspace) = workspace.upgrade() {
+                            workspace.update(cx, |workspace, cx| {
+                                workspace.select_sidebar_section(
+                                    crate::WorkspaceSidebarSection::Project,
+                                    window,
+                                    cx,
+                                );
+                            });
+                        }
+                    }
+                })
+                .into_any_element(),
+        );
+
+        rows.push(
+            SidebarRow::new("sidebar-git-panel", "Git", IconName::GitBranchAlt)
+                .selected(active_sidebar_section == crate::WorkspaceSidebarSection::Git)
+                .when_some(git_panel_badge, |row, badge| {
+                    row.end_slot(
+                        Label::new(badge)
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+                })
+                .on_click({
+                    let workspace = self.workspace.clone();
+                    let multi_workspace = multi_workspace.clone();
+                    move |_, window, cx| {
+                        if let Some(multi_workspace) = multi_workspace.as_ref()
+                            && multi_workspace.read(cx).sidebar_open()
+                        {
+                            multi_workspace.update(cx, |multi_workspace, cx| {
+                                multi_workspace.close_sidebar(window, cx);
+                            });
+                        }
+
+                        if let Some(workspace) = workspace.upgrade() {
+                            workspace.update(cx, |workspace, cx| {
+                                workspace.select_sidebar_section(
+                                    crate::WorkspaceSidebarSection::Git,
+                                    window,
+                                    cx,
+                                );
+                            });
+                        }
+                    }
+                })
+                .into_any_element(),
+        );
+
+        rows.push(
+            SidebarRow::new("sidebar-browser-tabs", "Browser Tabs", IconName::Globe)
+                .selected(active_sidebar_section == crate::WorkspaceSidebarSection::BrowserTabs)
+                .on_click({
+                    let workspace = self.workspace.clone();
+                    let multi_workspace = multi_workspace.clone();
+                    move |_, window, cx| {
+                        if let Some(multi_workspace) = multi_workspace.as_ref()
+                            && multi_workspace.read(cx).sidebar_open()
+                        {
+                            multi_workspace.update(cx, |multi_workspace, cx| {
+                                multi_workspace.close_sidebar(window, cx);
+                            });
+                        }
+
+                        if let Some(workspace) = workspace.upgrade() {
+                            workspace.update(cx, |workspace, cx| {
+                                workspace.select_sidebar_section(
+                                    crate::WorkspaceSidebarSection::BrowserTabs,
+                                    window,
+                                    cx,
+                                );
+                            });
+                        }
+                    }
+                })
+                .into_any_element(),
+        );
+
+        rows.push(
+            SidebarRow::new("sidebar-terminal", "Terminal Tabs", IconName::Terminal)
+                .selected(active_sidebar_section == crate::WorkspaceSidebarSection::Terminal)
+                .on_click({
+                    let workspace = self.workspace.clone();
+                    let multi_workspace = multi_workspace.clone();
+                    move |_, window, cx| {
+                        if let Some(multi_workspace) = multi_workspace.as_ref()
+                            && multi_workspace.read(cx).sidebar_open()
+                        {
+                            multi_workspace.update(cx, |multi_workspace, cx| {
+                                multi_workspace.close_sidebar(window, cx);
+                            });
+                        }
+
+                        if let Some(workspace) = workspace.upgrade() {
+                            workspace.update(cx, |workspace, cx| {
+                                workspace.select_sidebar_section(
+                                    crate::WorkspaceSidebarSection::Terminal,
+                                    window,
+                                    cx,
+                                );
+                            });
+                        }
+                    }
+                })
+                .into_any_element(),
+        );
+
+        if show_workspaces_row {
+            rows.push(
+                SidebarRow::new("sidebar-workspaces", "Workspaces", IconName::Screen)
+                    .selected(active_sidebar_section == crate::WorkspaceSidebarSection::Workspaces)
+                    .on_click({
+                        let multi_workspace = multi_workspace.clone();
+                        let workspace = self.workspace.clone();
+                        move |_, window, cx| {
+                            if let Some(multi_workspace) = multi_workspace.as_ref() {
                                 multi_workspace.update(cx, |multi_workspace, cx| {
-                                    if multi_workspace.sidebar_open() {
-                                        multi_workspace.close_sidebar(window, cx);
-                                    } else {
-                                        multi_workspace.open_sidebar(cx);
-                                        if let Some(sidebar) = multi_workspace.sidebar() {
-                                            sidebar.prepare_for_focus(window, cx);
-                                            sidebar.focus(window, cx);
-                                        }
+                                    multi_workspace.open_sidebar(cx);
+                                    if let Some(sidebar) = multi_workspace.sidebar() {
+                                        sidebar.prepare_for_focus(window, cx);
+                                        sidebar.focus(window, cx);
                                     }
                                 });
                             }
-                        }
-                    }
-                }),
-            );
 
-        if let Some(index) = selected_segment {
-            let last_segment_index = label_strs.len().saturating_sub(1);
-            group = group.selected_index(index.min(last_segment_index));
+                            if let Some(workspace) = workspace.upgrade() {
+                                workspace.update(cx, |workspace, cx| {
+                                    workspace.select_sidebar_section(
+                                        crate::WorkspaceSidebarSection::Workspaces,
+                                        window,
+                                        cx,
+                                    );
+                                });
+                            }
+                        }
+                    })
+                    .into_any_element(),
+            );
+        }
+
+        if rows.is_empty() {
+            return div().into_any_element();
         }
 
         div()
             .w_full()
             .flex()
-            .flex_row()
-            .items_center()
-            .h(Tab::container_height(cx))
+            .flex_col()
             .px_1()
+            .py_1()
             .gap_1()
             .bg(cx.theme().colors().panel_background)
-            .child(group)
+            .children(rows)
             .into_any_element()
-    }
-}
-
-pub(crate) fn icon_to_sf_symbol(icon: IconName) -> &'static str {
-    match icon {
-        IconName::FileTree => "folder",
-        IconName::TerminalAlt => "terminal",
-        IconName::GitBranchAlt => "arrow.triangle.branch",
-        IconName::Screen => "iphone",
-        IconName::ZedAssistant => "sparkles",
-        _ => "square.grid.2x2",
     }
 }
 
@@ -221,6 +347,16 @@ pub enum PanelEvent {
     ZoomOut,
     Activate,
     Close,
+    NavigationUpdated,
+}
+
+#[derive(Clone)]
+pub struct PanelNavigationEntry {
+    pub id: SharedString,
+    pub label: SharedString,
+    pub detail: Option<SharedString>,
+    pub is_pinned: bool,
+    pub is_selected: bool,
 }
 
 pub use proto::PanelId;
@@ -247,9 +383,30 @@ pub trait Panel: Focusable + EventEmitter<PanelEvent> + Render + Sized {
     }
     fn set_zoomed(&mut self, _zoomed: bool, _window: &mut Window, _cx: &mut Context<Self>) {}
     fn set_active(&mut self, _active: bool, _window: &mut Window, _cx: &mut Context<Self>) {}
-    fn pane(&self) -> Option<Entity<Pane>> {
+    fn pane(&self, _cx: &App) -> Option<Entity<Pane>> {
         None
     }
+    fn navigation_panes(&self, cx: &App) -> Vec<Entity<Pane>> {
+        self.pane(cx).into_iter().collect::<Vec<_>>()
+    }
+    fn navigation_entries(&self, _window: &Window, _cx: &App) -> Vec<PanelNavigationEntry> {
+        Vec::new()
+    }
+    fn activate_navigation_entry(
+        &mut self,
+        _entry_id: &str,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
+    }
+    fn close_navigation_entry(
+        &mut self,
+        _entry_id: &str,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
+    }
+    fn create_navigation_entry(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
     fn remote_id() -> Option<proto::PanelId> {
         None
     }
@@ -271,6 +428,7 @@ pub trait PanelHandle: Send + Sync {
     fn set_active(&self, active: bool, window: &mut Window, cx: &mut App);
     fn remote_id(&self) -> Option<proto::PanelId>;
     fn pane(&self, cx: &App) -> Option<Entity<Pane>>;
+    fn navigation_panes(&self, cx: &App) -> Vec<Entity<Pane>>;
     fn size(&self, window: &Window, cx: &App) -> Pixels;
     fn set_size(&self, size: Option<Pixels>, window: &mut Window, cx: &mut App);
     fn icon(&self, window: &Window, cx: &App) -> Option<ui::IconName>;
@@ -281,6 +439,10 @@ pub trait PanelHandle: Send + Sync {
     fn to_any(&self) -> AnyView;
     fn activation_priority(&self, cx: &App) -> u32;
     fn enabled(&self, cx: &App) -> bool;
+    fn navigation_entries(&self, window: &Window, cx: &App) -> Vec<PanelNavigationEntry>;
+    fn activate_navigation_entry(&self, entry_id: &str, window: &mut Window, cx: &mut App);
+    fn close_navigation_entry(&self, entry_id: &str, window: &mut Window, cx: &mut App);
+    fn create_navigation_entry(&self, window: &mut Window, cx: &mut App);
     fn move_to_next_position(&self, window: &mut Window, cx: &mut App) {
         let current_position = self.position(window, cx);
         let next_position = [
@@ -339,7 +501,11 @@ where
     }
 
     fn pane(&self, cx: &App) -> Option<Entity<Pane>> {
-        self.read(cx).pane()
+        self.read(cx).pane(cx)
+    }
+
+    fn navigation_panes(&self, cx: &App) -> Vec<Entity<Pane>> {
+        self.read(cx).navigation_panes(cx)
     }
 
     fn remote_id(&self) -> Option<PanelId> {
@@ -384,6 +550,26 @@ where
 
     fn enabled(&self, cx: &App) -> bool {
         self.read(cx).enabled(cx)
+    }
+
+    fn navigation_entries(&self, window: &Window, cx: &App) -> Vec<PanelNavigationEntry> {
+        self.read(cx).navigation_entries(window, cx)
+    }
+
+    fn activate_navigation_entry(&self, entry_id: &str, window: &mut Window, cx: &mut App) {
+        self.update(cx, |this, cx| {
+            this.activate_navigation_entry(entry_id, window, cx)
+        })
+    }
+
+    fn close_navigation_entry(&self, entry_id: &str, window: &mut Window, cx: &mut App) {
+        self.update(cx, |this, cx| {
+            this.close_navigation_entry(entry_id, window, cx)
+        })
+    }
+
+    fn create_navigation_entry(&self, window: &mut Window, cx: &mut App) {
+        self.update(cx, |this, cx| this.create_navigation_entry(window, cx))
     }
 }
 
@@ -783,6 +969,9 @@ impl Dock {
                         {
                             this.set_open(false, window, cx);
                         }
+                    }
+                    PanelEvent::NavigationUpdated => {
+                        cx.notify();
                     }
                 },
             ),

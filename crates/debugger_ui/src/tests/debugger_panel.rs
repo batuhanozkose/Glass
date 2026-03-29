@@ -559,7 +559,7 @@ async fn test_handle_error_run_in_terminal_reverse_request(
 
             assert_eq!(
                 0,
-                terminal_panel.read(cx).pane().unwrap().read(cx).items_len()
+                terminal_panel.read(cx).pane(cx).unwrap().read(cx).items_len()
             );
         })
         .unwrap();

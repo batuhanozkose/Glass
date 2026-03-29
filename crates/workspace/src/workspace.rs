@@ -14,6 +14,7 @@ mod persistence;
 pub mod searchable;
 mod security_modal;
 pub mod tasks;
+mod terminal_session_manager;
 mod theme_preview;
 mod title_bar_item;
 mod toast_init;
@@ -29,6 +30,9 @@ pub use multi_workspace::{
     ToggleWorkspaceSidebar,
 };
 pub use path_list::{PathList, SerializedPathList};
+pub use terminal_session_manager::{
+    TerminalSessionCloseResult, TerminalSessionManager, WorkspaceTerminalSession,
+};
 pub use title_bar_item::{TitleBarItemView, TitleBarItemViewHandle};
 pub use toast::{ToastAction, ToastLayer, ToastView};
 
@@ -39,7 +43,9 @@ use client::{
 };
 use collections::{HashMap, HashSet, hash_map};
 use db::smol::future::yield_now;
-use dock::{Dock, DockButtonBar, DockPosition, PanelHandle, RESIZE_HANDLE_SIZE};
+use dock::{
+    Dock, DockButtonBar, DockPosition, PanelHandle, PanelNavigationEntry, RESIZE_HANDLE_SIZE,
+};
 use futures::{
     Future, FutureExt, StreamExt,
     channel::{
@@ -55,14 +61,14 @@ use gpui::{
     CursorStyle, Decorations, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle,
     Focusable, Global, HitboxBehavior, Hsla, KeyContext, Keystroke, ManagedView, MouseButton,
     PathPromptOptions, Point, PromptLevel, Render, ResizeEdge, Size, Stateful, Subscription,
-    SystemWindowTabController, Task, Tiling, WeakEntity, WindowBackgroundAppearance,
-    WindowBounds, WindowHandle, WindowId, WindowOptions, actions, canvas, point, px, relative,
-    size, transparent_black,
+    SystemWindowTabController, Task, Tiling, WeakEntity, WindowBackgroundAppearance, WindowBounds,
+    WindowHandle, WindowId, WindowOptions, actions, canvas, point, px, relative, size,
+    transparent_black,
 };
 pub use history_manager::*;
 pub use item::{
     FollowableItem, FollowableItemHandle, Item, ItemHandle, ItemSettings, PreviewTabsSettings,
-    ProjectItem, SerializableItem, SerializableItemHandle, WeakItemHandle,
+    ProjectItem, SerializableItem, SerializableItemHandle, WeakItemHandle, WorkspaceItemKind,
 };
 use itertools::Itertools;
 use language::{Buffer, LanguageRegistry, Rope, language_settings::all_language_settings};
@@ -132,7 +138,7 @@ pub use toolbar::{
     PaneSearchBarCallbacks, Toolbar, ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView,
 };
 pub use ui;
-use ui::{Window, prelude::*};
+use ui::{IconButtonShape, Tooltip, Window, prelude::*};
 use util::{
     ResultExt, TryFutureExt,
     paths::{PathStyle, SanitizedPath},
@@ -140,9 +146,11 @@ use util::{
     serde::default_true,
 };
 use uuid::Uuid;
+#[cfg(target_os = "macos")]
+use workspace_chrome::SidebarRow;
 use workspace_modes::{
-    ModeDeactivateCallback, ModeId, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode,
-    SwitchToTerminalMode,
+    ModeDeactivateCallback, ModeId, ModeNavigationHost, ModeViewRegistry, SwitchToBrowserMode,
+    SwitchToEditorMode, SwitchToTerminalMode,
 };
 pub use workspace_settings::{
     AutosaveSetting, BottomDockLayout, RestoreOnStartupBehavior, TabBarSettings, WorkspaceSettings,
@@ -165,60 +173,88 @@ use crate::{
 #[cfg(target_os = "macos")]
 const DEFAULT_SIDEBAR_WIDTH: f64 = 240.0;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WorkspaceSidebarSection {
+    Project,
+    Git,
+    BrowserTabs,
+    Terminal,
+    Workspaces,
+}
+
 #[cfg(target_os = "macos")]
 pub struct WorkspaceSidebarHost {
-    active_mode: ModeId,
     left_dock: Entity<Dock>,
-    mode_sidebar_views: HashMap<ModeId, AnyView>,
+    bottom_dock: Entity<Dock>,
+    right_dock: Entity<Dock>,
+    active_section: WorkspaceSidebarSection,
+    section_views: HashMap<WorkspaceSidebarSection, AnyView>,
     workspace_sidebar_view: Option<AnyView>,
-    workspace_sidebar_visible: bool,
+    collapsed: bool,
     width: f64,
 }
 
 #[cfg(target_os = "macos")]
+#[derive(Clone)]
+pub struct WorkspaceSidebarHostSurface {
+    left_dock: Entity<Dock>,
+    bottom_dock: Entity<Dock>,
+    right_dock: Entity<Dock>,
+    active_section: WorkspaceSidebarSection,
+    section_views: HashMap<WorkspaceSidebarSection, AnyView>,
+}
+
+#[cfg(target_os = "macos")]
 impl WorkspaceSidebarHost {
-    pub fn new(left_dock: Entity<Dock>) -> Self {
+    pub fn new(
+        left_dock: Entity<Dock>,
+        bottom_dock: Entity<Dock>,
+        right_dock: Entity<Dock>,
+    ) -> Self {
         Self {
-            active_mode: ModeId::BROWSER,
             left_dock,
-            mode_sidebar_views: HashMap::default(),
+            bottom_dock,
+            right_dock,
+            active_section: WorkspaceSidebarSection::BrowserTabs,
+            section_views: HashMap::default(),
             workspace_sidebar_view: None,
-            workspace_sidebar_visible: false,
+            collapsed: false,
             width: DEFAULT_SIDEBAR_WIDTH,
         }
     }
 
-    pub fn set_mode(&mut self, mode: ModeId, cx: &mut Context<Self>) {
-        if self.active_mode != mode {
-            self.active_mode = mode;
+    pub fn set_active_section(
+        &mut self,
+        active_section: WorkspaceSidebarSection,
+        cx: &mut Context<Self>,
+    ) {
+        if self.active_section != active_section {
+            self.active_section = active_section;
             cx.notify();
         }
     }
 
-    pub fn mode_sidebar_view(&self, mode: ModeId) -> Option<&AnyView> {
-        self.mode_sidebar_views.get(&mode)
+    pub fn section_view(&self, section: WorkspaceSidebarSection) -> Option<&AnyView> {
+        self.section_views.get(&section)
     }
 
-    pub fn set_mode_sidebar_view(&mut self, mode: ModeId, view: AnyView, cx: &mut Context<Self>) {
-        let needs_update = self.mode_sidebar_views.get(&mode) != Some(&view);
-        self.mode_sidebar_views.insert(mode, view);
+    pub fn set_section_view(
+        &mut self,
+        section: WorkspaceSidebarSection,
+        view: AnyView,
+        cx: &mut Context<Self>,
+    ) {
+        let needs_update = self.section_views.get(&section) != Some(&view);
+        self.section_views.insert(section, view);
         if needs_update {
             cx.notify();
         }
     }
 
-    pub fn clear_mode_sidebar_view(&mut self, mode: ModeId, cx: &mut Context<Self>) {
-        if self.mode_sidebar_views.remove(&mode).is_some() {
+    pub fn clear_section_view(&mut self, section: WorkspaceSidebarSection, cx: &mut Context<Self>) {
+        if self.section_views.remove(&section).is_some() {
             cx.notify();
         }
-    }
-
-    pub fn has_mode_sidebar_view(&self, mode: ModeId) -> bool {
-        self.mode_sidebar_views.contains_key(&mode)
-    }
-
-    pub fn active_mode_sidebar_view(&self) -> Option<&AnyView> {
-        self.mode_sidebar_view(self.active_mode)
     }
 
     pub fn set_workspace_sidebar_view(&mut self, view: Option<AnyView>, cx: &mut Context<Self>) {
@@ -228,20 +264,75 @@ impl WorkspaceSidebarHost {
         }
     }
 
-    pub fn set_workspace_sidebar_visible(&mut self, visible: bool, cx: &mut Context<Self>) {
-        if self.workspace_sidebar_visible != visible {
-            self.workspace_sidebar_visible = visible;
+    pub fn surface(&self) -> WorkspaceSidebarHostSurface {
+        WorkspaceSidebarHostSurface {
+            left_dock: self.left_dock.clone(),
+            bottom_dock: self.bottom_dock.clone(),
+            right_dock: self.right_dock.clone(),
+            active_section: self.active_section,
+            section_views: self.section_views.clone(),
+        }
+    }
+
+    pub fn apply_surface(
+        &mut self,
+        surface: &WorkspaceSidebarHostSurface,
+        workspace_sidebar_view: Option<AnyView>,
+        cx: &mut Context<Self>,
+    ) {
+        self.set_left_dock(surface.left_dock.clone(), cx);
+        self.set_bottom_dock(surface.bottom_dock.clone(), cx);
+        self.set_right_dock(surface.right_dock.clone(), cx);
+        self.set_active_section(surface.active_section, cx);
+
+        for (section, view) in &surface.section_views {
+            self.set_section_view(*section, view.clone(), cx);
+        }
+        let sections_to_clear = self
+            .section_views
+            .keys()
+            .copied()
+            .filter(|section| !surface.section_views.contains_key(section))
+            .collect::<Vec<_>>();
+        for section in sections_to_clear {
+            self.clear_section_view(section, cx);
+        }
+
+        self.set_workspace_sidebar_view(workspace_sidebar_view, cx);
+    }
+
+    pub fn set_collapsed(&mut self, collapsed: bool, cx: &mut Context<Self>) {
+        if self.collapsed != collapsed {
+            self.collapsed = collapsed;
             cx.notify();
         }
     }
 
-    pub fn workspace_sidebar_visible(&self) -> bool {
-        self.workspace_sidebar_visible
+    pub fn toggle_collapsed(&mut self, cx: &mut Context<Self>) {
+        self.set_collapsed(!self.collapsed, cx);
+    }
+
+    pub fn collapsed(&self) -> bool {
+        self.collapsed
     }
 
     pub fn set_left_dock(&mut self, left_dock: Entity<Dock>, cx: &mut Context<Self>) {
         if self.left_dock.entity_id() != left_dock.entity_id() {
             self.left_dock = left_dock;
+            cx.notify();
+        }
+    }
+
+    pub fn set_bottom_dock(&mut self, bottom_dock: Entity<Dock>, cx: &mut Context<Self>) {
+        if self.bottom_dock.entity_id() != bottom_dock.entity_id() {
+            self.bottom_dock = bottom_dock;
+            cx.notify();
+        }
+    }
+
+    pub fn set_right_dock(&mut self, right_dock: Entity<Dock>, cx: &mut Context<Self>) {
+        if self.right_dock.entity_id() != right_dock.entity_id() {
+            self.right_dock = right_dock;
             cx.notify();
         }
     }
@@ -256,23 +347,48 @@ impl WorkspaceSidebarHost {
     pub fn width(&self) -> f64 {
         self.width
     }
+
+    fn panel_view(&self, panel_key: &str, cx: &App) -> Option<AnyView> {
+        [&self.left_dock, &self.right_dock, &self.bottom_dock]
+            .into_iter()
+            .find_map(|dock| {
+                dock.read(cx)
+                    .panel_for_key(panel_key)
+                    .map(|panel| panel.to_any())
+            })
+    }
+
+    fn active_section_view(&self, cx: &App) -> Option<AnyView> {
+        match self.active_section {
+            WorkspaceSidebarSection::Project => self
+                .section_view(WorkspaceSidebarSection::Project)
+                .cloned()
+                .or_else(|| self.panel_view("ProjectPanel", cx)),
+            WorkspaceSidebarSection::Git => self
+                .section_view(WorkspaceSidebarSection::Git)
+                .cloned()
+                .or_else(|| self.panel_view("GitPanel", cx)),
+            WorkspaceSidebarSection::BrowserTabs => self
+                .section_view(WorkspaceSidebarSection::BrowserTabs)
+                .cloned(),
+            WorkspaceSidebarSection::Terminal => self
+                .section_view(WorkspaceSidebarSection::Terminal)
+                .cloned(),
+            WorkspaceSidebarSection::Workspaces => self
+                .section_view(WorkspaceSidebarSection::Workspaces)
+                .cloned()
+                .or_else(|| self.workspace_sidebar_view.clone()),
+        }
+    }
 }
 
 #[cfg(target_os = "macos")]
 impl Render for WorkspaceSidebarHost {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if let Some(view) = self.active_mode_sidebar_view() {
-            return div().size_full().child(view.clone()).into_any_element();
-        }
-
-        let body = if self.workspace_sidebar_visible {
-            self.workspace_sidebar_view
-                .as_ref()
-                .cloned()
-                .unwrap_or_else(|| self.left_dock.clone().into())
-        } else {
-            self.left_dock.clone().into()
-        };
+        let body = self
+            .active_section_view(cx)
+            .map(|view| view.into_any_element())
+            .unwrap_or_else(|| div().size_full().into_any_element());
 
         let button_bar = self.left_dock.read(cx).native_sidebar_button_bar();
         div()
@@ -291,6 +407,187 @@ impl Render for WorkspaceSidebarHost {
                     .size_full()
                     .overflow_hidden()
                     .child(body),
+            )
+            .into_any_element()
+    }
+}
+
+#[cfg(target_os = "macos")]
+struct WorkspaceTerminalSidebarPanel {
+    workspace: WeakEntity<Workspace>,
+    _subscriptions: Vec<Subscription>,
+    subscriptions_initialized: bool,
+}
+
+#[cfg(target_os = "macos")]
+impl WorkspaceTerminalSidebarPanel {
+    fn new(workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
+        let _ = cx;
+        Self {
+            workspace,
+            _subscriptions: Vec::new(),
+            subscriptions_initialized: false,
+        }
+    }
+
+    fn refresh_subscriptions(&mut self, cx: &mut Context<Self>) {
+        self._subscriptions.clear();
+
+        let Some(workspace) = self.workspace.upgrade() else {
+            return;
+        };
+
+        self._subscriptions
+            .push(cx.observe(&workspace, |this, _, cx| {
+                this.refresh_subscriptions(cx);
+                cx.notify();
+            }));
+
+        let docks = workspace.read(cx);
+        let left_dock = docks.left_dock.clone();
+        let bottom_dock = docks.bottom_dock.clone();
+        let right_dock = docks.right_dock.clone();
+        let panes = docks.navigation_panes(WorkspaceSidebarSection::Terminal, cx);
+
+        for dock in [left_dock, bottom_dock, right_dock] {
+            self._subscriptions.push(cx.observe(&dock, |this, _, cx| {
+                this.refresh_subscriptions(cx);
+                cx.notify();
+            }));
+        }
+
+        for pane in panes {
+            self._subscriptions
+                .push(cx.observe(&pane, |_this, _, cx| cx.notify()));
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl Render for WorkspaceTerminalSidebarPanel {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.subscriptions_initialized {
+            self.subscriptions_initialized = true;
+            let this = cx.entity().downgrade();
+            cx.defer(move |cx| {
+                let Some(this) = this.upgrade() else {
+                    return;
+                };
+                this.update(cx, |this, cx| {
+                    this.refresh_subscriptions(cx);
+                    cx.notify();
+                });
+            });
+        }
+
+        let Some(workspace) = self.workspace.upgrade() else {
+            return div().size_full().into_any_element();
+        };
+
+        let entries = workspace.read(cx).terminal_navigation_entries(window, cx);
+        let has_entries = !entries.is_empty();
+        let theme = cx.theme();
+
+        div()
+            .size_full()
+            .bg(theme.colors().editor_background)
+            .child(
+                v_flex()
+                    .flex_1()
+                    .size_full()
+                    .p_1()
+                    .gap_1()
+                    .children(entries.into_iter().map(|entry| {
+                        let entry_id = entry.id;
+                        let close_entry_id = entry_id.clone();
+                        let activate_entry_id = entry_id.clone();
+                        let label = entry.label;
+                        let detail = entry.detail;
+                        let is_pinned = entry.is_pinned;
+                        let is_selected = entry.is_selected;
+                        let workspace = self.workspace.clone();
+                        let close_workspace = self.workspace.clone();
+                        SidebarRow::new(
+                            SharedString::from(format!("workspace-terminal-sidebar-{}", entry_id)),
+                            detail.unwrap_or(label),
+                            IconName::Terminal,
+                        )
+                        .selected(is_selected)
+                        .end_slot(if is_pinned {
+                            Icon::new(IconName::Pin)
+                                .size(IconSize::Small)
+                                .color(Color::Muted)
+                                .into_any_element()
+                        } else {
+                            IconButton::new(
+                                SharedString::from(format!(
+                                    "workspace-terminal-sidebar-close-{}",
+                                    entry_id
+                                )),
+                                IconName::Close,
+                            )
+                            .shape(IconButtonShape::Square)
+                            .icon_size(IconSize::XSmall)
+                            .icon_color(Color::Muted)
+                            .tooltip(Tooltip::text("Close terminal"))
+                            .on_click(move |_, window, cx| {
+                                cx.stop_propagation();
+                                let Some(workspace) = close_workspace.upgrade() else {
+                                    return;
+                                };
+                                workspace.update(cx, |workspace, cx| {
+                                    workspace.close_sidebar_entry(
+                                        WorkspaceSidebarSection::Terminal,
+                                        &close_entry_id,
+                                        window,
+                                        cx,
+                                    );
+                                });
+                            })
+                            .into_any_element()
+                        })
+                        .on_click(move |_, window, cx| {
+                            let Some(workspace) = workspace.upgrade() else {
+                                return;
+                            };
+                            workspace.update(cx, |workspace, cx| {
+                                workspace.activate_sidebar_entry(
+                                    WorkspaceSidebarSection::Terminal,
+                                    &activate_entry_id,
+                                    window,
+                                    cx,
+                                );
+                            });
+                        })
+                    }))
+                    .when(!has_entries, |this: gpui::Div| {
+                        this.child(
+                            SidebarRow::new(
+                                "workspace-terminal-sidebar-empty",
+                                "No terminal tabs",
+                                IconName::Terminal,
+                            )
+                            .disabled(true),
+                        )
+                    })
+                    .child(
+                        SidebarRow::new(
+                            "workspace-terminal-sidebar-new",
+                            "New Terminal",
+                            IconName::Plus,
+                        )
+                        .on_click(|_, window, cx| {
+                            if let Some(workspace) = Workspace::for_window(window, cx) {
+                                workspace.update(cx, |workspace, cx| {
+                                    workspace.create_sidebar_entry(
+                                        WorkspaceSidebarSection::Terminal,
+                                        window,
+                                        cx,
+                                    );
+                                });
+                            }
+                        }),
+                    ),
             )
             .into_any_element()
     }
@@ -1380,7 +1677,7 @@ struct DispatchingKeystrokes {
 struct PerWorkspaceModeView {
     view: AnyView,
     focus_handle: FocusHandle,
-    sidebar_host: Option<workspace_modes::ModeSidebarHost>,
+    navigation_host: Option<ModeNavigationHost>,
     on_deactivate: Option<ModeDeactivateCallback>,
 }
 
@@ -1438,8 +1735,10 @@ pub struct Workspace {
     serializable_items_tx: UnboundedSender<Box<dyn SerializableItemHandle>>,
     _items_serializer: Task<Result<()>>,
     session_id: Option<String>,
+    terminal_session_manager: Option<Entity<TerminalSessionManager>>,
     /// The active workspace mode (Browser, Editor, or Terminal)
     active_mode: ModeId,
+    active_sidebar_section: WorkspaceSidebarSection,
     /// Mode views owned only by this workspace.
     per_workspace_mode_views: HashMap<ModeId, PerWorkspaceModeView>,
     /// Mode views shared by every workspace in the current MultiWorkspace window.
@@ -1719,13 +2018,29 @@ impl Workspace {
         left_dock.update(cx, |dock, _cx| {
             dock.in_native_sidebar = true;
         });
+        let bottom_dock = Dock::new(DockPosition::Bottom, modal_layer.clone(), None, window, cx);
+        let right_dock = Dock::new(DockPosition::Right, modal_layer.clone(), None, window, cx);
         #[cfg(target_os = "macos")]
         let workspace_sidebar_host = {
             let left_dock_clone = left_dock.clone();
-            cx.new(|_cx| WorkspaceSidebarHost::new(left_dock_clone))
+            let bottom_dock_clone = bottom_dock.clone();
+            let right_dock_clone = right_dock.clone();
+            cx.new(|_cx| {
+                WorkspaceSidebarHost::new(left_dock_clone, bottom_dock_clone, right_dock_clone)
+            })
         };
-        let bottom_dock = Dock::new(DockPosition::Bottom, modal_layer.clone(), None, window, cx);
-        let right_dock = Dock::new(DockPosition::Right, modal_layer.clone(), None, window, cx);
+        #[cfg(target_os = "macos")]
+        {
+            let terminal_sidebar_panel =
+                cx.new(|cx| WorkspaceTerminalSidebarPanel::new(weak_handle.clone(), cx));
+            workspace_sidebar_host.update(cx, |sidebar, cx| {
+                sidebar.set_section_view(
+                    WorkspaceSidebarSection::Terminal,
+                    terminal_sidebar_panel.into(),
+                    cx,
+                );
+            });
+        }
         let session_id = app_state.session.read(cx).id().to_owned();
 
         let (serializable_items_tx, serializable_items_rx) =
@@ -1847,7 +2162,9 @@ impl Workspace {
             serializable_items_tx,
             _items_serializer,
             session_id: Some(session_id),
+            terminal_session_manager: None,
             active_mode: ModeId::BROWSER,
+            active_sidebar_section: WorkspaceSidebarSection::BrowserTabs,
             per_workspace_mode_views: HashMap::default(),
             shared_mode_views: HashMap::default(),
             bottom_dock_visible_before_terminal_mode: None,
@@ -3873,53 +4190,6 @@ impl Workspace {
         did_focus_panel
     }
 
-    pub(crate) fn toggle_panel_for_id(
-        &mut self,
-        panel_id: EntityId,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let mut found = None;
-        for position in [
-            DockPosition::Left,
-            DockPosition::Bottom,
-            DockPosition::Right,
-        ] {
-            let dock = self.dock_at_position(position);
-            if let Some(panel_index) = dock.read(cx).panel_index_for_id(panel_id) {
-                found = Some((position, dock.clone(), panel_index));
-                break;
-            }
-        }
-
-        let Some((dock_position, dock, panel_index)) = found else {
-            return;
-        };
-
-        let other_is_zoomed = self.zoomed.is_some() && self.zoomed_position != Some(dock_position);
-        let is_visible = dock.read(cx).is_open()
-            && dock.read(cx).active_panel_index() == Some(panel_index)
-            && !other_is_zoomed;
-
-        if is_visible {
-            self.toggle_dock(dock_position, window, cx);
-            return;
-        }
-
-        dock.update(cx, |dock, cx| {
-            dock.activate_panel(panel_index, window, cx);
-            dock.set_open(true, window, cx);
-            if let Some(panel) = dock.active_panel() {
-                let focus_handle = panel.panel_focus_handle(cx);
-                window.focus(&focus_handle, cx);
-            }
-        });
-
-        self.dismiss_zoomed_items_to_reveal(Some(dock_position), window, cx);
-        cx.notify();
-        self.serialize_workspace(window, cx);
-    }
-
     pub fn focus_center_pane(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(item) = self.active_item(cx) {
             item.item_focus_handle(cx).focus(window, cx);
@@ -4026,6 +4296,14 @@ impl Workspace {
         self.all_docks()
             .iter()
             .find_map(|dock| dock.read(cx).panel::<T>())
+    }
+
+    pub fn terminal_session_manager(&self) -> Option<Entity<TerminalSessionManager>> {
+        self.terminal_session_manager.clone()
+    }
+
+    pub fn set_terminal_session_manager(&mut self, manager: Entity<TerminalSessionManager>) {
+        self.terminal_session_manager = Some(manager.clone());
     }
 
     fn dismiss_zoomed_items_to_reveal(
@@ -5122,41 +5400,94 @@ impl Workspace {
         self.active_mode
     }
 
+    pub fn active_sidebar_section(&self) -> WorkspaceSidebarSection {
+        self.active_sidebar_section
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn set_sidebar_section_view(
+        &mut self,
+        section: WorkspaceSidebarSection,
+        view: Option<AnyView>,
+        cx: &mut Context<Self>,
+    ) {
+        self.workspace_sidebar_host
+            .update(cx, |sidebar, cx| match view {
+                Some(view) => sidebar.set_section_view(section, view, cx),
+                None => sidebar.clear_section_view(section, cx),
+            });
+    }
+
     fn registered_mode_view_to_workspace_mode_view(
         registered: workspace_modes::RegisteredModeView,
     ) -> PerWorkspaceModeView {
         PerWorkspaceModeView {
             view: registered.view,
             focus_handle: registered.focus_handle,
-            sidebar_host: registered.sidebar_host,
+            navigation_host: registered.navigation_host,
             on_deactivate: registered.on_deactivate,
         }
     }
 
     #[cfg(target_os = "macos")]
-    fn active_mode_sidebar_visible(&self, cx: &App) -> bool {
-        self.mode_view_entry(self.active_mode)
-            .and_then(|mode_view| {
-                mode_view
-                    .sidebar_host
-                    .as_ref()
-                    .map(|sidebar| (sidebar.is_visible)(&mode_view.view, cx))
-            })
-            .unwrap_or(true)
+    pub(crate) fn workspace_sidebar_host_collapsed(&self, _window: &Window, cx: &App) -> bool {
+        self.workspace_sidebar_host.read(cx).collapsed()
     }
 
     #[cfg(target_os = "macos")]
-    pub(crate) fn workspace_sidebar_host_collapsed(&self, window: &Window, cx: &App) -> bool {
-        if self
-            .workspace_sidebar_host
-            .read(cx)
-            .has_mode_sidebar_view(self.active_mode)
-        {
-            !self.active_mode_sidebar_visible(cx)
-        } else if self.workspace_sidebar_host.read(cx).workspace_sidebar_visible() {
-            false
-        } else {
-            !self.left_dock.read(cx).has_visible_content(window, cx)
+    pub fn select_sidebar_section(
+        &mut self,
+        section: WorkspaceSidebarSection,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match section {
+            WorkspaceSidebarSection::Project => {
+                self.activate_sidebar_panel("ProjectPanel", window, cx);
+            }
+            WorkspaceSidebarSection::Git => {
+                self.activate_sidebar_panel("GitPanel", window, cx);
+            }
+            WorkspaceSidebarSection::BrowserTabs => {
+                self.mode_view(ModeId::BROWSER, cx);
+            }
+            WorkspaceSidebarSection::Terminal => {}
+            WorkspaceSidebarSection::Workspaces => {}
+        }
+
+        self.active_sidebar_section = section;
+        self.workspace_sidebar_host.update(cx, |sidebar, cx| {
+            sidebar.set_active_section(section, cx);
+            sidebar.set_collapsed(false, cx);
+        });
+        cx.notify();
+    }
+
+    fn activate_sidebar_panel(
+        &mut self,
+        panel_key: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        for dock_position in [
+            DockPosition::Left,
+            DockPosition::Bottom,
+            DockPosition::Right,
+        ] {
+            let dock = self.dock_at_position(dock_position).clone();
+            let panel_index = dock
+                .read(cx)
+                .panel_for_key(panel_key)
+                .and_then(|panel| dock.read(cx).panel_index_for_id(panel.panel_id()));
+            let Some(panel_index) = panel_index else {
+                continue;
+            };
+
+            dock.update(cx, |dock, cx| {
+                dock.activate_panel(panel_index, window, cx);
+                dock.set_open(true, window, cx);
+            });
+            return;
         }
     }
 
@@ -5166,26 +5497,29 @@ impl Workspace {
             .or_else(|| self.per_workspace_mode_views.get(&mode_id))
     }
 
-    #[cfg(target_os = "macos")]
-    fn toggle_active_mode_sidebar(&mut self, cx: &mut Context<Self>) -> bool {
-        let Some(mode_view) = self.mode_view_entry(self.active_mode) else {
-            return false;
-        };
-        let Some(sidebar) = mode_view.sidebar_host.as_ref() else {
-            return false;
-        };
-
-        (sidebar.toggle)(&mode_view.view, cx);
-        true
+    fn mode_navigation_host_entry(
+        &self,
+        mode_id: ModeId,
+    ) -> Option<(&AnyView, &ModeNavigationHost)> {
+        self.mode_view_entry(mode_id).and_then(|entry| {
+            entry
+                .navigation_host
+                .as_ref()
+                .map(|host| (&entry.view, host))
+        })
     }
 
     fn toggle_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         #[cfg(target_os = "macos")]
-        if self.toggle_active_mode_sidebar(cx) {
+        {
+            let _ = window;
+            self.workspace_sidebar_host
+                .update(cx, |sidebar, cx| sidebar.toggle_collapsed(cx));
             cx.notify();
             return;
         }
 
+        #[cfg(not(target_os = "macos"))]
         self.toggle_dock(DockPosition::Left, window, cx);
     }
 
@@ -5195,14 +5529,16 @@ impl Workspace {
         registered: workspace_modes::RegisteredModeView,
         cx: &mut Context<Self>,
     ) {
-        let mode_view = Self::registered_mode_view_to_workspace_mode_view(registered);
-
         #[cfg(target_os = "macos")]
-        if let Some(mode_sidebar) = mode_view.sidebar_host.as_ref() {
-            self.workspace_sidebar_host.update(cx, |sidebar, cx| {
-                sidebar.set_mode_sidebar_view(mode_id, mode_sidebar.sidebar_view.clone(), cx);
-            });
+        if mode_id == ModeId::BROWSER {
+            self.set_sidebar_section_view(
+                WorkspaceSidebarSection::BrowserTabs,
+                registered.sidebar_view.clone(),
+                cx,
+            );
         }
+
+        let mode_view = Self::registered_mode_view_to_workspace_mode_view(registered);
 
         self.shared_mode_views.insert(mode_id, mode_view);
     }
@@ -5218,9 +5554,7 @@ impl Workspace {
             return self.shared_mode_views.get(&mode_id);
         }
 
-        if let collections::hash_map::Entry::Vacant(entry) =
-            self.per_workspace_mode_views.entry(mode_id)
-        {
+        if !self.per_workspace_mode_views.contains_key(&mode_id) {
             let factory = ModeViewRegistry::try_global(cx)
                 .and_then(|reg| reg.factory(mode_id))
                 .cloned();
@@ -5228,23 +5562,21 @@ impl Workspace {
                 let registered = factory(cx);
 
                 #[cfg(target_os = "macos")]
-                if let Some(mode_sidebar) = registered.sidebar_host.as_ref() {
-                    self.workspace_sidebar_host.update(cx, |sidebar, cx| {
-                        sidebar.set_mode_sidebar_view(
-                            mode_id,
-                            mode_sidebar.sidebar_view.clone(),
-                            cx,
-                        );
-                    });
+                if mode_id == ModeId::BROWSER {
+                    self.set_sidebar_section_view(
+                        WorkspaceSidebarSection::BrowserTabs,
+                        registered.sidebar_view.clone(),
+                        cx,
+                    );
                 }
 
-                    entry.insert(PerWorkspaceModeView {
-                        view: registered.view,
-                        focus_handle: registered.focus_handle,
-                        sidebar_host: registered.sidebar_host,
-                        on_deactivate: registered.on_deactivate,
-                    });
-                }
+                self.per_workspace_mode_views.insert(mode_id, PerWorkspaceModeView {
+                    view: registered.view,
+                    focus_handle: registered.focus_handle,
+                    navigation_host: registered.navigation_host,
+                    on_deactivate: registered.on_deactivate,
+                });
+            }
         }
         self.mode_view_entry(mode_id)
     }
@@ -5346,12 +5678,6 @@ impl Workspace {
                 }
                 _ => {}
             }
-
-            #[cfg(target_os = "macos")]
-            self.workspace_sidebar_host.update(cx, |sidebar, cx| {
-                sidebar.set_mode(mode_id, cx);
-            });
-
             self.serialize_workspace(window, cx);
             cx.notify();
         }
@@ -5371,6 +5697,16 @@ impl Workspace {
         self.active_pane().clone()
     }
 
+    fn sidebar_mode(section: WorkspaceSidebarSection) -> Option<ModeId> {
+        match section {
+            WorkspaceSidebarSection::BrowserTabs => Some(ModeId::BROWSER),
+            WorkspaceSidebarSection::Terminal => Some(ModeId::TERMINAL),
+            WorkspaceSidebarSection::Project
+            | WorkspaceSidebarSection::Git
+            | WorkspaceSidebarSection::Workspaces => None,
+        }
+    }
+
     pub fn adjacent_pane(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Entity<Pane> {
         self.find_pane_in_direction(SplitDirection::Right, cx)
             .unwrap_or_else(|| {
@@ -5385,6 +5721,156 @@ impl Workspace {
     pub fn pane_for_item_id(&self, item_id: EntityId) -> Option<Entity<Pane>> {
         let weak_pane = self.panes_by_item.get(&item_id)?;
         weak_pane.upgrade()
+    }
+
+    #[cfg(target_os = "macos")]
+    #[cfg(target_os = "macos")]
+    fn navigation_panel(
+        &self,
+        section: WorkspaceSidebarSection,
+        cx: &App,
+    ) -> Option<Arc<dyn PanelHandle>> {
+        let panel_key = match section {
+            WorkspaceSidebarSection::Terminal => Some("TerminalPanel"),
+            WorkspaceSidebarSection::Project => Some("ProjectPanel"),
+            WorkspaceSidebarSection::Git => Some("GitPanel"),
+            WorkspaceSidebarSection::BrowserTabs | WorkspaceSidebarSection::Workspaces => None,
+        }?;
+
+        for dock in [&self.left_dock, &self.bottom_dock, &self.right_dock] {
+            let dock = dock.read(cx);
+            for entry in &dock.panel_entries {
+                if entry.panel.panel_key() == panel_key {
+                    return Some(entry.panel.clone());
+                }
+            }
+        }
+
+        None
+    }
+
+    #[cfg(target_os = "macos")]
+    fn terminal_navigation_entries(&self, window: &Window, cx: &App) -> Vec<PanelNavigationEntry> {
+        self.navigation_panel(WorkspaceSidebarSection::Terminal, cx)
+            .map(|panel| panel.navigation_entries(window, cx))
+            .unwrap_or_default()
+    }
+
+    #[cfg(target_os = "macos")]
+    fn navigation_panes(&self, section: WorkspaceSidebarSection, cx: &App) -> Vec<Entity<Pane>> {
+        self.navigation_panel(section, cx)
+            .map(|panel| panel.navigation_panes(cx))
+            .unwrap_or_default()
+    }
+
+    fn activate_navigation_entry(
+        &mut self,
+        section: WorkspaceSidebarSection,
+        entry_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if section == WorkspaceSidebarSection::BrowserTabs
+            && let Some((view, navigation_host)) = self.mode_navigation_host_entry(ModeId::BROWSER)
+        {
+            (navigation_host.activate)(view, entry_id, window, cx);
+            return;
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let Some(panel) = self.navigation_panel(section, cx) else {
+                return;
+            };
+            panel.activate_navigation_entry(entry_id, window, cx);
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = (section, entry_id, window, cx);
+    }
+
+    fn close_navigation_entry(
+        &mut self,
+        section: WorkspaceSidebarSection,
+        entry_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if section == WorkspaceSidebarSection::BrowserTabs
+            && let Some((view, navigation_host)) = self.mode_navigation_host_entry(ModeId::BROWSER)
+        {
+            (navigation_host.close)(view, entry_id, window, cx);
+            return;
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let Some(panel) = self.navigation_panel(section, cx) else {
+                return;
+            };
+            panel.close_navigation_entry(entry_id, window, cx);
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = (section, entry_id, window, cx);
+    }
+
+    fn create_navigation_entry(
+        &mut self,
+        section: WorkspaceSidebarSection,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if section == WorkspaceSidebarSection::BrowserTabs
+            && let Some((view, navigation_host)) = self.mode_navigation_host_entry(ModeId::BROWSER)
+        {
+            (navigation_host.create)(view, window, cx);
+            return;
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let Some(panel) = self.navigation_panel(section, cx) else {
+                return;
+            };
+            panel.create_navigation_entry(window, cx);
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = (section, window, cx);
+    }
+
+    pub fn activate_sidebar_entry(
+        &mut self,
+        section: WorkspaceSidebarSection,
+        entry_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(mode_id) = Self::sidebar_mode(section) {
+            self.switch_to_mode(mode_id, window, cx);
+        }
+        #[cfg(target_os = "macos")]
+        self.select_sidebar_section(section, window, cx);
+        self.activate_navigation_entry(section, entry_id, window, cx);
+    }
+
+    pub fn close_sidebar_entry(
+        &mut self,
+        section: WorkspaceSidebarSection,
+        entry_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.close_navigation_entry(section, entry_id, window, cx);
+    }
+
+    pub fn create_sidebar_entry(
+        &mut self,
+        section: WorkspaceSidebarSection,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(mode_id) = Self::sidebar_mode(section) {
+            self.switch_to_mode(mode_id, window, cx);
+        }
+        #[cfg(target_os = "macos")]
+        self.select_sidebar_section(section, window, cx);
+        self.create_navigation_entry(section, window, cx);
     }
 
     pub fn pane_for_entity_id(&self, entity_id: EntityId) -> Option<Entity<Pane>> {
@@ -9402,15 +9888,7 @@ pub fn with_active_or_new_workspace(
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        cell::RefCell,
-        rc::Rc,
-        sync::{
-            Arc,
-            atomic::{AtomicUsize, Ordering},
-        },
-        time::Duration,
-    };
+    use std::{cell::RefCell, rc::Rc, sync::Arc, time::Duration};
 
     use super::*;
     use crate::{
@@ -9430,31 +9908,51 @@ mod tests {
     use settings::SettingsStore;
     use util::path;
     use util::rel_path::rel_path;
-    use workspace_modes::{ModeSidebarHost, RegisteredModeView};
+    use workspace_modes::RegisteredModeView;
 
     #[cfg(target_os = "macos")]
     struct TestBrowserChromeView {
         focus_handle: FocusHandle,
-        shows_sidebar: bool,
+    }
+
+    #[cfg(target_os = "macos")]
+    struct TestBrowserNavigationView {
+        focus_handle: FocusHandle,
+        active_tab_id: u64,
+        create_call_count: usize,
+        closed_tab_ids: Vec<u64>,
     }
 
     #[cfg(target_os = "macos")]
     impl TestBrowserChromeView {
-        fn new(shows_sidebar: bool, cx: &mut Context<Self>) -> Self {
+        fn new(cx: &mut Context<Self>) -> Self {
             Self {
                 focus_handle: cx.focus_handle(),
-                shows_sidebar,
             }
         }
+    }
 
-        fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
-            self.shows_sidebar = !self.shows_sidebar;
-            cx.notify();
+    #[cfg(target_os = "macos")]
+    impl TestBrowserNavigationView {
+        fn new(cx: &mut Context<Self>) -> Self {
+            Self {
+                focus_handle: cx.focus_handle(),
+                active_tab_id: 1,
+                create_call_count: 0,
+                closed_tab_ids: Vec::new(),
+            }
         }
     }
 
     #[cfg(target_os = "macos")]
     impl Focusable for TestBrowserChromeView {
+        fn focus_handle(&self, _cx: &App) -> FocusHandle {
+            self.focus_handle.clone()
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    impl Focusable for TestBrowserNavigationView {
         fn focus_handle(&self, _cx: &App) -> FocusHandle {
             self.focus_handle.clone()
         }
@@ -9468,18 +9966,76 @@ mod tests {
     }
 
     #[cfg(target_os = "macos")]
-    fn test_browser_sidebar_visible(view: &AnyView, cx: &App) -> bool {
-        view.clone()
-            .downcast::<TestBrowserChromeView>()
-            .ok()
-            .is_some_and(|browser_view| browser_view.read(cx).shows_sidebar)
+    impl Render for TestBrowserNavigationView {
+        fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+            div()
+        }
     }
 
     #[cfg(target_os = "macos")]
-    fn test_toggle_browser_sidebar(view: &AnyView, cx: &mut App) {
-        if let Ok(browser_view) = view.clone().downcast::<TestBrowserChromeView>() {
+    fn test_browser_navigation_entries(
+        view: &AnyView,
+        _window: &Window,
+        cx: &App,
+    ) -> Vec<workspace_modes::ModeNavigationEntry> {
+        let Ok(browser_view) = view.clone().downcast::<TestBrowserNavigationView>() else {
+            return Vec::new();
+        };
+        let active_tab_id = browser_view.read(cx).active_tab_id;
+        [1_u64, 2_u64]
+            .into_iter()
+            .map(|tab_id| workspace_modes::ModeNavigationEntry {
+                id: SharedString::from(tab_id.to_string()),
+                label: SharedString::from(format!("Tab {tab_id}")),
+                detail: None,
+                is_pinned: false,
+                is_selected: active_tab_id == tab_id,
+            })
+            .collect()
+    }
+
+    #[cfg(target_os = "macos")]
+    fn test_activate_browser_navigation_entry(
+        view: &AnyView,
+        entry_id: &str,
+        _window: &mut Window,
+        cx: &mut App,
+    ) {
+        let Ok(tab_id) = entry_id.parse::<u64>() else {
+            return;
+        };
+        if let Ok(browser_view) = view.clone().downcast::<TestBrowserNavigationView>() {
             let _ = browser_view.update(cx, |browser_view, cx| {
-                browser_view.toggle_sidebar(cx);
+                browser_view.active_tab_id = tab_id;
+                cx.notify();
+            });
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn test_close_browser_navigation_entry(
+        view: &AnyView,
+        entry_id: &str,
+        _window: &mut Window,
+        cx: &mut App,
+    ) {
+        let Ok(tab_id) = entry_id.parse::<u64>() else {
+            return;
+        };
+        if let Ok(browser_view) = view.clone().downcast::<TestBrowserNavigationView>() {
+            let _ = browser_view.update(cx, |browser_view, cx| {
+                browser_view.closed_tab_ids.push(tab_id);
+                cx.notify();
+            });
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn test_create_browser_navigation_entry(view: &AnyView, _window: &mut Window, cx: &mut App) {
+        if let Ok(browser_view) = view.clone().downcast::<TestBrowserNavigationView>() {
+            let _ = browser_view.update(cx, |browser_view, cx| {
+                browser_view.create_call_count += 1;
+                cx.notify();
             });
         }
     }
@@ -13060,65 +13616,7 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[gpui::test]
-    async fn test_browser_sidebar_visibility_is_workspace_scoped(cx: &mut TestAppContext) {
-        init_test(cx);
-
-        let view_count = Arc::new(AtomicUsize::new(0));
-        cx.update({
-            let view_count = view_count.clone();
-            |cx| {
-                workspace_modes::init(cx);
-                ModeViewRegistry::global_mut(cx).register_factory(
-                    ModeId::BROWSER,
-                    Arc::new(move |cx| {
-                        let shows_sidebar = view_count.fetch_add(1, Ordering::SeqCst) == 0;
-                        let browser_view: Entity<TestBrowserChromeView> =
-                            cx.new(|cx| TestBrowserChromeView::new(shows_sidebar, cx));
-                        let focus_handle = browser_view.focus_handle(cx);
-
-                        RegisteredModeView {
-                            view: browser_view.clone().into(),
-                            focus_handle,
-                            titlebar_center_view: None,
-                            sidebar_host: Some(ModeSidebarHost {
-                                sidebar_view: browser_view.into(),
-                                is_visible: test_browser_sidebar_visible,
-                                toggle: test_toggle_browser_sidebar,
-                            }),
-                            on_deactivate: None,
-                        }
-                    }),
-                );
-            }
-        });
-
-        let fs = FakeFs::new(cx.executor());
-        let project_a = Project::test(fs.clone(), [], cx).await;
-        let project_b = Project::test(fs, [], cx).await;
-
-        let (workspace_a, cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project_a.clone(), window, cx));
-        let (workspace_b, cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project_b.clone(), window, cx));
-
-        workspace_a.update(cx, |workspace, cx| {
-            workspace.mode_view(ModeId::BROWSER, cx);
-        });
-        workspace_b.update(cx, |workspace, cx| {
-            workspace.mode_view(ModeId::BROWSER, cx);
-        });
-
-        workspace_a.read_with(cx, |workspace, cx| {
-            assert!(workspace.active_mode_sidebar_visible(cx));
-        });
-        workspace_b.read_with(cx, |workspace, cx| {
-            assert!(!workspace.active_mode_sidebar_visible(cx));
-        });
-    }
-
-    #[cfg(target_os = "macos")]
-    #[gpui::test]
-    async fn test_toggle_sidebar_uses_mode_sidebar_toggle(cx: &mut TestAppContext) {
+    async fn test_sidebar_section_persists_across_mode_switches(cx: &mut TestAppContext) {
         init_test(cx);
 
         cx.update(|cx| {
@@ -13127,18 +13625,15 @@ mod tests {
                 ModeId::BROWSER,
                 Arc::new(|cx| {
                     let browser_view: Entity<TestBrowserChromeView> =
-                        cx.new(|cx| TestBrowserChromeView::new(true, cx));
+                        cx.new(TestBrowserChromeView::new);
                     let focus_handle = browser_view.focus_handle(cx);
 
                     RegisteredModeView {
                         view: browser_view.clone().into(),
                         focus_handle,
                         titlebar_center_view: None,
-                        sidebar_host: Some(ModeSidebarHost {
-                            sidebar_view: browser_view.into(),
-                            is_visible: test_browser_sidebar_visible,
-                            toggle: test_toggle_browser_sidebar,
-                        }),
+                        sidebar_view: Some(browser_view.into()),
+                        navigation_host: None,
                         on_deactivate: None,
                     }
                 }),
@@ -13152,13 +13647,104 @@ mod tests {
 
         workspace.update_in(cx, |workspace, window, cx| {
             workspace.mode_view(ModeId::BROWSER, cx);
-            assert!(workspace.active_mode_sidebar_visible(cx));
+            workspace.select_sidebar_section(WorkspaceSidebarSection::BrowserTabs, window, cx);
+
+            assert_eq!(
+                workspace.active_sidebar_section(),
+                WorkspaceSidebarSection::BrowserTabs
+            );
+            assert!(!workspace.workspace_sidebar_host_collapsed(window, cx));
+
+            workspace.switch_to_mode(ModeId::EDITOR, window, cx);
+
+            assert_eq!(
+                workspace.active_sidebar_section(),
+                WorkspaceSidebarSection::BrowserTabs
+            );
+            assert!(!workspace.workspace_sidebar_host_collapsed(window, cx));
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    #[gpui::test]
+    async fn test_activate_sidebar_entry_routes_browser_navigation_through_workspace(
+        cx: &mut TestAppContext,
+    ) {
+        init_test(cx);
+
+        cx.update(|cx| {
+            workspace_modes::init(cx);
+            ModeViewRegistry::global_mut(cx).register_factory(
+                ModeId::BROWSER,
+                Arc::new(|cx| {
+                    let browser_view: Entity<TestBrowserNavigationView> =
+                        cx.new(|cx| TestBrowserNavigationView::new(cx));
+                    let focus_handle = browser_view.focus_handle(cx);
+
+                    RegisteredModeView {
+                        view: browser_view.into(),
+                        focus_handle,
+                        titlebar_center_view: None,
+                        sidebar_view: None,
+                        navigation_host: Some(workspace_modes::ModeNavigationHost {
+                            entries: test_browser_navigation_entries,
+                            activate: test_activate_browser_navigation_entry,
+                            close: test_close_browser_navigation_entry,
+                            create: test_create_browser_navigation_entry,
+                        }),
+                        on_deactivate: None,
+                    }
+                }),
+            );
+        });
+
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
+
+        workspace.update_in(cx, |workspace, window, cx| {
+            workspace.activate_sidebar_entry(WorkspaceSidebarSection::BrowserTabs, "2", window, cx);
+
+            assert_eq!(workspace.active_mode_id(), ModeId::BROWSER);
+            assert_eq!(
+                workspace.active_sidebar_section(),
+                WorkspaceSidebarSection::BrowserTabs
+            );
+
+            let browser_view = workspace
+                .get_mode_view(ModeId::BROWSER)
+                .expect("browser view should exist")
+                .downcast::<TestBrowserNavigationView>()
+                .expect("browser view should downcast");
+            assert_eq!(browser_view.read(cx).active_tab_id, 2);
+
+            workspace.create_sidebar_entry(WorkspaceSidebarSection::BrowserTabs, window, cx);
+            assert_eq!(browser_view.read(cx).create_call_count, 1);
+
+            workspace.close_sidebar_entry(WorkspaceSidebarSection::BrowserTabs, "2", window, cx);
+            assert_eq!(browser_view.read(cx).closed_tab_ids, vec![2]);
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    #[gpui::test]
+    async fn test_toggle_sidebar_collapses_workspace_sidebar_host(cx: &mut TestAppContext) {
+        init_test(cx);
+
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
+
+        workspace.update_in(cx, |workspace, window, cx| {
+            assert!(!workspace.workspace_sidebar_host_collapsed(window, cx));
 
             workspace.toggle_sidebar(window, cx);
-            assert!(!workspace.active_mode_sidebar_visible(cx));
+            assert!(workspace.workspace_sidebar_host_collapsed(window, cx));
 
             workspace.toggle_sidebar(window, cx);
-            assert!(workspace.active_mode_sidebar_visible(cx));
+            assert!(!workspace.workspace_sidebar_host_collapsed(window, cx));
         });
     }
 

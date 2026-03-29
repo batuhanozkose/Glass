@@ -18,7 +18,11 @@ impl<'a> AppleRuntimeProvider<'a> {
         Self { runner }
     }
 
-    fn detect_project(&self, workspace_root: &Path, project_path: PathBuf) -> Option<DetectedProject> {
+    fn detect_project(
+        &self,
+        workspace_root: &Path,
+        project_path: PathBuf,
+    ) -> Option<DetectedProject> {
         let toolchain_ready = self
             .runner
             .run("xcodebuild", &["-version"])
@@ -33,7 +37,8 @@ impl<'a> AppleRuntimeProvider<'a> {
             };
 
         let targets = if toolchain_ready {
-            let listed_targets = list_targets_from_xcodebuild(&project_path, &project_kind, self.runner);
+            let listed_targets =
+                list_targets_from_xcodebuild(&project_path, &project_kind, self.runner);
             if listed_targets.is_empty() {
                 list_targets_from_filesystem(&project_path)
             } else {
@@ -251,7 +256,12 @@ fn list_targets_args<'a>(project_path: &'a Path, project_kind: &'a ProjectKind) 
         ProjectKind::GpuiApplication => unreachable!("Apple provider cannot receive GPUI projects"),
     };
 
-    vec![selector_flag, project_path.to_str().unwrap_or_default(), "-list", "-json"]
+    vec![
+        selector_flag,
+        project_path.to_str().unwrap_or_default(),
+        "-list",
+        "-json",
+    ]
 }
 
 fn referenced_workspace_scheme_directories(project_path: &Path) -> Vec<PathBuf> {

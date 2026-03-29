@@ -223,17 +223,15 @@ impl AppStoreConnectPage {
             let result = cx
                 .background_spawn(async move { run_auth_action(request).await })
                 .await;
-            this.update_in(cx, |this, window, cx| {
-                match result {
-                    Ok(()) => {
-                        this.auth_form.finish_success();
-                        this.refresh_overview(window, cx);
-                    }
-                    Err(error) => {
-                        this.auth_form.set_pending(false);
-                        this.auth_form.set_error(error.to_string());
-                        cx.notify();
-                    }
+            this.update_in(cx, |this, window, cx| match result {
+                Ok(()) => {
+                    this.auth_form.finish_success();
+                    this.refresh_overview(window, cx);
+                }
+                Err(error) => {
+                    this.auth_form.set_pending(false);
+                    this.auth_form.set_error(error.to_string());
+                    cx.notify();
                 }
             })
             .ok();
@@ -254,17 +252,15 @@ impl AppStoreConnectPage {
             let result = cx
                 .background_spawn(async move { run_auth_action(request).await })
                 .await;
-            this.update_in(cx, |this, window, cx| {
-                match result {
-                    Ok(()) => {
-                        this.auth_form.finish_success();
-                        this.refresh_overview(window, cx);
-                    }
-                    Err(error) => {
-                        this.auth_form.set_pending(false);
-                        this.auth_form.set_error(error.to_string());
-                        cx.notify();
-                    }
+            this.update_in(cx, |this, window, cx| match result {
+                Ok(()) => {
+                    this.auth_form.finish_success();
+                    this.refresh_overview(window, cx);
+                }
+                Err(error) => {
+                    this.auth_form.set_pending(false);
+                    this.auth_form.set_error(error.to_string());
+                    cx.notify();
                 }
             })
             .ok();
@@ -272,12 +268,7 @@ impl AppStoreConnectPage {
         .detach();
     }
 
-    fn pick_auth_file(
-        &mut self,
-        field_key: String,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn pick_auth_file(&mut self, field_key: String, window: &mut Window, cx: &mut Context<Self>) {
         let prompt = self
             .workspace
             .update(cx, |workspace, cx| {
@@ -383,71 +374,66 @@ impl AppStoreConnectPage {
             "Authenticate"
         };
 
-        Banner::new()
-            .severity(severity)
-            .child(
-                v_flex()
-                    .w_full()
-                    .gap_3()
-                    .child(
-                        h_flex()
-                            .justify_between()
-                            .items_start()
-                            .gap_3()
-                            .child(
-                                v_flex()
-                                    .gap_1()
-                                    .child(Label::new(headline))
-                                    .child(
-                                        Label::new(detail)
-                                            .size(LabelSize::Small)
-                                            .color(Color::Muted),
-                                    )
-                                    .children(warnings.into_iter().map(|warning| {
-                                        Label::new(warning)
-                                            .size(LabelSize::Small)
-                                            .color(Color::Muted)
-                                    })),
-                            )
-                            .child(
-                                h_flex()
-                                    .gap_2()
-                                    .child(
-                                        Button::new("asc-auth-open", authenticate_label)
-                                            .style(if authenticated {
-                                                ButtonStyle::Outlined
-                                            } else {
-                                                ButtonStyle::Filled
-                                            })
+        Banner::new().severity(severity).child(
+            v_flex()
+                .w_full()
+                .gap_3()
+                .child(
+                    h_flex()
+                        .justify_between()
+                        .items_start()
+                        .gap_3()
+                        .child(
+                            v_flex()
+                                .gap_1()
+                                .child(Label::new(headline))
+                                .child(
+                                    Label::new(detail)
+                                        .size(LabelSize::Small)
+                                        .color(Color::Muted),
+                                )
+                                .children(warnings.into_iter().map(|warning| {
+                                    Label::new(warning)
+                                        .size(LabelSize::Small)
+                                        .color(Color::Muted)
+                                })),
+                        )
+                        .child(
+                            h_flex()
+                                .gap_2()
+                                .child(
+                                    Button::new("asc-auth-open", authenticate_label)
+                                        .style(if authenticated {
+                                            ButtonStyle::Outlined
+                                        } else {
+                                            ButtonStyle::Filled
+                                        })
+                                        .disabled(self.auth_form.pending)
+                                        .on_click(cx.listener(|this, _, _window, cx| {
+                                            this.show_authenticate_form(cx);
+                                        })),
+                                )
+                                .when(self.auth_form.logout_available && authenticated, |this| {
+                                    this.child(
+                                        Button::new("asc-auth-logout", "Log Out")
+                                            .style(ButtonStyle::Outlined)
                                             .disabled(self.auth_form.pending)
-                                            .on_click(cx.listener(|this, _, _window, cx| {
-                                                this.show_authenticate_form(cx);
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.logout(window, cx);
                                             })),
                                     )
-                                    .when(self.auth_form.logout_available && authenticated, |this| {
-                                        this.child(
-                                            Button::new("asc-auth-logout", "Log Out")
-                                                .style(ButtonStyle::Outlined)
-                                                .disabled(self.auth_form.pending)
-                                                .on_click(cx.listener(|this, _, window, cx| {
-                                                    this.logout(window, cx);
-                                                })),
-                                        )
-                                    }),
-                            ),
-                    )
-                    .when_some(self.auth_form.error_message.clone(), |this, error| {
-                        this.child(
-                            Label::new(error)
-                                .size(LabelSize::Small)
-                                .color(Color::Error),
-                        )
-                    })
-                    .when(self.auth_form.expanded, |this| {
-                        this.child(
-                            v_flex()
-                                .gap_2()
-                                .children(self.auth_form.fields.iter().map(|field| match field {
+                                }),
+                        ),
+                )
+                .when_some(self.auth_form.error_message.clone(), |this, error| {
+                    this.child(Label::new(error).size(LabelSize::Small).color(Color::Error))
+                })
+                .when(self.auth_form.expanded, |this| {
+                    this.child(
+                        v_flex()
+                            .gap_2()
+                            .children(self.auth_form.fields.iter().map(|field| {
+                                match field {
                                     ServiceAuthFieldState::Text { descriptor, input } => {
                                         match descriptor.kind {
                                             ServiceInputKind::FilePath => h_flex()
@@ -500,35 +486,32 @@ impl AppStoreConnectPage {
                                         }))
                                         .into_any_element()
                                     }
-                                }))
-                                .child(
-                                    h_flex()
-                                        .justify_end()
-                                        .gap_2()
-                                        .child(
-                                            Button::new("asc-auth-cancel", "Cancel")
-                                                .style(ButtonStyle::Outlined)
-                                                .disabled(self.auth_form.pending)
-                                                .on_click(cx.listener(
-                                                    |this, _, _window, cx| {
-                                                        this.cancel_authenticate_form(cx);
-                                                    },
-                                                )),
-                                        )
-                                        .child(
-                                            Button::new("asc-auth-submit", authenticate_label)
-                                                .style(ButtonStyle::Filled)
-                                                .disabled(self.auth_form.pending)
-                                                .on_click(cx.listener(
-                                                    |this, _, window, cx| {
-                                                        this.submit_authenticate(window, cx);
-                                                    },
-                                                )),
-                                        ),
-                                ),
-                        )
-                    }),
-            )
+                                }
+                            }))
+                            .child(
+                                h_flex()
+                                    .justify_end()
+                                    .gap_2()
+                                    .child(
+                                        Button::new("asc-auth-cancel", "Cancel")
+                                            .style(ButtonStyle::Outlined)
+                                            .disabled(self.auth_form.pending)
+                                            .on_click(cx.listener(|this, _, _window, cx| {
+                                                this.cancel_authenticate_form(cx);
+                                            })),
+                                    )
+                                    .child(
+                                        Button::new("asc-auth-submit", authenticate_label)
+                                            .style(ButtonStyle::Filled)
+                                            .disabled(self.auth_form.pending)
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.submit_authenticate(window, cx);
+                                            })),
+                                    ),
+                            ),
+                    )
+                }),
+        )
     }
 
     fn render_apps_panel(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -545,11 +528,11 @@ impl AppStoreConnectPage {
                         .color(Color::Muted),
                 )
                 .into_any_element(),
-            LoadState::Ready(apps) if apps.is_empty() => Label::new(
-                "No apps were returned by App Store Connect.",
-            )
-            .color(Color::Muted)
-            .into_any_element(),
+            LoadState::Ready(apps) if apps.is_empty() => {
+                Label::new("No apps were returned by App Store Connect.")
+                    .color(Color::Muted)
+                    .into_any_element()
+            }
             LoadState::Ready(apps) => v_flex()
                 .gap_1()
                 .children(apps.iter().map(|app| {
@@ -695,17 +678,14 @@ impl AppStoreConnectPage {
                     .items_start()
                     .gap_3()
                     .child(
-                        v_flex()
-                            .gap_0p5()
-                            .child(Label::new("Builds"))
-                            .child(
-                                Label::new(match selected_app {
-                                    Some(ref app) => format!("{} · {}", app.name, app.bundle_id),
-                                    None => "Select an app to inspect its builds".to_string(),
-                                })
-                                .size(LabelSize::Small)
-                                .color(Color::Muted),
-                            ),
+                        v_flex().gap_0p5().child(Label::new("Builds")).child(
+                            Label::new(match selected_app {
+                                Some(ref app) => format!("{} · {}", app.name, app.bundle_id),
+                                None => "Select an app to inspect its builds".to_string(),
+                            })
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                        ),
                     )
                     .child(
                         Button::new("asc-refresh-builds", "Refresh Builds")

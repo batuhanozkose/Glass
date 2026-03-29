@@ -26,12 +26,11 @@ use editor::Editor;
 use gpui::{
     App, Bounds, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
     IntoElement, NativePopoverClickableRow, NativePopoverContentItem, NativeSearchFieldTarget,
-    NativeSearchSuggestionMenu, ParentElement, Pixels, Render, Styled, Subscription, Task, Window,
-    actions, div, prelude::*, px,
+    NativeSearchSuggestionMenu, ParentElement, Pixels, Render, SharedString, Styled, Subscription,
+    Task, Window, actions, div, prelude::*, px,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(not(target_os = "macos"))]
-use workspace_modes::{ModeId, ModeViewRegistry};
+use workspace_modes::ModeNavigationEntry;
 
 const MAX_CLOSED_TABS: usize = 20;
 
@@ -186,9 +185,13 @@ pub struct BrowserView {
     hovered_top_tab_index: Option<usize>,
     hovered_top_tab_close_index: Option<usize>,
     hovered_top_new_tab_button: bool,
+    #[cfg(not(target_os = "macos"))]
     hovered_sidebar_tab_index: Option<usize>,
+    #[cfg(not(target_os = "macos"))]
     hovered_sidebar_tab_close_index: Option<usize>,
+    #[cfg(not(target_os = "macos"))]
     hovered_sidebar_new_tab_button: bool,
+    #[cfg(not(target_os = "macos"))]
     sidebar_collapsed: bool,
     sidebar_visible: bool,
     native_sidebar_panel: Option<Entity<tab_strip::BrowserSidebarPanel>>,
@@ -246,9 +249,13 @@ impl BrowserView {
             hovered_top_tab_index: None,
             hovered_top_tab_close_index: None,
             hovered_top_new_tab_button: false,
+            #[cfg(not(target_os = "macos"))]
             hovered_sidebar_tab_index: None,
+            #[cfg(not(target_os = "macos"))]
             hovered_sidebar_tab_close_index: None,
+            #[cfg(not(target_os = "macos"))]
             hovered_sidebar_new_tab_button: false,
+            #[cfg(not(target_os = "macos"))]
             sidebar_collapsed: false,
             sidebar_visible: false,
             native_sidebar_panel: None,
@@ -281,10 +288,7 @@ impl BrowserView {
         this
     }
 
-    pub(crate) fn sidebar_visible(&self) -> bool {
-        self.sidebar_visible
-    }
-
+    #[cfg(not(target_os = "macos"))]
     pub(crate) fn set_sidebar_visibility(&mut self, visible: bool, cx: &mut Context<Self>) {
         if self.sidebar_visible == visible {
             return;
@@ -292,12 +296,6 @@ impl BrowserView {
 
         self.sidebar_visible = visible;
         cx.refresh_windows();
-    }
-
-    pub(crate) fn toggle_sidebar_visibility(&mut self, cx: &mut Context<Self>) {
-        self.set_sidebar_visibility(!self.sidebar_visible, cx);
-        self.schedule_save(cx);
-        cx.notify();
     }
 
     /// Tell CEF to release focus on the active tab.
@@ -311,6 +309,56 @@ impl BrowserView {
 
     pub fn active_tab(&self) -> Option<&Entity<BrowserTab>> {
         self.tabs.get(self.active_tab_index)
+    }
+
+    pub(crate) fn navigation_entries(&self, cx: &App) -> Vec<ModeNavigationEntry> {
+        self.tabs
+            .iter()
+            .enumerate()
+            .map(|(index, tab_entity)| {
+                let tab = tab_entity.read(cx);
+                let title = tab.title();
+                ModeNavigationEntry {
+                    id: SharedString::from(tab_entity.entity_id().as_u64().to_string()),
+                    label: SharedString::from(title.to_string()),
+                    detail: None,
+                    is_pinned: tab.is_pinned(),
+                    is_selected: index == self.active_tab_index,
+                }
+            })
+            .collect()
+    }
+
+    pub(crate) fn activate_navigation_entry(
+        &mut self,
+        tab_id: u64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(index) = self
+            .tabs
+            .iter()
+            .position(|tab| tab.entity_id().as_u64() == tab_id)
+        else {
+            return;
+        };
+        self.switch_to_tab(index, window, cx);
+    }
+
+    pub(crate) fn close_navigation_entry(
+        &mut self,
+        tab_id: u64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(index) = self
+            .tabs
+            .iter()
+            .position(|tab| tab.entity_id().as_u64() == tab_id)
+        else {
+            return;
+        };
+        self.close_tab_at(index, window, cx);
     }
 
     pub fn history(&self) -> &Entity<BrowserHistory> {
@@ -612,7 +660,11 @@ impl BrowserView {
         cx.notify();
     }
 
-    fn update_toolbar_active_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn update_toolbar_active_tab(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let _ = window;
 
         #[cfg(not(target_os = "macos"))]
@@ -1008,7 +1060,6 @@ impl Render for BrowserView {
             .on_action(cx.listener(Self::handle_open_devtools))
             .on_action(cx.listener(Self::handle_bookmark_current_page))
             .on_action(cx.listener(Self::handle_copy_url))
-            .on_action(cx.listener(Self::handle_toggle_sidebar))
             .on_action(cx.listener(Self::handle_find_in_page))
             .on_action(cx.listener(Self::handle_find_next_in_page))
             .on_action(cx.listener(Self::handle_find_previous_in_page))
@@ -1016,6 +1067,9 @@ impl Render for BrowserView {
             .on_action(cx.listener(Self::handle_toggle_download_center))
             .size_full()
             .flex();
+
+        #[cfg(not(target_os = "macos"))]
+        let element = element.on_action(cx.listener(Self::handle_toggle_sidebar));
 
         let element = match self.tab_bar_mode {
             TabBarMode::Horizontal => element

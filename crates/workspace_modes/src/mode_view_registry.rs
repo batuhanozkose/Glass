@@ -6,26 +6,32 @@
 
 use crate::ModeId;
 use collections::HashMap;
-use gpui::{AnyView, App, FocusHandle, Global};
+use gpui::{AnyView, App, FocusHandle, Global, SharedString, Window};
 use std::sync::Arc;
 
 /// Callback invoked when a mode is deactivated (switched away from).
 pub type ModeDeactivateCallback = Arc<dyn Fn(&mut App) + Send + Sync>;
 
-/// Callback that computes whether a mode-owned sidebar should be visible.
-pub type ModeSidebarVisibilityFn = fn(&AnyView, &App) -> bool;
-/// Callback that toggles a mode-owned sidebar.
-pub type ModeSidebarToggleFn = fn(&AnyView, &mut App);
-
-/// Hosted sidebar content and behavior for a mode view.
 #[derive(Clone)]
-pub struct ModeSidebarHost {
-    /// View shown in the unified native sidebar when this mode is active.
-    pub sidebar_view: AnyView,
-    /// Computes whether the hosted sidebar should be visible.
-    pub is_visible: ModeSidebarVisibilityFn,
-    /// Toggles the hosted sidebar visibility.
-    pub toggle: ModeSidebarToggleFn,
+pub struct ModeNavigationEntry {
+    pub id: SharedString,
+    pub label: SharedString,
+    pub detail: Option<SharedString>,
+    pub is_pinned: bool,
+    pub is_selected: bool,
+}
+
+pub type ModeNavigationEntriesFn = fn(&AnyView, &Window, &App) -> Vec<ModeNavigationEntry>;
+pub type ModeNavigationActivateFn = fn(&AnyView, &str, &mut Window, &mut App);
+pub type ModeNavigationCloseFn = fn(&AnyView, &str, &mut Window, &mut App);
+pub type ModeNavigationCreateFn = fn(&AnyView, &mut Window, &mut App);
+
+#[derive(Clone)]
+pub struct ModeNavigationHost {
+    pub entries: ModeNavigationEntriesFn,
+    pub activate: ModeNavigationActivateFn,
+    pub close: ModeNavigationCloseFn,
+    pub create: ModeNavigationCreateFn,
 }
 
 /// A view that can be displayed for a workspace mode.
@@ -40,8 +46,10 @@ pub struct RegisteredModeView {
     pub focus_handle: FocusHandle,
     /// Optional view to render in the title bar center when this mode is active
     pub titlebar_center_view: Option<AnyView>,
-    /// Optional hosted sidebar host for the active mode view.
-    pub sidebar_host: Option<ModeSidebarHost>,
+    /// Optional sidebar section view owned by the workspace shell.
+    pub sidebar_view: Option<AnyView>,
+    /// Optional navigation callbacks for sidebar-owned activation.
+    pub navigation_host: Option<ModeNavigationHost>,
     /// Optional callback invoked when this mode is deactivated
     pub on_deactivate: Option<ModeDeactivateCallback>,
 }

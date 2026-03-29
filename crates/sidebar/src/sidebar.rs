@@ -11,9 +11,8 @@ use agent_ui::{
 use chrono::Utc;
 use editor::Editor;
 use gpui::{
-    Action as _, AnyElement, App, Context, DismissEvent, Entity, FocusHandle, Focusable,
-    ListState, Pixels, Render, SharedString, WeakEntity, Window, WindowHandle, list, prelude::*,
-    px,
+    Action as _, AnyElement, App, Context, DismissEvent, Entity, FocusHandle, Focusable, ListState,
+    Pixels, Render, SharedString, WeakEntity, Window, WindowHandle, list, prelude::*, px,
 };
 use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
@@ -30,8 +29,7 @@ use std::sync::Arc;
 use theme::ActiveTheme;
 use ui::{
     AgentThreadStatus, CommonAnimationExt, ContextMenu, Divider, HighlightedLabel, KeyBinding,
-    PopoverMenu, PopoverMenuHandle, Tab, ThreadItem, TintColor, Tooltip, WithScrollbar,
-    prelude::*,
+    PopoverMenu, PopoverMenuHandle, Tab, ThreadItem, TintColor, Tooltip, WithScrollbar, prelude::*,
 };
 use util::ResultExt as _;
 use util::path_list::PathList;
@@ -1310,9 +1308,7 @@ impl Sidebar {
                 h_flex()
                     .when(
                         cfg!(not(target_os = "macos")) && self.project_header_menu_ix != Some(ix),
-                        |this| {
-                        this.visible_on_hover(group_name)
-                    },
+                        |this| this.visible_on_hover(group_name),
                     )
                     .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
                         cx.stop_propagation();
@@ -1487,15 +1483,17 @@ impl Sidebar {
                 },
             );
 
-            let workspace_count = multi_workspace
-                .upgrade()
-                .map_or(0, |multi_workspace| multi_workspace.read(cx).workspaces().len());
+            let workspace_count = multi_workspace.upgrade().map_or(0, |multi_workspace| {
+                multi_workspace.read(cx).workspaces().len()
+            });
             let menu = if workspace_count > 1 {
                 let workspace_for_move = workspace.clone();
                 let multi_workspace_for_move = multi_workspace.clone();
                 menu.entry(
                     "Move to New Window",
-                    Some(Box::new(zed_actions::agents_sidebar::MoveWorkspaceToNewWindow)),
+                    Some(Box::new(
+                        zed_actions::agents_sidebar::MoveWorkspaceToNewWindow,
+                    )),
                     move |window, cx| {
                         if let Some(multi_workspace) = multi_workspace_for_move.upgrade() {
                             multi_workspace.update(cx, |multi_workspace, cx| {
@@ -1516,20 +1514,21 @@ impl Sidebar {
 
             let workspace_for_remove = workspace_for_remove.clone();
             let multi_workspace_for_remove = multi_workspace.clone();
-            menu.separator().entry("Remove Project", None, move |window, cx| {
-                if let Some(multi_workspace) = multi_workspace_for_remove.upgrade() {
-                    let workspace = workspace_for_remove.clone();
-                    multi_workspace.update(cx, |multi_workspace, cx| {
-                        if let Some(index) = multi_workspace
-                            .workspaces()
-                            .iter()
-                            .position(|candidate| *candidate == workspace)
-                        {
-                            multi_workspace.remove_workspace(index, window, cx);
-                        }
-                    });
-                }
-            })
+            menu.separator()
+                .entry("Remove Project", None, move |window, cx| {
+                    if let Some(multi_workspace) = multi_workspace_for_remove.upgrade() {
+                        let workspace = workspace_for_remove.clone();
+                        multi_workspace.update(cx, |multi_workspace, cx| {
+                            if let Some(index) = multi_workspace
+                                .workspaces()
+                                .iter()
+                                .position(|candidate| *candidate == workspace)
+                            {
+                                multi_workspace.remove_workspace(index, window, cx);
+                            }
+                        });
+                    }
+                })
         })
     }
 
@@ -3125,11 +3124,7 @@ impl Render for Sidebar {
                             .icon_size(IconSize::Small)
                             .toggle_state(matches!(self.view, SidebarView::Archive(..)))
                             .tooltip(move |_, cx| {
-                                Tooltip::for_action(
-                                    "Toggle Archived Threads",
-                                    &ToggleArchive,
-                                    cx,
-                                )
+                                Tooltip::for_action("Toggle Archived Threads", &ToggleArchive, cx)
                             })
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.toggle_archive(&ToggleArchive, window, cx);

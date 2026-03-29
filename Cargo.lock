@@ -2041,6 +2041,8 @@ dependencies = [
  "ui",
  "url",
  "util",
+ "workspace",
+ "workspace_chrome",
  "workspace_modes",
  "zed_actions",
 ]
@@ -15884,6 +15886,7 @@ dependencies = [
  "util",
  "windows 0.61.3",
  "workspace",
+ "workspace_chrome",
  "workspace_modes",
  "zed_actions",
 ]
@@ -19303,9 +19306,19 @@ dependencies = [
  "util",
  "uuid",
  "windows 0.61.3",
+ "workspace_chrome",
  "workspace_modes",
  "zed_actions",
  "zlog",
+]
+
+[[package]]
+name = "workspace_chrome"
+version = "0.1.0"
+dependencies = [
+ "gpui",
+ "ui",
+ "workspace_modes",
 ]
 
 [[package]]
@@ -19320,7 +19333,6 @@ dependencies = [
  "serde",
  "serde_json",
  "settings",
- "ui",
  "util",
 ]
 

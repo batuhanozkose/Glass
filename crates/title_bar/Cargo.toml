@@ -58,6 +58,7 @@ theme.workspace = true
 ui.workspace = true
 util.workspace = true
 workspace.workspace = true
+workspace_chrome.workspace = true
 workspace_modes.workspace = true
 zed_actions.workspace = true
 

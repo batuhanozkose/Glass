@@ -40,21 +40,60 @@ pub fn handle_cef_subprocess() -> anyhow::Result<()> {
     CefInstance::handle_subprocess()
 }
 
-use gpui::{AnyView, App, AppContext as _, Entity, Focusable};
+use gpui::{AnyView, App, AppContext as _, Entity, Focusable, Window};
 use std::sync::Arc;
-use workspace_modes::{ModeId, ModeSidebarHost, ModeViewRegistry, RegisteredModeView};
+use workspace_modes::{ModeId, ModeNavigationHost, ModeViewRegistry, RegisteredModeView};
 
-fn browser_sidebar_visible(view: &AnyView, cx: &App) -> bool {
+fn browser_navigation_entries(
+    view: &AnyView,
+    _window: &Window,
+    cx: &App,
+) -> Vec<workspace_modes::ModeNavigationEntry> {
     view.clone()
         .downcast::<BrowserView>()
         .ok()
-        .is_some_and(|browser_view| browser_view.read(cx).sidebar_visible())
+        .map(|browser_view| browser_view.read(cx).navigation_entries(cx))
+        .unwrap_or_default()
 }
 
-fn toggle_browser_sidebar(view: &AnyView, cx: &mut App) {
+fn activate_browser_navigation_entry(
+    view: &AnyView,
+    entry_id: &str,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let Ok(tab_id) = entry_id.parse::<u64>() else {
+        return;
+    };
     if let Ok(browser_view) = view.clone().downcast::<BrowserView>() {
         let _ = browser_view.update(cx, |browser_view, cx| {
-            browser_view.toggle_sidebar_visibility(cx);
+            browser_view.activate_navigation_entry(tab_id, window, cx);
+        });
+    }
+}
+
+fn close_browser_navigation_entry(
+    view: &AnyView,
+    entry_id: &str,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let Ok(tab_id) = entry_id.parse::<u64>() else {
+        return;
+    };
+    if let Ok(browser_view) = view.clone().downcast::<BrowserView>() {
+        let _ = browser_view.update(cx, |browser_view, cx| {
+            browser_view.close_navigation_entry(tab_id, window, cx);
+        });
+    }
+}
+
+fn create_browser_navigation_entry(view: &AnyView, window: &mut Window, cx: &mut App) {
+    if let Ok(browser_view) = view.clone().downcast::<BrowserView>() {
+        let _ = browser_view.update(cx, |browser_view, cx| {
+            browser_view.add_tab(cx);
+            browser_view.update_toolbar_active_tab(window, cx);
+            cx.notify();
         });
     }
 }
@@ -89,16 +128,12 @@ pub fn init(cx: &mut App) {
             let focus_handle = browser_view.focus_handle(cx);
 
             #[cfg(target_os = "macos")]
-            let sidebar_host = {
+            let sidebar_view = {
                 let panel = browser_view.update(cx, |bv, cx| bv.ensure_native_sidebar_panel(cx));
-                Some(ModeSidebarHost {
-                    sidebar_view: gpui::AnyView::from(panel),
-                    is_visible: browser_sidebar_visible,
-                    toggle: toggle_browser_sidebar,
-                })
+                Some(gpui::AnyView::from(panel))
             };
             #[cfg(not(target_os = "macos"))]
-            let sidebar_host = None;
+            let sidebar_view = None;
 
             let deactivate_view = browser_view.downgrade();
             let on_deactivate: Arc<dyn Fn(&mut App) + Send + Sync> =
@@ -114,7 +149,13 @@ pub fn init(cx: &mut App) {
                 view: browser_view.into(),
                 focus_handle,
                 titlebar_center_view: None,
-                sidebar_host,
+                sidebar_view,
+                navigation_host: Some(ModeNavigationHost {
+                    entries: browser_navigation_entries,
+                    activate: activate_browser_navigation_entry,
+                    close: close_browser_navigation_entry,
+                    create: create_browser_navigation_entry,
+                }),
                 on_deactivate: Some(on_deactivate),
             }
         }),

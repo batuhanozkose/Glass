@@ -31,10 +31,7 @@ use gpui::{
     WeakEntity, Window, actions, div, native_button, native_icon_button,
 };
 use onboarding_banner::OnboardingBanner;
-use project::{
-    Project, git_store::GitStoreEvent, linked_worktree_short_name,
-    trusted_worktrees::TrustedWorktrees,
-};
+use project::{Project, git_store::GitStoreEvent, trusted_worktrees::TrustedWorktrees};
 use remote::RemoteConnectionOptions;
 use settings::Settings;
 use settings::WorktreeId;
@@ -54,10 +51,10 @@ use workspace::{
     MultiWorkspace, Pane, TitleBarItemViewHandle, ToggleWorkspaceSidebar, ToggleWorktreeSecurity,
     Workspace, WorkspaceId, notifications::NotifyResultExt,
 };
+use workspace_chrome::ModeControl;
 #[allow(unused_imports)]
 use workspace_modes::{
-    ModeId, ModeSwitcher, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode,
-    SwitchToTerminalMode,
+    ModeId, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode,
 };
 use zed_actions::OpenRemote;
 
@@ -212,26 +209,6 @@ impl TitleBar {
 
         let mut children = Vec::new();
 
-        let mut project_name = None;
-        let mut repository = None;
-        let mut linked_worktree_name = None;
-        if let Some(worktree) = self.effective_active_worktree(cx) {
-            repository = self.get_repository_for_worktree(&worktree, cx);
-            let worktree = worktree.read(cx);
-            project_name = worktree
-                .root_name()
-                .file_name()
-                .map(|name| SharedString::from(name.to_string()));
-            linked_worktree_name = repository.as_ref().and_then(|repo| {
-                let repo = repo.read(cx);
-                linked_worktree_short_name(
-                    repo.original_repo_abs_path.as_ref(),
-                    repo.work_directory_abs_path.as_ref(),
-                )
-                .filter(|name| Some(name) != project_name.as_ref())
-            });
-        }
-
         children.push(
             h_flex()
                 .h_full()
@@ -252,22 +229,9 @@ impl TitleBar {
                         .child(self.render_mode_switcher(window, cx))
                         .children(self.render_restricted_mode(cx))
                         .when(render_project_items, |title_bar| {
-                            title_bar
-                                .when(title_bar_settings.show_project_items, |title_bar| {
-                                    title_bar
-                                        .children(self.render_project_host(cx))
-                                        .child(self.render_project_name(project_name, window, cx))
-                                })
-                                .when_some(
-                                    repository.filter(|_| title_bar_settings.show_branch_name),
-                                    |title_bar, repository| {
-                                        title_bar.children(self.render_project_branch(
-                                            repository,
-                                            linked_worktree_name,
-                                            cx,
-                                        ))
-                                    },
-                                )
+                            title_bar.when(title_bar_settings.show_project_items, |title_bar| {
+                                title_bar.children(self.render_project_host(cx))
+                            })
                         })
                 })
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
@@ -878,28 +842,23 @@ impl TitleBar {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let workspace = self.workspace.clone();
         let active_mode = self
             .workspace
             .upgrade()
             .map(|ws| ws.read(cx).active_mode_id())
             .unwrap_or(ModeId::BROWSER);
 
-        ModeSwitcher::new(active_mode).on_mode_select(move |mode_id, window, cx| {
-            if let Some(workspace) = workspace.upgrade() {
-                workspace.update(cx, |_workspace, cx| match mode_id {
-                    ModeId::BROWSER => {
-                        window.dispatch_action(SwitchToBrowserMode.boxed_clone(), cx);
-                    }
-                    ModeId::EDITOR => {
-                        window.dispatch_action(SwitchToEditorMode.boxed_clone(), cx);
-                    }
-                    ModeId::TERMINAL => {
-                        window.dispatch_action(SwitchToTerminalMode.boxed_clone(), cx);
-                    }
-                    _ => {}
-                });
+        ModeControl::new(active_mode).on_mode_select(move |mode_id, window, cx| match mode_id {
+            ModeId::BROWSER => {
+                window.dispatch_action(SwitchToBrowserMode.boxed_clone(), cx);
             }
+            ModeId::EDITOR => {
+                window.dispatch_action(SwitchToEditorMode.boxed_clone(), cx);
+            }
+            ModeId::TERMINAL => {
+                window.dispatch_action(SwitchToTerminalMode.boxed_clone(), cx);
+            }
+            _ => {}
         })
     }
 

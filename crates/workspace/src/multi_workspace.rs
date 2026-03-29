@@ -1,11 +1,11 @@
 use anyhow::Result;
-use gpui::{
-    AnyView, App, Context, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
-    ManagedView, Pixels, Render, Subscription, Task, Tiling, Window,
-    WindowBackgroundAppearance, WindowId, actions,
-};
 #[cfg(target_os = "macos")]
 use gpui::native_sidebar;
+use gpui::{
+    AnyView, App, Context, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
+    ManagedView, Pixels, Render, Subscription, Task, Tiling, Window, WindowBackgroundAppearance,
+    WindowId, actions,
+};
 #[cfg(not(target_os = "macos"))]
 use gpui::{MouseButton, deferred, px};
 use project::Project;
@@ -171,7 +171,9 @@ impl MultiWorkspace {
         #[cfg(target_os = "macos")]
         let workspace_sidebar_host = {
             let left_dock = workspace.read(cx).left_dock().clone();
-            cx.new(|_cx| WorkspaceSidebarHost::new(left_dock))
+            let bottom_dock = workspace.read(cx).bottom_dock().clone();
+            let right_dock = workspace.read(cx).right_dock().clone();
+            cx.new(|_cx| WorkspaceSidebarHost::new(left_dock, bottom_dock, right_dock))
         };
         Self {
             window_id: window.window_handle().window_id(),
@@ -374,38 +376,21 @@ impl MultiWorkspace {
     }
 
     /// Sync the shared unified sidebar to point at the active workspace's left dock,
-    /// mode, and hosted sidebar view. Width is NOT synced because the NSSplitView manages
+    /// selected section, dock roots, and hosted sidebar view. Width is NOT synced because the NSSplitView manages
     /// its own divider position independently.
     #[cfg(target_os = "macos")]
     fn sync_workspace_sidebar_host(&self, cx: &mut App) {
         let active_ws = self.workspace().clone();
-        let (left_dock, mode, mode_sidebar_view, workspace_sidebar_view, workspace_sidebar_visible) = {
+        let (workspace_sidebar_surface, workspace_sidebar_view) = {
             let workspace = active_ws.read(cx);
-            let mode = workspace.active_mode_id();
-            let mode_sidebar_view = workspace
-                .workspace_sidebar_host
-                .read(cx)
-                .mode_sidebar_view(mode)
-                .cloned();
             let workspace_sidebar_view = self.sidebar.as_ref().map(|sidebar| sidebar.to_any());
             (
-                workspace.left_dock().clone(),
-                mode,
-                mode_sidebar_view,
+                workspace.workspace_sidebar_host.read(cx).surface(),
                 workspace_sidebar_view,
-                self.sidebar_open,
             )
         };
         self.workspace_sidebar_host.update(cx, |sidebar, cx| {
-            sidebar.set_left_dock(left_dock, cx);
-            sidebar.set_mode(mode, cx);
-            if let Some(view) = mode_sidebar_view {
-                sidebar.set_mode_sidebar_view(mode, view, cx);
-            } else {
-                sidebar.clear_mode_sidebar_view(mode, cx);
-            }
-            sidebar.set_workspace_sidebar_view(workspace_sidebar_view, cx);
-            sidebar.set_workspace_sidebar_visible(workspace_sidebar_visible, cx);
+            sidebar.apply_surface(&workspace_sidebar_surface, workspace_sidebar_view, cx);
         });
     }
 
@@ -1014,7 +999,9 @@ impl Render for MultiWorkspace {
             window,
             cx,
             Tiling {
-                left: cfg!(not(target_os = "macos")) && multi_workspace_enabled && self.sidebar_open(),
+                left: cfg!(not(target_os = "macos"))
+                    && multi_workspace_enabled
+                    && self.sidebar_open(),
                 ..Tiling::default()
             },
         )
@@ -1079,7 +1066,8 @@ mod tests {
                         view: browser_view.into(),
                         focus_handle,
                         titlebar_center_view: None,
-                        sidebar: None,
+                        sidebar_view: None,
+                        navigation_host: None,
                         on_deactivate: None,
                     }
                 }),

@@ -1,6 +1,8 @@
 use anyhow::{Context as _, Result, anyhow};
 use serde::Deserialize;
-use service_hub::{ServiceAuthActionRequest, ServiceCommandPlan, ServiceHub, ServiceOperationRequest};
+use service_hub::{
+    ServiceAuthActionRequest, ServiceCommandPlan, ServiceHub, ServiceOperationRequest,
+};
 use util::command::new_command;
 
 pub(crate) async fn run_auth_action(request: ServiceAuthActionRequest) -> Result<()> {

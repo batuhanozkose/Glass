@@ -34,7 +34,9 @@ theme.workspace = true
 toast.workspace = true
 settings.workspace = true
 util.workspace = true
+workspace_chrome.workspace = true
 workspace_modes.workspace = true
+workspace.workspace = true
 zed_actions.workspace = true
 
 # CEF browser integration

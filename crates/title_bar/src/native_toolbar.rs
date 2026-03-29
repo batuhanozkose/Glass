@@ -72,21 +72,6 @@ impl TitleBar {
             return;
         }
 
-        let project_name = self
-            .effective_active_worktree(cx)
-            .map(|worktree| worktree.read(cx).root_name().as_unix_str().to_string())
-            .unwrap_or_default();
-        let branch_name = self
-            .effective_active_worktree(cx)
-            .and_then(|worktree| self.get_repository_for_worktree(&worktree, cx))
-            .and_then(|repository| {
-                let repository = repository.read(cx);
-                repository
-                    .branch
-                    .as_ref()
-                    .map(|branch| branch.name().to_string())
-            })
-            .unwrap_or_default();
         let has_restricted_worktrees = self.has_restricted_worktrees(cx);
         let is_remote = self.project.read(cx).is_via_remote_server();
         let user = self.user_store.read(cx).current_user();
@@ -109,8 +94,8 @@ impl TitleBar {
         let toolbar_key = format!(
             "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}:{:?}:{:?}",
             active_mode.0,
-            project_name,
-            branch_name,
+            "",
+            "",
             self.native_toolbar_state.omnibox_text,
             is_new_tab_page,
             has_restricted_worktrees,
@@ -142,23 +127,6 @@ impl TitleBar {
 
         if let Some(item) = self.build_restricted_mode_item(cx) {
             toolbar = toolbar.item(item);
-        }
-
-        if !is_browser_mode {
-            if title_bar_settings.show_project_items {
-                if let Some(item) = self.build_project_host_item(cx) {
-                    toolbar = toolbar.item(item);
-                }
-                if let Some(item) = self.build_project_button_item(cx) {
-                    toolbar = toolbar.item(item);
-                }
-            }
-
-            if title_bar_settings.show_branch_name
-                && let Some(item) = self.build_branch_button_item(cx)
-            {
-                toolbar = toolbar.item(item);
-            }
         }
 
         toolbar = toolbar.item(NativeToolbarItem::FlexibleSpace);

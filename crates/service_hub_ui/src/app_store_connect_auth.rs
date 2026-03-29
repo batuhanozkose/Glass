@@ -51,14 +51,11 @@ impl ServiceAuthFormState {
                 .find(|action| action.action == ServiceAuthAction::Authenticate)
                 .cloned()
         });
-        let logout_available = provider
-            .auth
-            .as_ref()
-            .is_some_and(|auth| {
-                auth.actions
-                    .iter()
-                    .any(|action| action.action == ServiceAuthAction::Logout)
-            });
+        let logout_available = provider.auth.as_ref().is_some_and(|auth| {
+            auth.actions
+                .iter()
+                .any(|action| action.action == ServiceAuthAction::Logout)
+        });
 
         Self {
             fields: authenticate_descriptor
@@ -113,13 +110,7 @@ impl ServiceAuthFormState {
         }
     }
 
-    pub(crate) fn set_text(
-        &self,
-        key: &str,
-        text: &str,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
+    pub(crate) fn set_text(&self, key: &str, text: &str, window: &mut Window, cx: &mut App) {
         for field in &self.fields {
             let ServiceAuthFieldState::Text { descriptor, input } = field else {
                 continue;
@@ -144,7 +135,10 @@ impl ServiceAuthFormState {
         let mut input = std::collections::BTreeMap::new();
         for field in &self.fields {
             match field {
-                ServiceAuthFieldState::Text { descriptor, input: editor } => {
+                ServiceAuthFieldState::Text {
+                    descriptor,
+                    input: editor,
+                } => {
                     let value = editor.read(cx).text(cx).trim().to_string();
                     if descriptor.required && value.is_empty() {
                         return Err(format!("{} is required", descriptor.label).into());
@@ -154,10 +148,7 @@ impl ServiceAuthFormState {
                     }
                 }
                 ServiceAuthFieldState::Toggle { descriptor, value } => {
-                    input.insert(
-                        descriptor.key.clone(),
-                        (value.selected()).to_string(),
-                    );
+                    input.insert(descriptor.key.clone(), (value.selected()).to_string());
                 }
             }
         }
@@ -237,21 +228,25 @@ struct AscCredential {
 }
 
 pub(crate) async fn load_auth_status() -> Result<AscAuthSummary> {
-    let response: AscAuthStatusResponse = run_json_operation(service_hub::ServiceOperationRequest {
-        provider_id: "app-store-connect".to_string(),
-        operation: "auth_status".to_string(),
-        resource: None,
-        artifact: None,
-        input: Default::default(),
-    })
-    .await?;
+    let response: AscAuthStatusResponse =
+        run_json_operation(service_hub::ServiceOperationRequest {
+            provider_id: "app-store-connect".to_string(),
+            operation: "auth_status".to_string(),
+            resource: None,
+            artifact: None,
+            input: Default::default(),
+        })
+        .await?;
 
     Ok(summarize_auth_status(response))
 }
 
 fn summarize_auth_status(response: AscAuthStatusResponse) -> AscAuthSummary {
     let mut warnings = response.warnings.unwrap_or_default();
-    if let Some(note) = response.environment_note.filter(|note| !note.trim().is_empty()) {
+    if let Some(note) = response
+        .environment_note
+        .filter(|note| !note.trim().is_empty())
+    {
         warnings.push(note);
     }
 
@@ -274,7 +269,10 @@ fn summarize_auth_status(response: AscAuthStatusResponse) -> AscAuthSummary {
         };
     };
 
-    let validation = default_credential.validation.as_deref().unwrap_or("unknown");
+    let validation = default_credential
+        .validation
+        .as_deref()
+        .unwrap_or("unknown");
     let healthy = validation.eq_ignore_ascii_case("works");
     let detail = default_credential
         .validation_error

@@ -1,18 +1,12 @@
 use crate::TitleBar;
 use gpui::{
-    DismissEvent, Focusable, NativePanel, NativePanelAnchor, NativePanelLevel, NativePanelStyle,
-    Render, SharedString, Window,
+    DismissEvent, NativePanel, NativePanelAnchor, NativePanelLevel, NativePanelStyle, Render,
+    SharedString, Window,
 };
-use std::collections::HashSet;
 use ui::ContextMenu;
-use workspace::WorkspaceId;
 
 impl TitleBar {
-    fn dismiss_toolbar_overlay(
-        &mut self,
-        window: &mut Window,
-        cx: &mut gpui::Context<Self>,
-    ) {
+    fn dismiss_toolbar_overlay(&mut self, window: &mut Window, cx: &mut gpui::Context<Self>) {
         self.native_toolbar_state.open_toolbar_overlay_item_id = None;
         window.dismiss_native_panel();
         cx.notify();
@@ -94,88 +88,7 @@ impl TitleBar {
         self.toggle_toolbar_hosted_overlay(menu, item_id, width, height, window, cx);
     }
 
-    pub(super) fn show_recent_projects_overlay(
-        &mut self,
-        window: &mut Window,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        let workspace = self.workspace.clone();
-        let focus_handle = workspace
-            .upgrade()
-            .map(|workspace| workspace.read(cx).focus_handle(cx))
-            .unwrap_or_else(|| cx.focus_handle());
-        let sibling_workspace_ids: HashSet<WorkspaceId> = self
-            .multi_workspace
-            .as_ref()
-            .and_then(|multi_workspace| multi_workspace.upgrade())
-            .map(|multi_workspace| {
-                multi_workspace
-                    .read(cx)
-                    .workspaces()
-                    .iter()
-                    .filter_map(|workspace| workspace.read(cx).database_id())
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        let Some(overlay) = workspace.upgrade().map(|_| {
-            recent_projects::RecentProjects::popover(
-                workspace.clone(),
-                sibling_workspace_ids,
-                false,
-                focus_handle,
-                window,
-                cx,
-            )
-        }) else {
-            return;
-        };
-
-        self.toggle_toolbar_hosted_overlay(
-            overlay,
-            "glass.project_name".into(),
-            360.0,
-            420.0,
-            window,
-            cx,
-        );
-    }
-
-    pub(super) fn show_branch_overlay(
-        &mut self,
-        window: &mut Window,
-        cx: &mut gpui::Context<Self>,
-    ) {
-        let Some(workspace) = self.workspace.upgrade() else {
-            return;
-        };
-        let effective_repository = self
-            .effective_active_worktree(cx)
-            .and_then(|worktree| self.get_repository_for_worktree(&worktree, cx));
-        let overlay = git_ui::git_picker::popover(
-            workspace.downgrade(),
-            effective_repository,
-            git_ui::git_picker::GitPickerTab::Branches,
-            gpui::rems(34.0),
-            window,
-            cx,
-        );
-
-        self.toggle_toolbar_hosted_overlay(
-            overlay,
-            "glass.branch_name".into(),
-            380.0,
-            480.0,
-            window,
-            cx,
-        );
-    }
-
-    pub(crate) fn show_lsp_overlay(
-        &mut self,
-        window: &mut Window,
-        cx: &mut gpui::Context<Self>,
-    ) {
+    pub(crate) fn show_lsp_overlay(&mut self, window: &mut Window, cx: &mut gpui::Context<Self>) {
         let Some(lsp_button) = self.right_item_view::<language_tools::lsp_button::LspButton>()
         else {
             return;

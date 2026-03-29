@@ -1579,7 +1579,7 @@ impl InlineAssistant {
                 .read(cx)
                 .focus_handle(cx)
                 .contains_focused(window, cx)
-            && let Some(terminal_view) = terminal_panel.read(cx).pane().and_then(|pane| {
+            && let Some(terminal_view) = terminal_panel.read(cx).pane(cx).and_then(|pane| {
                 pane.read(cx)
                     .active_item()
                     .and_then(|t| t.downcast::<TerminalView>())
