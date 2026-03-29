@@ -537,6 +537,7 @@ impl TitleBar {
         }
         #[cfg(target_os = "macos")]
         self.refresh_status_data(window, cx);
+        cx.notify();
     }
 
     fn render_right_items(&self) -> impl IntoElement {

@@ -269,8 +269,16 @@ const PAGE_CHROME_OBSERVER_SCRIPT: &str = r#"
 
     window.addEventListener('scroll', schedule, { passive: true, capture: true });
     window.addEventListener('resize', schedule, { passive: true });
+    window.addEventListener('focus', schedule, { passive: true });
+    window.addEventListener('pageshow', schedule, { passive: true });
     window.addEventListener('load', schedule, { once: true });
     document.addEventListener('DOMContentLoaded', schedule, { once: true });
+    document.addEventListener('visibilitychange', schedule);
+
+    // Some pages finish painting the hero/header after the initial DOM and load callbacks.
+    // Re-sampling shortly after install avoids requiring user interaction to settle the color.
+    window.setTimeout(schedule, 120);
+    window.setTimeout(schedule, 350);
 
     schedule();
   };
