@@ -1,5 +1,5 @@
 use crate::{
-    CommonAnimationExt, DecoratedIcon, DiffStat, HighlightedLabel, IconDecoration,
+    CommonAnimationExt, DecoratedIcon, DiffStat, GradientFade, HighlightedLabel, IconDecoration,
     IconDecorationKind, Tooltip, prelude::*,
 };
 
@@ -193,16 +193,25 @@ impl ThreadItem {
 impl RenderOnce for ThreadItem {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let color = cx.theme().colors();
-        let radius = cx.theme().component_radius().tab.unwrap_or(px(8.0));
+        let base_bg = color
+            .title_bar_background
+            .blend(color.panel_background.opacity(0.2));
+
         let base_bg = if self.selected {
             color.element_active
         } else {
-            gpui::transparent_black()
+            base_bg
         };
 
         let hover_color = color
             .element_active
             .blend(color.element_background.opacity(0.2));
+
+        let gradient_overlay = GradientFade::new(base_bg, hover_color, hover_color)
+            .width(px(64.0))
+            .right(px(-10.0))
+            .gradient_stop(0.75)
+            .group_name("thread-item");
 
         let dot_separator = || {
             Label::new("•")
@@ -323,7 +332,6 @@ impl RenderOnce for ThreadItem {
             .w_full()
             .py_1()
             .px_1p5()
-            .rounded(radius)
             .when(self.selected, |s| s.bg(color.element_active))
             .border_1()
             .border_color(gpui::transparent_black())
@@ -346,14 +354,22 @@ impl RenderOnce for ThreadItem {
                             .child(title_label)
                             .when_some(self.tooltip, |this, tooltip| this.tooltip(tooltip)),
                     )
+                    .child(gradient_overlay)
                     .when(self.hovered, |this| {
                         this.when_some(self.action_slot, |this, slot| {
+                            let overlay = GradientFade::new(base_bg, hover_color, hover_color)
+                                .width(px(64.0))
+                                .right(px(6.))
+                                .gradient_stop(0.75)
+                                .group_name("thread-item");
+
                             this.child(
                                 h_flex()
-                                    .pl_1()
+                                    .relative()
                                     .on_mouse_down(MouseButton::Left, |_, _, cx| {
                                         cx.stop_propagation()
                                     })
+                                    .child(overlay)
                                     .child(slot),
                             )
                         })

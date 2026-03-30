@@ -488,29 +488,35 @@ impl Render for ProjectSidebarSurface {
             .overflow_hidden()
             .bg(cx.theme().colors().panel_background)
             .child(
-                h_flex().px_1p5().pt_1p5().pb_1().child(
-                    h_flex()
-                        .w_full()
-                        .gap_1()
-                        .child(self.render_tab_button(
-                            "project-sidebar-files-tab",
-                            "Files",
-                            self.active_tab == ProjectSidebarTab::Files,
-                            |this, _, _, cx| {
-                                this.set_active_tab(ProjectSidebarTab::Files, cx);
-                            },
-                            cx,
-                        ))
-                        .child(self.render_tab_button(
-                            "project-sidebar-threads-tab",
-                            "Threads",
-                            self.active_tab == ProjectSidebarTab::Threads,
-                            |this, _, _, cx| {
-                                this.set_active_tab(ProjectSidebarTab::Threads, cx);
-                            },
-                            cx,
-                        )),
-                ),
+                h_flex()
+                    .px_1p5()
+                    .pt_1p5()
+                    .pb_1()
+                    .border_b_1()
+                    .border_color(cx.theme().colors().border)
+                    .child(
+                        h_flex()
+                            .w_full()
+                            .gap_1()
+                            .child(self.render_tab_button(
+                                "project-sidebar-files-tab",
+                                "Files",
+                                self.active_tab == ProjectSidebarTab::Files,
+                                |this, _, _, cx| {
+                                    this.set_active_tab(ProjectSidebarTab::Files, cx);
+                                },
+                                cx,
+                            ))
+                            .child(self.render_tab_button(
+                                "project-sidebar-threads-tab",
+                                "Threads",
+                                self.active_tab == ProjectSidebarTab::Threads,
+                                |this, _, _, cx| {
+                                    this.set_active_tab(ProjectSidebarTab::Threads, cx);
+                                },
+                                cx,
+                            )),
+                    ),
             )
             .child(div().flex_1().size_full().overflow_hidden().child(content))
     }
@@ -1466,7 +1472,8 @@ impl ThreadsNavigator {
         // is_selected means the keyboard selector is here.
         let is_selected = is_focused && self.selection == Some(ix);
 
-        let is_group_start = matches!(entry, ListEntry::ProjectHeader { .. });
+        let is_group_header_after_first =
+            ix > 0 && matches!(entry, ListEntry::ProjectHeader { .. });
 
         let rendered = match entry {
             ListEntry::ProjectHeader {
@@ -1504,11 +1511,16 @@ impl ThreadsNavigator {
             }
         };
 
-        v_flex()
-            .w_full()
-            .when(ix > 0 && is_group_start, |this| this.pt_1())
-            .child(rendered)
-            .into_any_element()
+        if is_group_header_after_first {
+            v_flex()
+                .w_full()
+                .border_t_1()
+                .border_color(cx.theme().colors().border.opacity(0.5))
+                .child(rendered)
+                .into_any_element()
+        } else {
+            rendered
+        }
     }
 
     fn render_project_header(
@@ -1561,19 +1573,27 @@ impl ThreadsNavigator {
         };
 
         let color = cx.theme().colors();
-        let selected_background = color.text.opacity(0.14);
-        let hover_background = color.text.opacity(0.09);
+        let hover_color = color
+            .element_active
+            .blend(color.element_background.opacity(0.2));
 
         h_flex()
             .id(id)
             .group(&group_name)
             .h(Tab::content_height(cx))
             .w_full()
-            .px_2()
-            .rounded(cx.theme().component_radius().tab.unwrap_or(px(8.0)))
-            .when(is_selected, |this| this.bg(selected_background))
-            .when(!is_selected, |this| this.hover(|s| s.bg(hover_background)))
+            .pl_1p5()
+            .pr_1()
+            .border_1()
+            .map(|this| {
+                if is_selected {
+                    this.border_color(color.border_focused)
+                } else {
+                    this.border_color(gpui::transparent_black())
+                }
+            })
             .justify_between()
+            .hover(|s| s.bg(hover_color))
             .child(
                 h_flex()
                     .relative()
@@ -1837,15 +1857,18 @@ impl ThreadsNavigator {
             .unwrap_or(px(0.));
 
         let color = cx.theme().colors();
-        let background = color.panel_background;
+        let background = color
+            .title_bar_background
+            .blend(color.panel_background.opacity(0.2));
 
         let element = v_flex()
             .absolute()
             .top(top_offset)
             .left_0()
             .w_full()
-            .px_1p5()
             .bg(background)
+            .border_b_1()
+            .border_color(color.border.opacity(0.5))
             .child(header_element)
             .shadow_xs()
             .into_any_element();
@@ -2846,19 +2869,6 @@ impl ThreadsNavigator {
             .into_any_element()
     }
 
-    fn render_archive_toggle_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        IconButton::new("archive", IconName::Archive)
-            .icon_size(IconSize::Small)
-            .toggle_state(matches!(self.view, SidebarView::Archive(..)))
-            .selected_style(ButtonStyle::Tinted(TintColor::Accent))
-            .tooltip(move |_, cx| {
-                Tooltip::for_action("Toggle Archived Threads", &ToggleArchive, cx)
-            })
-            .on_click(cx.listener(|this, _, window, cx| {
-                this.toggle_archive(&ToggleArchive, window, cx);
-            }))
-    }
-
     fn render_view_more(
         &self,
         ix: usize,
@@ -3086,36 +3096,36 @@ impl ThreadsNavigator {
             .pr_1p5()
             .gap_1()
             .when(!no_open_projects, |this| {
-                this.child(
-                    div().ml_1().child(
-                        Icon::new(IconName::MagnifyingGlass)
-                            .size(IconSize::Small)
-                            .color(Color::Muted),
-                    ),
-                )
-                .child(self.render_filter_input(cx))
-                .child(
-                    h_flex()
-                        .gap_1()
-                        .when(
-                            self.selection.is_some()
-                                && !self.filter_editor.focus_handle(cx).is_focused(window),
-                            |this| this.child(KeyBinding::for_action(&FocusSidebarFilter, cx)),
-                        )
-                        .when(has_query, |this| {
-                            this.child(
-                                IconButton::new("clear_filter", IconName::Close)
-                                    .icon_size(IconSize::Small)
-                                    .tooltip(Tooltip::text("Clear Search"))
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.reset_filter_editor_text(window, cx);
-                                        this.update_entries(cx);
-                                    })),
+                this.border_b_1()
+                    .border_color(cx.theme().colors().border)
+                    .child(
+                        div().ml_1().child(
+                            Icon::new(IconName::MagnifyingGlass)
+                                .size(IconSize::Small)
+                                .color(Color::Muted),
+                        ),
+                    )
+                    .child(self.render_filter_input(cx))
+                    .child(
+                        h_flex()
+                            .gap_1()
+                            .when(
+                                self.selection.is_some()
+                                    && !self.filter_editor.focus_handle(cx).is_focused(window),
+                                |this| this.child(KeyBinding::for_action(&FocusSidebarFilter, cx)),
                             )
-                        })
-                        .child(self.render_archive_toggle_button(cx))
-                        .child(self.render_recent_projects_button(cx)),
-                )
+                            .when(has_query, |this| {
+                                this.child(
+                                    IconButton::new("clear_filter", IconName::Close)
+                                        .icon_size(IconSize::Small)
+                                        .tooltip(Tooltip::text("Clear Search"))
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.reset_filter_editor_text(window, cx);
+                                            this.update_entries(cx);
+                                        })),
+                                )
+                            }),
+                    )
             })
     }
 
@@ -3229,6 +3239,10 @@ impl Render for ThreadsNavigator {
         let sticky_header = self.render_sticky_header(window, cx);
 
         let color = cx.theme().colors();
+        let bg = color
+            .title_bar_background
+            .blend(color.panel_background.opacity(0.32));
+
         let no_open_projects = !self.contents.has_open_projects;
         let no_search_results = self.contents.entries.is_empty();
         #[cfg(target_os = "macos")]
@@ -3264,7 +3278,7 @@ impl Render for ThreadsNavigator {
             .h_full()
             .when(hosted_in_native_sidebar, |this| this.w_full())
             .when(!hosted_in_native_sidebar, |this| this.w(self.width))
-            .bg(color.panel_background)
+            .bg(bg)
             .when(!hosted_in_native_sidebar, |this| {
                 this.border_r_1().border_color(color.border)
             })
@@ -3298,6 +3312,26 @@ impl Render for ThreadsNavigator {
                     }),
                 SidebarView::Archive(archive_view) => this.child(archive_view.clone()),
             })
+            .child(
+                h_flex()
+                    .p_1()
+                    .gap_1()
+                    .justify_end()
+                    .border_t_1()
+                    .border_color(cx.theme().colors().border)
+                    .child(
+                        IconButton::new("archive", IconName::Archive)
+                            .icon_size(IconSize::Small)
+                            .toggle_state(matches!(self.view, SidebarView::Archive(..)))
+                            .tooltip(move |_, cx| {
+                                Tooltip::for_action("Toggle Archived Threads", &ToggleArchive, cx)
+                            })
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.toggle_archive(&ToggleArchive, window, cx);
+                            })),
+                    )
+                    .child(self.render_recent_projects_button(cx)),
+            )
     }
 }
 
