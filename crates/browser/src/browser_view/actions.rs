@@ -226,8 +226,7 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.download_center_visible = !self.download_center_visible;
-        cx.notify();
+        self.toggle_download_center(cx);
     }
 
     pub fn open_download_with_system(&mut self, id: u32, cx: &mut Context<Self>) {

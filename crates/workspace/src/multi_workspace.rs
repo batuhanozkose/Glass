@@ -62,6 +62,8 @@ pub trait Sidebar: Focusable + Render + Sized {
     fn is_threads_list_view_active(&self) -> bool {
         true
     }
+    fn show_project_files(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
+    fn show_project_threads(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
     /// Makes focus reset bac to the search editor upon toggling the sidebar from outside
     fn prepare_for_focus(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
 }
@@ -72,6 +74,8 @@ pub trait SidebarHandle: 'static + Send + Sync {
     fn focus_handle(&self, cx: &App) -> FocusHandle;
     fn focus(&self, window: &mut Window, cx: &mut App);
     fn prepare_for_focus(&self, window: &mut Window, cx: &mut App);
+    fn show_project_files(&self, window: &mut Window, cx: &mut App);
+    fn show_project_threads(&self, window: &mut Window, cx: &mut App);
     fn has_notifications(&self, cx: &App) -> bool;
     fn to_any(&self) -> AnyView;
     fn entity_id(&self) -> EntityId;
@@ -108,6 +112,14 @@ impl<T: Sidebar> SidebarHandle for Entity<T> {
 
     fn prepare_for_focus(&self, window: &mut Window, cx: &mut App) {
         self.update(cx, |this, cx| this.prepare_for_focus(window, cx));
+    }
+
+    fn show_project_files(&self, window: &mut Window, cx: &mut App) {
+        self.update(cx, |this, cx| this.show_project_files(window, cx));
+    }
+
+    fn show_project_threads(&self, window: &mut Window, cx: &mut App) {
+        self.update(cx, |this, cx| this.show_project_threads(window, cx));
     }
 
     fn has_notifications(&self, cx: &App) -> bool {

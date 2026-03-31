@@ -1,62 +1,83 @@
-use crate::history::BrowserHistory;
+use crate::BrowserView;
 use crate::omnibox::{Omnibox, OmniboxEvent};
 use crate::tab::{BrowserTab, TabEvent};
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Subscription, Window,
-    native_icon_button,
+    App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, Render, Subscription,
+    WeakEntity, Window, native_icon_button,
 };
 use ui::{h_flex, prelude::*};
+use workspace::{
+    ItemHandle, ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView, WorkspaceItemKind,
+};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BrowserToolbarStyle {
+    TitleBar,
+    Pane,
+}
 
 pub struct BrowserToolbar {
-    tab: Entity<BrowserTab>,
+    browser_view: WeakEntity<BrowserView>,
+    tab: Option<Entity<BrowserTab>>,
     omnibox: Entity<Omnibox>,
-    _subscriptions: Vec<Subscription>,
+    style: BrowserToolbarStyle,
+    _browser_view_subscription: Subscription,
+    tab_subscription: Option<Subscription>,
+    _omnibox_subscription: Subscription,
 }
 
 impl BrowserToolbar {
     pub fn new(
-        tab: Entity<BrowserTab>,
-        history: Entity<BrowserHistory>,
-        browser_focus_handle: FocusHandle,
+        browser_view: WeakEntity<BrowserView>,
+        style: BrowserToolbarStyle,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let browser_view_entity = browser_view
+            .upgrade()
+            .expect("browser toolbar should be created with a live browser view");
+        let (history, browser_focus_handle) =
+            browser_view_entity.read_with(cx, |browser_view, cx| {
+                (
+                    browser_view.history().clone(),
+                    browser_view.focus_handle(cx),
+                )
+            });
         let omnibox = cx.new(|cx| Omnibox::new(history, browser_focus_handle, window, cx));
 
-        let tab_subscription = cx.subscribe_in(&tab, window, {
-            let omnibox = omnibox.clone();
-            move |_this, _tab, event, window, cx| match event {
-                TabEvent::AddressChanged(url) => {
-                    let url = url.clone();
-                    omnibox.update(cx, |omnibox, cx| {
-                        omnibox.set_url(&url, window, cx);
-                    });
-                }
-                TabEvent::LoadingStateChanged | TabEvent::TitleChanged(_) => {
-                    cx.notify();
-                }
-                _ => {}
-            }
-        });
-
         let omnibox_subscription = cx.subscribe(&omnibox, {
-            let tab = tab.clone();
             move |_this, _omnibox, event: &OmniboxEvent, cx| match event {
                 OmniboxEvent::Navigate(url) => {
                     let url = url.clone();
-                    tab.update(cx, |tab, cx| {
-                        tab.navigate(&url, cx);
-                        tab.set_focus(true);
-                    });
+                    if let Some(tab) = _this.tab.clone() {
+                        tab.update(cx, |tab, cx| {
+                            tab.navigate(&url, cx);
+                            tab.set_focus(true);
+                        });
+                    }
                 }
             }
         });
 
-        Self {
-            tab,
+        let browser_view_subscription = cx.observe_in(
+            &browser_view_entity,
+            window,
+            |this, browser_view, window, cx| {
+                this.sync_active_tab(&browser_view, window, cx);
+            },
+        );
+
+        let mut this = Self {
+            browser_view,
+            tab: None,
             omnibox,
-            _subscriptions: vec![tab_subscription, omnibox_subscription],
-        }
+            style,
+            _browser_view_subscription: browser_view_subscription,
+            tab_subscription: None,
+            _omnibox_subscription: omnibox_subscription,
+        };
+        this.sync_active_tab(&browser_view_entity, window, cx);
+        this
     }
 
     pub fn set_active_tab(
@@ -65,46 +86,7 @@ impl BrowserToolbar {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.tab = tab;
-        self._subscriptions.clear();
-
-        let tab_subscription = cx.subscribe_in(&self.tab, window, {
-            let omnibox = self.omnibox.clone();
-            move |_this, _tab, event, window, cx| match event {
-                TabEvent::AddressChanged(url) => {
-                    let url = url.clone();
-                    omnibox.update(cx, |omnibox, cx| {
-                        omnibox.set_url(&url, window, cx);
-                    });
-                }
-                TabEvent::LoadingStateChanged | TabEvent::TitleChanged(_) => {
-                    cx.notify();
-                }
-                _ => {}
-            }
-        });
-
-        let omnibox_subscription = cx.subscribe(&self.omnibox, {
-            let tab = self.tab.clone();
-            move |_this, _omnibox, event: &OmniboxEvent, cx| match event {
-                OmniboxEvent::Navigate(url) => {
-                    let url = url.clone();
-                    tab.update(cx, |tab, cx| {
-                        tab.navigate(&url, cx);
-                        tab.set_focus(true);
-                    });
-                }
-            }
-        });
-
-        self._subscriptions
-            .extend([tab_subscription, omnibox_subscription]);
-
-        let url = self.tab.read(cx).url().to_string();
-        self.omnibox.update(cx, |omnibox, cx| {
-            omnibox.set_url(&url, window, cx);
-        });
-        cx.notify();
+        self.bind_active_tab(Some(tab), window, cx);
     }
 
     pub fn focus_omnibox(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -113,30 +95,105 @@ impl BrowserToolbar {
         });
     }
 
+    fn sync_active_tab(
+        &mut self,
+        browser_view: &Entity<BrowserView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let active_tab = browser_view.read(cx).active_tab().cloned();
+        let current_tab_id = self.tab.as_ref().map(Entity::entity_id);
+        let next_tab_id = active_tab.as_ref().map(Entity::entity_id);
+        if current_tab_id == next_tab_id {
+            cx.notify();
+            return;
+        }
+
+        self.bind_active_tab(active_tab, window, cx);
+    }
+
+    fn bind_active_tab(
+        &mut self,
+        tab: Option<Entity<BrowserTab>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.tab_subscription = None;
+        self.tab = tab;
+
+        if let Some(tab) = self.tab.clone() {
+            self.tab_subscription = Some(cx.subscribe_in(&tab, window, {
+                let omnibox = self.omnibox.clone();
+                move |_this, _tab, event, window, cx| match event {
+                    TabEvent::AddressChanged(url) => {
+                        let url = url.clone();
+                        omnibox.update(cx, |omnibox, cx| {
+                            omnibox.set_url(&url, window, cx);
+                        });
+                    }
+                    TabEvent::LoadingStateChanged | TabEvent::TitleChanged(_) => {
+                        cx.notify();
+                    }
+                    _ => {}
+                }
+            }));
+
+            let url = tab.read(cx).url().to_string();
+            self.omnibox.update(cx, |omnibox, cx| {
+                omnibox.set_url(&url, window, cx);
+            });
+        }
+
+        cx.notify();
+    }
+
+    fn toggle_download_center(
+        &mut self,
+        _: &gpui::ClickEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(browser_view) = self.browser_view.upgrade() {
+            browser_view.update(cx, |browser_view, cx| {
+                browser_view.toggle_download_center(cx);
+            });
+        }
+    }
+
     fn go_back(&mut self, _: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        self.tab.update(cx, |tab, _| {
-            tab.go_back();
-        });
+        if let Some(tab) = self.tab.clone() {
+            tab.update(cx, |tab, _| {
+                tab.go_back();
+            });
+        }
     }
 
     fn go_forward(&mut self, _: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        self.tab.update(cx, |tab, _| {
-            tab.go_forward();
-        });
+        if let Some(tab) = self.tab.clone() {
+            tab.update(cx, |tab, _| {
+                tab.go_forward();
+            });
+        }
     }
 
     fn reload(&mut self, _: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        self.tab.update(cx, |tab, _| {
-            tab.reload();
-        });
+        if let Some(tab) = self.tab.clone() {
+            tab.update(cx, |tab, _| {
+                tab.reload();
+            });
+        }
     }
 
     fn stop(&mut self, _: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        self.tab.update(cx, |tab, _| {
-            tab.stop();
-        });
+        if let Some(tab) = self.tab.clone() {
+            tab.update(cx, |tab, _| {
+                tab.stop();
+            });
+        }
     }
 }
+
+impl EventEmitter<ToolbarItemEvent> for BrowserToolbar {}
 
 impl Focusable for BrowserToolbar {
     fn focus_handle(&self, cx: &App) -> FocusHandle {
@@ -144,22 +201,58 @@ impl Focusable for BrowserToolbar {
     }
 }
 
+impl ToolbarItemView for BrowserToolbar {
+    fn set_active_pane_item(
+        &mut self,
+        active_pane_item: Option<&dyn ItemHandle>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> ToolbarItemLocation {
+        let is_browser_item = active_pane_item
+            .is_some_and(|item| item.workspace_item_kind(cx) == Some(WorkspaceItemKind::Browser));
+
+        if is_browser_item {
+            ToolbarItemLocation::PrimaryLeft
+        } else {
+            ToolbarItemLocation::Hidden
+        }
+    }
+}
+
 impl Render for BrowserToolbar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let is_new_tab_page = self.tab.read(cx).is_new_tab_page();
-        let can_go_back = self.tab.read(cx).can_go_back();
-        let can_go_forward = self.tab.read(cx).can_go_forward();
-        let is_loading = self.tab.read(cx).is_loading();
+        let is_new_tab_page = self
+            .tab
+            .as_ref()
+            .is_some_and(|tab| tab.read(cx).is_new_tab_page());
+        let can_go_back = self
+            .tab
+            .as_ref()
+            .is_some_and(|tab| tab.read(cx).can_go_back());
+        let can_go_forward = self
+            .tab
+            .as_ref()
+            .is_some_and(|tab| tab.read(cx).can_go_forward());
+        let is_loading = self
+            .tab
+            .as_ref()
+            .is_some_and(|tab| tab.read(cx).is_loading());
+        let shows_downloads_button = self.style == BrowserToolbarStyle::Pane;
+        let show_navigation = self.style == BrowserToolbarStyle::Pane || !is_new_tab_page;
 
         h_flex()
             .w_full()
-            .max_w(px(680.))
-            .h_full()
+            .min_w_0()
+            .when(self.style == BrowserToolbarStyle::TitleBar, |this| {
+                this.max_w(px(680.)).h_full().px_2()
+            })
+            .when(self.style == BrowserToolbarStyle::Pane, |this| {
+                this.min_h_8()
+            })
             .items_center()
-            .px_2()
             .gap_1()
             .key_context("BrowserToolbar")
-            .when(!is_new_tab_page, |this| {
+            .when(show_navigation, |this| {
                 this.child(
                     native_icon_button("back", "chevron.left")
                         .disabled(!can_go_back)
@@ -182,6 +275,13 @@ impl Render for BrowserToolbar {
                         .tooltip("Reload")
                 })
                 .child(self.omnibox.clone())
+                .when(shows_downloads_button, |this| {
+                    this.child(
+                        native_icon_button("downloads", "arrow.down.circle")
+                            .on_click(cx.listener(Self::toggle_download_center))
+                            .tooltip("Downloads"),
+                    )
+                })
             })
     }
 }

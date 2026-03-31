@@ -14,9 +14,9 @@ use agent_ui::{
 use chrono::Utc;
 use editor::Editor;
 use gpui::{
-    Action as _, AnyElement, AnyView, App, ClickEvent, Context, DismissEvent, Entity, FocusHandle,
-    Focusable, ListState, Pixels, Render, SharedString, WeakEntity, Window, WindowHandle, list,
-    prelude::*, px,
+    Action as _, AnyElement, AnyView, App, Context, DismissEvent, Entity, FocusHandle, Focusable,
+    ListState, Pixels, Render, SharedString, WeakEntity, Window, WindowHandle, list, prelude::*,
+    px,
 };
 use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
@@ -364,6 +364,14 @@ impl ProjectSidebarSurface {
         }
     }
 
+    fn show_files(&mut self, cx: &mut Context<Self>) {
+        self.set_active_tab(ProjectSidebarTab::Files, cx);
+    }
+
+    fn show_threads(&mut self, cx: &mut Context<Self>) {
+        self.set_active_tab(ProjectSidebarTab::Threads, cx);
+    }
+
     fn active_workspace(&self, cx: &App) -> Option<Entity<Workspace>> {
         let multi_workspace = self.multi_workspace.upgrade()?;
         Some(multi_workspace.read(cx).workspace().clone())
@@ -392,51 +400,6 @@ impl ProjectSidebarSurface {
 
     fn threads_view(&self, _cx: &App) -> Option<AnyView> {
         Some(self.threads_navigator.clone().into())
-    }
-
-    fn render_tab_button(
-        &self,
-        id: impl Into<SharedString>,
-        label: impl Into<SharedString>,
-        selected: bool,
-        on_click: impl Fn(&mut Self, &ClickEvent, &mut Window, &mut Context<Self>) + 'static,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let theme = cx.theme();
-        let selected_background = theme.colors().text.opacity(0.14);
-        let hover_background = theme.colors().text.opacity(0.09);
-        let label = label.into();
-
-        div()
-            .id(id.into())
-            .relative()
-            .flex()
-            .items_center()
-            .justify_center()
-            .flex_1()
-            .h(px(28.))
-            .px_2()
-            .rounded(theme.component_radius().tab.unwrap_or(px(8.0)))
-            .when(selected, |this| this.bg(selected_background))
-            .when(!selected, |this| {
-                this.hover(move |style| style.bg(hover_background))
-            })
-            .cursor_pointer()
-            .child(
-                div()
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .text_ellipsis()
-                    .child(Label::new(label).size(LabelSize::Small).color(if selected {
-                        Color::Default
-                    } else {
-                        Color::Muted
-                    })),
-            )
-            .on_click(cx.listener(move |this, event, window, cx| {
-                on_click(this, event, window, cx);
-                this.focus_handle.focus(window, cx);
-            }))
     }
 }
 
@@ -470,7 +433,15 @@ impl WorkspaceSidebar for ProjectSidebarSurface {
     }
 
     fn prepare_for_focus(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
-        self.set_active_tab(ProjectSidebarTab::Threads, cx);
+        self.show_files(cx);
+    }
+
+    fn show_project_files(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        self.show_files(cx);
+    }
+
+    fn show_project_threads(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        self.show_threads(cx);
     }
 }
 
@@ -487,37 +458,6 @@ impl Render for ProjectSidebarSurface {
             .size_full()
             .overflow_hidden()
             .bg(cx.theme().colors().panel_background)
-            .child(
-                h_flex()
-                    .px_1p5()
-                    .pt_1p5()
-                    .pb_1()
-                    .border_b_1()
-                    .border_color(cx.theme().colors().border)
-                    .child(
-                        h_flex()
-                            .w_full()
-                            .gap_1()
-                            .child(self.render_tab_button(
-                                "project-sidebar-files-tab",
-                                "Files",
-                                self.active_tab == ProjectSidebarTab::Files,
-                                |this, _, _, cx| {
-                                    this.set_active_tab(ProjectSidebarTab::Files, cx);
-                                },
-                                cx,
-                            ))
-                            .child(self.render_tab_button(
-                                "project-sidebar-threads-tab",
-                                "Threads",
-                                self.active_tab == ProjectSidebarTab::Threads,
-                                |this, _, _, cx| {
-                                    this.set_active_tab(ProjectSidebarTab::Threads, cx);
-                                },
-                                cx,
-                            )),
-                    ),
-            )
             .child(div().flex_1().size_full().overflow_hidden().child(content))
     }
 }
@@ -3639,6 +3579,11 @@ mod tests {
             visible_entries_as_strings(&sidebar, cx),
             vec!["v [my-project]", "  [+ New Thread]"]
         );
+    }
+
+    #[test]
+    fn test_project_sidebar_tab_defaults_to_files() {
+        assert_eq!(ProjectSidebarTab::default(), ProjectSidebarTab::Files);
     }
 
     #[gpui::test]

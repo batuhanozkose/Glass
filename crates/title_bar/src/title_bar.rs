@@ -51,7 +51,7 @@ use util::ResultExt;
 #[allow(unused_imports)]
 use workspace::{
     CloseProjectNavigation, FocusProjectNavigation, MultiWorkspace, Pane, TitleBarItemViewHandle,
-    ToggleProjectNavigation, ToggleWorktreeSecurity, Workspace, WorkspaceId, WorkspaceItemKind,
+    ToggleProjectNavigation, ToggleWorktreeSecurity, Workspace, WorkspaceId,
     notifications::NotifyResultExt,
 };
 use workspace_chrome::ModeControl;
@@ -1102,11 +1102,9 @@ impl TitleBar {
             return false;
         };
 
-        let workspace = workspace.read(cx);
-        workspace.active_mode_id() == ModeId::BROWSER
-            || workspace.active_item(cx).is_some_and(|item| {
-                item.workspace_item_kind(cx) == Some(WorkspaceItemKind::Browser)
-            })
+        // Embedded browser panes render their controls in the pane toolbar.
+        // The window title bar only adopts browser chrome in Browser mode itself.
+        workspace.read(cx).active_mode_id() == ModeId::BROWSER
     }
 
     fn render_editor_nav_buttons(&self, cx: &mut Context<Self>) -> impl IntoElement {

@@ -20,7 +20,6 @@ mod load_handler;
 #[cfg(target_os = "macos")]
 mod macos_protocol;
 mod new_tab_page;
-#[cfg(not(target_os = "macos"))]
 mod omnibox;
 mod page_chrome;
 mod permission_handler;
@@ -29,7 +28,6 @@ mod request_handler;
 mod session;
 mod tab;
 mod text_input;
-#[cfg(not(target_os = "macos"))]
 mod toolbar;
 
 pub use browser_view::{
@@ -48,6 +46,7 @@ pub fn handle_cef_subprocess() -> anyhow::Result<()> {
 
 use gpui::{AnyView, App, AppContext as _, Entity, Focusable, Window};
 use std::sync::Arc;
+use toolbar::{BrowserToolbar, BrowserToolbarStyle};
 use util::ResultExt;
 use workspace::{register_browser_mode_url_opener, register_embedded_browser_item_factory};
 use workspace_modes::{ModeId, ModeNavigationHost, ModeViewRegistry, RegisteredModeView};
@@ -115,6 +114,37 @@ fn open_browser_mode_url(view: &AnyView, url: &str, _window: &mut Window, cx: &m
     }
 }
 
+fn attach_browser_toolbar_to_pane(
+    workspace: &workspace::Workspace,
+    pane: &Entity<workspace::Pane>,
+    window: &mut Window,
+    cx: &mut gpui::Context<workspace::Workspace>,
+) {
+    let toolbar = pane.read(cx).toolbar().clone();
+    if toolbar.read(cx).item_of_type::<BrowserToolbar>().is_some() {
+        return;
+    }
+
+    let Some(browser_view) = workspace
+        .get_mode_view(ModeId::BROWSER)
+        .and_then(|view| view.downcast::<BrowserView>().ok())
+    else {
+        return;
+    };
+
+    toolbar.update(cx, |toolbar, cx| {
+        let browser_toolbar = cx.new(|cx| {
+            BrowserToolbar::new(
+                browser_view.downgrade(),
+                BrowserToolbarStyle::Pane,
+                window,
+                cx,
+            )
+        });
+        toolbar.add_item(browser_toolbar, window, cx);
+    });
+}
+
 pub fn init(cx: &mut App) {
     match CefInstance::initialize(cx) {
         Ok(_) => {
@@ -153,13 +183,31 @@ pub fn init(cx: &mut App) {
 
     cx.observe_new(
         |workspace: &mut workspace::Workspace,
-         _window: Option<&mut Window>,
-         _cx: &mut gpui::Context<workspace::Workspace>| {
+         window: Option<&mut Window>,
+         cx: &mut gpui::Context<workspace::Workspace>| {
             workspace.register_action(
                 |workspace, _: &browser_view::OpenBrowserPane, window, cx| {
                     workspace.show_browser_surface(true, window, cx).log_err();
                 },
             );
+
+            let Some(window) = window else {
+                return;
+            };
+
+            for pane in workspace.panes() {
+                attach_browser_toolbar_to_pane(workspace, pane, window, cx);
+            }
+
+            let workspace_handle = cx.entity();
+            cx.subscribe_in(&workspace_handle, window, {
+                move |workspace, _, event, window, cx| {
+                    if let workspace::Event::PaneAdded(pane) = event {
+                        attach_browser_toolbar_to_pane(workspace, pane, window, cx);
+                    }
+                }
+            })
+            .detach();
         },
     )
     .detach();

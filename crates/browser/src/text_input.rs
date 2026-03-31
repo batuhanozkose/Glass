@@ -63,10 +63,7 @@ pub(crate) fn key_down_dispatch(
     text_input_editable: bool,
     text_input_composing: bool,
 ) -> BrowserKeyDispatch {
-    if keystroke.modifiers.platform
-        || keystroke.modifiers.control
-        || (keystroke.modifiers.function && keystroke.key_char.is_some())
-    {
+    if keystroke.modifiers.platform || keystroke.modifiers.control {
         BrowserKeyDispatch::App
     } else if should_use_text_input(keystroke, text_input_editable, text_input_composing) {
         BrowserKeyDispatch::TextInput
@@ -80,10 +77,7 @@ pub(crate) fn key_up_dispatch(
     text_input_editable: bool,
     text_input_composing: bool,
 ) -> BrowserKeyDispatch {
-    if keystroke.modifiers.platform
-        || keystroke.modifiers.control
-        || (keystroke.modifiers.function && keystroke.key_char.is_some())
-    {
+    if keystroke.modifiers.platform || keystroke.modifiers.control {
         BrowserKeyDispatch::App
     } else if should_use_text_input(keystroke, text_input_editable, text_input_composing) {
         BrowserKeyDispatch::TextInput
@@ -211,7 +205,28 @@ mod tests {
     }
 
     #[test]
-    fn function_printable_shortcuts_stay_in_app_dispatch() {
+    fn function_printable_keys_use_browser_route_when_page_is_not_editable() {
+        let keystroke = keystroke(
+            "e",
+            Some("e"),
+            Modifiers {
+                function: true,
+                ..Modifiers::default()
+            },
+        );
+
+        assert_eq!(
+            key_down_dispatch(&keystroke, false, false),
+            BrowserKeyDispatch::Browser
+        );
+        assert_eq!(
+            key_up_dispatch(&keystroke, false, false),
+            BrowserKeyDispatch::Browser
+        );
+    }
+
+    #[test]
+    fn function_printable_keys_use_text_input_when_page_is_editable() {
         let keystroke = keystroke(
             "e",
             Some("e"),
@@ -223,11 +238,11 @@ mod tests {
 
         assert_eq!(
             key_down_dispatch(&keystroke, true, false),
-            BrowserKeyDispatch::App
+            BrowserKeyDispatch::TextInput
         );
         assert_eq!(
             key_up_dispatch(&keystroke, true, false),
-            BrowserKeyDispatch::App
+            BrowserKeyDispatch::TextInput
         );
     }
 

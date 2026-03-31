@@ -22,7 +22,7 @@ use crate::session::{SerializedDownloadItem, SerializedTab};
 use crate::tab::{BrowserTab, TabEvent};
 use crate::text_input::BrowserTextInputState;
 #[cfg(not(target_os = "macos"))]
-use crate::toolbar::BrowserToolbar;
+use crate::toolbar::{BrowserToolbar, BrowserToolbarStyle};
 use editor::Editor;
 use gpui::px;
 use gpui::{
@@ -997,13 +997,18 @@ impl BrowserView {
         self.is_incognito_window
     }
 
+    pub(crate) fn toggle_download_center(&mut self, cx: &mut Context<Self>) {
+        self.download_center_visible = !self.download_center_visible;
+        cx.notify();
+    }
+
     #[cfg(not(target_os = "macos"))]
     fn create_toolbar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(tab) = self.active_tab().cloned() {
-            let history = self.history.clone();
-            let browser_focus_handle = self.focus_handle.clone();
-            let toolbar =
-                cx.new(|cx| BrowserToolbar::new(tab, history, browser_focus_handle, window, cx));
+        if self.active_tab().is_some() {
+            let browser_view = cx.entity().downgrade();
+            let toolbar = cx.new(|cx| {
+                BrowserToolbar::new(browser_view, BrowserToolbarStyle::TitleBar, window, cx)
+            });
             self.toolbar = Some(toolbar.clone());
 
             ModeViewRegistry::global_mut(cx)

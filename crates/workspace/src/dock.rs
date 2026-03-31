@@ -39,6 +39,38 @@ pub struct DockButtonBar {
     _subscriptions: Vec<Subscription>,
 }
 
+fn show_project_sidebar_tab(
+    workspace: &WeakEntity<Workspace>,
+    multi_workspace: Option<&Entity<MultiWorkspace>>,
+    show_threads: bool,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    if let Some(multi_workspace) = multi_workspace {
+        multi_workspace.update(cx, |multi_workspace, cx| {
+            {
+                if let Some(sidebar) = multi_workspace.sidebar() {
+                    if show_threads {
+                        sidebar.show_project_threads(window, cx);
+                    } else {
+                        sidebar.show_project_files(window, cx);
+                    }
+                }
+            }
+
+            if multi_workspace.sidebar_open() {
+                multi_workspace.close_sidebar(window, cx);
+            }
+        });
+    }
+
+    if let Some(workspace) = workspace.upgrade() {
+        workspace.update(cx, |workspace, cx| {
+            workspace.select_sidebar_section(crate::WorkspaceSidebarSection::Project, window, cx);
+        });
+    }
+}
+
 impl DockButtonBar {
     pub fn new(workspace: WeakEntity<Workspace>, cx: &mut App) -> Entity<Self> {
         cx.new(|_cx| Self {
@@ -167,34 +199,54 @@ impl Render for DockButtonBar {
         mode_rows.push(
             SidebarRow::new("sidebar-project-panel", "Project", IconName::FileTree)
                 .selected(active_sidebar_section == crate::WorkspaceSidebarSection::Project)
-                .when_some(project_panel_badge, |row, badge| {
-                    row.end_slot(
-                        Label::new(badge)
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted),
-                    )
-                })
+                .end_slot(
+                    h_flex()
+                        .items_center()
+                        .gap_1()
+                        .child(
+                            Button::new("sidebar-project-threads", "Threads")
+                                .style(ButtonStyle::Transparent)
+                                .size(ButtonSize::None)
+                                .label_size(LabelSize::Small)
+                                .start_icon(
+                                    Icon::new(IconName::AiZed)
+                                        .size(IconSize::Small)
+                                        .color(Color::Muted),
+                                )
+                                .on_click({
+                                    let workspace = self.workspace.clone();
+                                    let multi_workspace = multi_workspace.clone();
+                                    move |_, window: &mut Window, cx: &mut App| {
+                                        cx.stop_propagation();
+                                        show_project_sidebar_tab(
+                                            &workspace,
+                                            multi_workspace.as_ref(),
+                                            true,
+                                            window,
+                                            cx,
+                                        );
+                                    }
+                                }),
+                        )
+                        .when_some(project_panel_badge, |row, badge| {
+                            row.child(
+                                Label::new(badge)
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Muted),
+                            )
+                        }),
+                )
                 .on_click({
                     let workspace = self.workspace.clone();
                     let multi_workspace = multi_workspace.clone();
                     move |_, window, cx| {
-                        if let Some(multi_workspace) = multi_workspace.as_ref()
-                            && multi_workspace.read(cx).sidebar_open()
-                        {
-                            multi_workspace.update(cx, |multi_workspace, cx| {
-                                multi_workspace.close_sidebar(window, cx);
-                            });
-                        }
-
-                        if let Some(workspace) = workspace.upgrade() {
-                            workspace.update(cx, |workspace, cx| {
-                                workspace.select_sidebar_section(
-                                    crate::WorkspaceSidebarSection::Project,
-                                    window,
-                                    cx,
-                                );
-                            });
-                        }
+                        show_project_sidebar_tab(
+                            &workspace,
+                            multi_workspace.as_ref(),
+                            false,
+                            window,
+                            cx,
+                        );
                     }
                 })
                 .into_any_element(),
