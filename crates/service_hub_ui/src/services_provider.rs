@@ -7,6 +7,7 @@ use ui::{ActiveTheme, AnyElement, Color, Label, LabelCommon, LabelSize, prelude:
 use crate::{
     app_store_connect_provider::build_app_store_connect_workspace_adapter,
     service_auth::{ServiceAuthUiAction, ServiceAuthUiModel},
+    service_workflow::{ServiceWorkflowUiAction, ServiceWorkflowUiModel},
     services_page::ServicesPage,
 };
 
@@ -15,6 +16,8 @@ pub(crate) struct ServicesPageState {
     pub provider_id: String,
     pub navigation_id: String,
     pub selected_resource_id: Option<String>,
+    pub selected_target_id: Option<String>,
+    pub selected_workflow_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -56,6 +59,17 @@ pub(crate) trait ServiceWorkspaceAdapter {
         window: &mut Window,
         cx: &mut Context<ServicesPage>,
     ) -> AnyElement;
+    fn workflow_ui_model(&self, _state: &ServicesPageState) -> Option<ServiceWorkflowUiModel> {
+        None
+    }
+    fn handle_workflow_ui_action(
+        &mut self,
+        _state: &mut ServicesPageState,
+        _action: ServiceWorkflowUiAction,
+        _window: &mut Window,
+        _cx: &mut Context<ServicesPage>,
+    ) {
+    }
     fn auth_ui_model(&self) -> Option<ServiceAuthUiModel> {
         None
     }
@@ -109,6 +123,7 @@ pub(crate) fn normalize_services_page_state(
     providers: &[ServiceProviderDescriptor],
     initial_state: Option<ServicesPageState>,
 ) -> ServicesPageState {
+    let initial_state_ref = initial_state.as_ref();
     let provider = initial_state
         .as_ref()
         .and_then(|state| {
@@ -134,7 +149,11 @@ pub(crate) fn normalize_services_page_state(
     ServicesPageState {
         provider_id: provider.id.clone(),
         navigation_id,
-        selected_resource_id: initial_state.and_then(|state| state.selected_resource_id),
+        selected_resource_id: initial_state_ref
+            .and_then(|state| state.selected_resource_id.clone()),
+        selected_target_id: initial_state_ref.and_then(|state| state.selected_target_id.clone()),
+        selected_workflow_id: initial_state_ref
+            .and_then(|state| state.selected_workflow_id.clone()),
     }
 }
 
@@ -188,6 +207,8 @@ impl ServiceWorkspaceAdapter for UnavailableServiceWorkspacePane {
             state.navigation_id = self.descriptor.shell.default_navigation_item_id.clone();
         }
         state.selected_resource_id = None;
+        state.selected_target_id = None;
+        state.selected_workflow_id = None;
     }
 
     fn refresh(
@@ -250,9 +271,7 @@ impl ServiceWorkspaceAdapter for UnavailableServiceWorkspacePane {
 
 #[cfg(test)]
 mod tests {
-    use service_hub::{
-        ServiceAuthKind, ServiceCapabilitySet, ServiceProviderDescriptor, ServiceShellDescriptor,
-    };
+    use service_hub::{ServiceAuthKind, ServiceProviderDescriptor, ServiceShellDescriptor};
 
     use super::{ServicesPageState, normalize_services_page_state};
 
@@ -275,7 +294,8 @@ mod tests {
             },
             auth_kind: ServiceAuthKind::None,
             auth: None,
-            capabilities: ServiceCapabilitySet::default(),
+            targets: Vec::new(),
+            workflows: Vec::new(),
         }
     }
 
@@ -292,12 +312,16 @@ mod tests {
                 provider_id: "missing".to_string(),
                 navigation_id: "missing".to_string(),
                 selected_resource_id: Some("resource-1".to_string()),
+                selected_target_id: Some("testflight".to_string()),
+                selected_workflow_id: Some("status".to_string()),
             }),
         );
 
         assert_eq!(state.provider_id, "app-store-connect");
         assert_eq!(state.navigation_id, "overview");
         assert_eq!(state.selected_resource_id.as_deref(), Some("resource-1"));
+        assert_eq!(state.selected_target_id.as_deref(), Some("testflight"));
+        assert_eq!(state.selected_workflow_id.as_deref(), Some("status"));
     }
 
     #[test]
@@ -310,6 +334,8 @@ mod tests {
                 provider_id: "app-store-connect".to_string(),
                 navigation_id: "releases".to_string(),
                 selected_resource_id: None,
+                selected_target_id: None,
+                selected_workflow_id: None,
             }),
         );
 

@@ -5,26 +5,6 @@ use std::{
 
 use thiserror::Error;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ServiceCapabilitySet {
-    pub capabilities: BTreeSet<ServiceCapability>,
-}
-
-impl ServiceCapabilitySet {
-    pub fn supports(&self, capability: ServiceCapability) -> bool {
-        self.capabilities.contains(&capability)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ServiceCapability {
-    Authenticate,
-    ListResources,
-    UploadArtifact,
-    ManageMetadata,
-    PublishRelease,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ServiceProviderDescriptor {
     pub id: String,
@@ -32,7 +12,8 @@ pub struct ServiceProviderDescriptor {
     pub shell: ServiceShellDescriptor,
     pub auth_kind: ServiceAuthKind,
     pub auth: Option<ServiceAuthConfiguration>,
-    pub capabilities: ServiceCapabilitySet,
+    pub targets: Vec<ServiceTargetDescriptor>,
+    pub workflows: Vec<ServiceWorkflowDescriptor>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -52,6 +33,41 @@ pub struct ServiceResourceKindDescriptor {
 pub struct ServiceNavigationItemDescriptor {
     pub id: String,
     pub label: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServiceTargetDescriptor {
+    pub id: String,
+    pub label: String,
+    pub detail: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ServiceWorkflowKind {
+    Deploy,
+    Release,
+    Status,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServiceWorkflowDescriptor {
+    pub id: String,
+    pub label: String,
+    pub detail: String,
+    pub kind: ServiceWorkflowKind,
+    pub resource_kind: Option<String>,
+    pub target_ids: BTreeSet<String>,
+    pub inputs: Vec<ServiceInputDescriptor>,
+}
+
+impl ServiceWorkflowDescriptor {
+    pub fn supports_target(&self, target_id: Option<&str>) -> bool {
+        if self.target_ids.is_empty() {
+            return true;
+        }
+
+        target_id.is_some_and(|target_id| self.target_ids.contains(target_id))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -130,6 +146,16 @@ pub struct ServiceOperationRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServiceWorkflowRequest {
+    pub provider_id: String,
+    pub workflow: String,
+    pub target_id: Option<String>,
+    pub resource: Option<ServiceResourceRef>,
+    pub artifact: Option<ServiceArtifactRef>,
+    pub input: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ServiceAuthActionRequest {
     pub provider_id: String,
     pub action: ServiceAuthAction,
@@ -146,13 +172,17 @@ pub struct ServiceCommandPlan {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ServiceOperationUpdate {
-    pub state: ServiceOperationState,
-    pub message: String,
+pub struct ServiceRunDescriptor {
+    pub workflow: String,
+    pub target_id: Option<String>,
+    pub state: ServiceRunState,
+    pub headline: String,
+    pub detail: String,
+    pub output: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ServiceOperationState {
+pub enum ServiceRunState {
     Pending,
     Running,
     Succeeded,
@@ -165,16 +195,24 @@ pub enum ServiceError {
     UnknownProvider(String),
     #[error("service operation `{0}` is not supported")]
     UnsupportedOperation(String),
+    #[error("service workflow `{0}` is not supported")]
+    UnsupportedWorkflow(String),
     #[error("service authentication action `{0}` is not supported")]
     UnsupportedAuthAction(String),
     #[error("service operation requires resource kind `{expected}`, got `{actual}`")]
     UnexpectedResourceKind { expected: String, actual: String },
+    #[error("service workflow requires target `{expected}`, got `{actual}`")]
+    UnexpectedTarget { expected: String, actual: String },
+    #[error("service workflow requires target `{0}`")]
+    MissingTarget(String),
     #[error("service operation requires an artifact")]
     ArtifactRequired,
     #[error("service operation requires artifact kind `{expected}`, got `{actual}`")]
     UnexpectedArtifactKind { expected: String, actual: String },
     #[error("service input `{0}` is required")]
     MissingInput(&'static str),
+    #[error("{0}")]
+    InvalidInput(String),
 }
 
 pub trait ServiceProvider {
@@ -186,6 +224,10 @@ pub trait ServiceProvider {
     fn build_operation(
         &self,
         request: &ServiceOperationRequest,
+    ) -> Result<ServiceCommandPlan, ServiceError>;
+    fn build_workflow(
+        &self,
+        request: &ServiceWorkflowRequest,
     ) -> Result<ServiceCommandPlan, ServiceError>;
 }
 
@@ -232,6 +274,18 @@ impl ServiceHub {
             .ok_or_else(|| ServiceError::UnknownProvider(request.provider_id.clone()))?;
         provider.build_auth_action(request)
     }
+
+    pub fn build_workflow(
+        &self,
+        request: &ServiceWorkflowRequest,
+    ) -> Result<ServiceCommandPlan, ServiceError> {
+        let provider = self
+            .providers
+            .iter()
+            .find(|provider| provider.descriptor().id == request.provider_id)
+            .ok_or_else(|| ServiceError::UnknownProvider(request.provider_id.clone()))?;
+        provider.build_workflow(request)
+    }
 }
 
 pub struct AscServiceProvider;
@@ -254,6 +308,10 @@ impl ServiceProvider for AscServiceProvider {
                     ServiceNavigationItemDescriptor {
                         id: "builds".to_string(),
                         label: "Builds".to_string(),
+                    },
+                    ServiceNavigationItemDescriptor {
+                        id: "release".to_string(),
+                        label: "Release".to_string(),
                     },
                 ],
                 default_navigation_item_id: "overview".to_string(),
@@ -336,17 +394,137 @@ impl ServiceProvider for AscServiceProvider {
                     },
                 ],
             }),
-            capabilities: ServiceCapabilitySet {
-                capabilities: [
-                    ServiceCapability::Authenticate,
-                    ServiceCapability::ListResources,
-                    ServiceCapability::UploadArtifact,
-                    ServiceCapability::ManageMetadata,
-                    ServiceCapability::PublishRelease,
-                ]
-                .into_iter()
-                .collect(),
-            },
+            targets: vec![
+                ServiceTargetDescriptor {
+                    id: "testflight".to_string(),
+                    label: "TestFlight".to_string(),
+                    detail: Some("Distribute a build to TestFlight beta groups.".to_string()),
+                },
+                ServiceTargetDescriptor {
+                    id: "app_store".to_string(),
+                    label: "App Store".to_string(),
+                    detail: Some("Attach a build to an App Store version and submit it.".to_string()),
+                },
+            ],
+            workflows: vec![
+                ServiceWorkflowDescriptor {
+                    id: "publish_testflight".to_string(),
+                    label: "Publish to TestFlight".to_string(),
+                    detail: "Upload or select a build and distribute it to beta groups."
+                        .to_string(),
+                    kind: ServiceWorkflowKind::Release,
+                    resource_kind: Some("app".to_string()),
+                    target_ids: BTreeSet::from(["testflight".to_string()]),
+                    inputs: vec![
+                        ServiceInputDescriptor {
+                            key: "ipa_path".to_string(),
+                            label: "IPA Path".to_string(),
+                            kind: ServiceInputKind::FilePath,
+                            required: false,
+                            placeholder: Some("./build/Glass.ipa".to_string()),
+                            help: Some(
+                                "Provide an .ipa to upload. Leave blank when distributing an existing build number."
+                                    .to_string(),
+                            ),
+                        },
+                        ServiceInputDescriptor {
+                            key: "build_number".to_string(),
+                            label: "Build Number".to_string(),
+                            kind: ServiceInputKind::Text,
+                            required: false,
+                            placeholder: Some("42".to_string()),
+                            help: Some(
+                                "Distribute an existing build by CFBundleVersion when no IPA is provided."
+                                    .to_string(),
+                            ),
+                        },
+                        ServiceInputDescriptor {
+                            key: "version".to_string(),
+                            label: "Version".to_string(),
+                            kind: ServiceInputKind::Text,
+                            required: false,
+                            placeholder: Some("1.2.3".to_string()),
+                            help: Some(
+                                "Optional when uploading an IPA. The CLI auto-detects it from the archive when omitted."
+                                    .to_string(),
+                            ),
+                        },
+                        ServiceInputDescriptor {
+                            key: "group".to_string(),
+                            label: "Beta Groups".to_string(),
+                            kind: ServiceInputKind::Text,
+                            required: true,
+                            placeholder: Some("External Testers".to_string()),
+                            help: Some(
+                                "Comma-separated TestFlight group names or IDs. Required by asc publish testflight."
+                                    .to_string(),
+                            ),
+                        },
+                    ],
+                },
+                ServiceWorkflowDescriptor {
+                    id: "publish_appstore".to_string(),
+                    label: "Publish to App Store".to_string(),
+                    detail: "Upload an IPA, attach it to an App Store version, and optionally submit it."
+                        .to_string(),
+                    kind: ServiceWorkflowKind::Release,
+                    resource_kind: Some("app".to_string()),
+                    target_ids: BTreeSet::from(["app_store".to_string()]),
+                    inputs: vec![
+                        ServiceInputDescriptor {
+                            key: "ipa_path".to_string(),
+                            label: "IPA Path".to_string(),
+                            kind: ServiceInputKind::FilePath,
+                            required: true,
+                            placeholder: Some("./build/Glass.ipa".to_string()),
+                            help: Some("Path to the built .ipa archive to upload.".to_string()),
+                        },
+                        ServiceInputDescriptor {
+                            key: "version".to_string(),
+                            label: "Version".to_string(),
+                            kind: ServiceInputKind::Text,
+                            required: false,
+                            placeholder: Some("1.2.3".to_string()),
+                            help: Some(
+                                "Optional. The CLI auto-detects the version from the IPA when left blank."
+                                    .to_string(),
+                            ),
+                        },
+                        ServiceInputDescriptor {
+                            key: "build_number".to_string(),
+                            label: "Build Number".to_string(),
+                            kind: ServiceInputKind::Text,
+                            required: false,
+                            placeholder: Some("42".to_string()),
+                            help: Some(
+                                "Optional. The CLI auto-detects the build number from the IPA when left blank."
+                                    .to_string(),
+                            ),
+                        },
+                        ServiceInputDescriptor {
+                            key: "submit".to_string(),
+                            label: "Submit For Review".to_string(),
+                            kind: ServiceInputKind::Toggle,
+                            required: false,
+                            placeholder: None,
+                            help: Some(
+                                "Attach the build only when disabled. Enable to submit the prepared version for review."
+                                    .to_string(),
+                            ),
+                        },
+                        ServiceInputDescriptor {
+                            key: "confirm".to_string(),
+                            label: "Confirm Submission".to_string(),
+                            kind: ServiceInputKind::Toggle,
+                            required: false,
+                            placeholder: None,
+                            help: Some(
+                                "Required when Submit For Review is enabled.".to_string(),
+                            ),
+                        },
+                    ],
+                },
+            ],
         }
     }
 
@@ -369,9 +547,22 @@ impl ServiceProvider for AscServiceProvider {
             "list_apps" => Ok(build_asc_list_apps(request)),
             "list_builds" => build_asc_list_builds(request),
             "build_pre_release_version" => build_asc_pre_release_version(request),
+            "build_beta_detail" => build_asc_build_beta_detail(request),
+            "build_app_store_version_link" => build_asc_build_app_store_version_link(request),
+            "version_view" => build_asc_version_view(request),
             "upload_build" => build_asc_upload_build(request),
-            "release_run" => build_asc_release_run(request),
             other => Err(ServiceError::UnsupportedOperation(other.to_string())),
+        }
+    }
+
+    fn build_workflow(
+        &self,
+        request: &ServiceWorkflowRequest,
+    ) -> Result<ServiceCommandPlan, ServiceError> {
+        match request.workflow.as_str() {
+            "publish_testflight" => build_asc_publish_testflight(request),
+            "publish_appstore" => build_asc_publish_appstore(request),
+            other => Err(ServiceError::UnsupportedWorkflow(other.to_string())),
         }
     }
 }
@@ -535,6 +726,10 @@ fn build_asc_list_builds(
         args.push("--limit".to_string());
         args.push(limit.clone());
     }
+    if let Some(next) = request.input.get("next") {
+        args.push("--next".to_string());
+        args.push(next.clone());
+    }
     if let Some(sort) = request.input.get("sort") {
         args.push("--sort".to_string());
         args.push(sort.clone());
@@ -658,56 +853,234 @@ fn build_asc_upload_build(
     })
 }
 
-fn build_asc_release_run(
+fn build_asc_build_beta_detail(
     request: &ServiceOperationRequest,
+) -> Result<ServiceCommandPlan, ServiceError> {
+    let build = request
+        .resource
+        .as_ref()
+        .ok_or(ServiceError::MissingInput("build"))?;
+    ensure_resource_kind(build, "build")?;
+
+    Ok(ServiceCommandPlan {
+        label: format!("Fetch ASC beta detail for build {}", build.label),
+        command: "asc".to_string(),
+        args: vec![
+            "builds".to_string(),
+            "build-beta-detail".to_string(),
+            "view".to_string(),
+            "--build-id".to_string(),
+            build.external_id.clone(),
+            "--output".to_string(),
+            "json".to_string(),
+            "--pretty".to_string(),
+        ],
+        cwd: None,
+        env: BTreeMap::new(),
+    })
+}
+
+fn build_asc_build_app_store_version_link(
+    request: &ServiceOperationRequest,
+) -> Result<ServiceCommandPlan, ServiceError> {
+    let build = request
+        .resource
+        .as_ref()
+        .ok_or(ServiceError::MissingInput("build"))?;
+    ensure_resource_kind(build, "build")?;
+
+    Ok(ServiceCommandPlan {
+        label: format!(
+            "Fetch ASC App Store version linkage for build {}",
+            build.label
+        ),
+        command: "asc".to_string(),
+        args: vec![
+            "builds".to_string(),
+            "links".to_string(),
+            "view".to_string(),
+            "--build-id".to_string(),
+            build.external_id.clone(),
+            "--type".to_string(),
+            "appStoreVersion".to_string(),
+            "--output".to_string(),
+            "json".to_string(),
+            "--pretty".to_string(),
+        ],
+        cwd: None,
+        env: BTreeMap::new(),
+    })
+}
+
+fn build_asc_version_view(
+    request: &ServiceOperationRequest,
+) -> Result<ServiceCommandPlan, ServiceError> {
+    let version = request
+        .resource
+        .as_ref()
+        .ok_or(ServiceError::MissingInput("version"))?;
+    ensure_resource_kind(version, "app_store_version")?;
+
+    Ok(ServiceCommandPlan {
+        label: format!("Fetch ASC App Store version {}", version.label),
+        command: "asc".to_string(),
+        args: vec![
+            "versions".to_string(),
+            "view".to_string(),
+            "--version-id".to_string(),
+            version.external_id.clone(),
+            "--output".to_string(),
+            "json".to_string(),
+            "--pretty".to_string(),
+        ],
+        cwd: None,
+        env: BTreeMap::new(),
+    })
+}
+
+fn build_asc_publish_testflight(
+    request: &ServiceWorkflowRequest,
 ) -> Result<ServiceCommandPlan, ServiceError> {
     let app = request
         .resource
         .as_ref()
         .ok_or(ServiceError::MissingInput("app"))?;
     ensure_resource_kind(app, "app")?;
+    ensure_target_matches(request.target_id.as_deref(), "testflight")?;
 
-    let version = request
+    let group = request
         .input
-        .get("version")
-        .ok_or(ServiceError::MissingInput("version"))?;
-    let build = request
+        .get("group")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .ok_or(ServiceError::MissingInput("group"))?;
+    let ipa_path = request
         .input
-        .get("build")
-        .ok_or(ServiceError::MissingInput("build"))?;
-    let metadata_dir = request
+        .get("ipa_path")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty());
+    let build_number = request
         .input
-        .get("metadata_dir")
-        .ok_or(ServiceError::MissingInput("metadata_dir"))?;
+        .get("build_number")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty());
+
+    if ipa_path.is_none() && build_number.is_none() {
+        return Err(ServiceError::InvalidInput(
+            "Publish to TestFlight requires either an IPA Path or a Build Number.".to_string(),
+        ));
+    }
 
     let mut args = vec![
-        "release".to_string(),
-        "run".to_string(),
+        "publish".to_string(),
+        "testflight".to_string(),
         "--app".to_string(),
         app.external_id.clone(),
-        "--version".to_string(),
-        version.clone(),
-        "--build".to_string(),
-        build.clone(),
-        "--metadata-dir".to_string(),
-        metadata_dir.clone(),
+        "--group".to_string(),
+        group.to_string(),
         "--output".to_string(),
         "json".to_string(),
         "--pretty".to_string(),
     ];
 
-    if request
+    if let Some(ipa_path) = ipa_path {
+        args.push("--ipa".to_string());
+        args.push(ipa_path.to_string());
+    }
+    if let Some(build_number) = build_number {
+        args.push("--build-number".to_string());
+        args.push(build_number.to_string());
+    }
+    if let Some(version) = request
         .input
-        .get("dry_run")
-        .is_some_and(|value| value == "true")
+        .get("version")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
     {
-        args.push("--dry-run".to_string());
-    } else {
-        args.push("--confirm".to_string());
+        args.push("--version".to_string());
+        args.push(version.to_string());
     }
 
     Ok(ServiceCommandPlan {
-        label: format!("Run ASC release for {}", app.label),
+        label: format!("Publish {} to TestFlight", app.label),
+        command: "asc".to_string(),
+        args,
+        cwd: None,
+        env: BTreeMap::new(),
+    })
+}
+
+fn build_asc_publish_appstore(
+    request: &ServiceWorkflowRequest,
+) -> Result<ServiceCommandPlan, ServiceError> {
+    let app = request
+        .resource
+        .as_ref()
+        .ok_or(ServiceError::MissingInput("app"))?;
+    ensure_resource_kind(app, "app")?;
+    ensure_target_matches(request.target_id.as_deref(), "app_store")?;
+
+    let ipa_path = request
+        .input
+        .get("ipa_path")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .ok_or(ServiceError::MissingInput("ipa_path"))?;
+
+    let mut args = vec![
+        "publish".to_string(),
+        "appstore".to_string(),
+        "--app".to_string(),
+        app.external_id.clone(),
+        "--ipa".to_string(),
+        ipa_path.to_string(),
+        "--output".to_string(),
+        "json".to_string(),
+        "--pretty".to_string(),
+    ];
+
+    if let Some(version) = request
+        .input
+        .get("version")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+    {
+        args.push("--version".to_string());
+        args.push(version.to_string());
+    }
+    if let Some(build_number) = request
+        .input
+        .get("build_number")
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+    {
+        args.push("--build-number".to_string());
+        args.push(build_number.to_string());
+    }
+
+    let submit = request
+        .input
+        .get("submit")
+        .is_some_and(|value| value == "true");
+    let confirm = request
+        .input
+        .get("confirm")
+        .is_some_and(|value| value == "true");
+
+    if submit {
+        args.push("--submit".to_string());
+        if confirm {
+            args.push("--confirm".to_string());
+        } else {
+            return Err(ServiceError::InvalidInput(
+                "Confirm Submission must be enabled when Submit For Review is selected."
+                    .to_string(),
+            ));
+        }
+    }
+
+    Ok(ServiceCommandPlan {
+        label: format!("Publish {} to the App Store", app.label),
         command: "asc".to_string(),
         args,
         cwd: None,
@@ -726,28 +1099,41 @@ fn ensure_resource_kind(resource: &ServiceResourceRef, expected: &str) -> Result
     }
 }
 
+fn ensure_target_matches(target_id: Option<&str>, expected: &str) -> Result<(), ServiceError> {
+    match target_id {
+        Some(target_id) if target_id == expected => Ok(()),
+        Some(target_id) => Err(ServiceError::UnexpectedTarget {
+            expected: expected.to_string(),
+            actual: target_id.to_string(),
+        }),
+        None => Err(ServiceError::MissingTarget(expected.to_string())),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         AscServiceProvider, ServiceArtifactKind, ServiceArtifactRef, ServiceAuthAction,
-        ServiceAuthActionRequest, ServiceAuthKind, ServiceCapability, ServiceHub,
-        ServiceOperationRequest, ServiceProvider, ServiceResourceRef,
+        ServiceAuthActionRequest, ServiceAuthKind, ServiceHub, ServiceOperationRequest,
+        ServiceProvider, ServiceResourceRef, ServiceWorkflowKind, ServiceWorkflowRequest,
     };
     use std::{collections::BTreeMap, path::PathBuf};
 
     #[test]
-    fn advertises_capabilities_without_binding_to_a_transport() {
+    fn advertises_targets_and_workflows_without_binding_to_a_transport() {
         let descriptor = AscServiceProvider.descriptor();
 
         assert!(
             descriptor
-                .capabilities
-                .supports(ServiceCapability::UploadArtifact)
+                .targets
+                .iter()
+                .any(|target| target.id == "testflight")
         );
         assert!(
             descriptor
-                .capabilities
-                .supports(ServiceCapability::PublishRelease)
+                .workflows
+                .iter()
+                .any(|workflow| workflow.id == "publish_appstore")
         );
         assert_eq!(descriptor.auth_kind, ServiceAuthKind::ApiKey);
     }
@@ -796,7 +1182,7 @@ mod tests {
         assert_eq!(resource_kind.singular_label, "App");
         assert_eq!(resource_kind.plural_label, "Apps");
         assert_eq!(descriptor.shell.default_navigation_item_id, "overview");
-        assert_eq!(descriptor.shell.navigation_items.len(), 2);
+        assert_eq!(descriptor.shell.navigation_items.len(), 3);
         assert!(
             descriptor
                 .shell
@@ -874,6 +1260,39 @@ mod tests {
         assert_eq!(plan.args[0], "apps");
         assert!(plan.args.contains(&"--limit".to_string()));
         assert!(plan.args.contains(&"--paginate".to_string()));
+    }
+
+    #[test]
+    fn builds_real_asc_list_builds_command_supports_manual_pagination() {
+        let provider = AscServiceProvider;
+        let plan = provider
+            .build_operation(&ServiceOperationRequest {
+                provider_id: "app-store-connect".to_string(),
+                operation: "list_builds".to_string(),
+                resource: Some(ServiceResourceRef {
+                    provider_id: "app-store-connect".to_string(),
+                    kind: "app".to_string(),
+                    external_id: "123456789".to_string(),
+                    label: "Glass".to_string(),
+                }),
+                artifact: None,
+                input: BTreeMap::from([
+                    ("limit".to_string(), "50".to_string()),
+                    (
+                        "next".to_string(),
+                        "https://api.appstoreconnect.apple.com/v1/builds?cursor=AQ".to_string(),
+                    ),
+                    ("sort".to_string(), "-uploadedDate".to_string()),
+                ]),
+            })
+            .unwrap();
+
+        assert_eq!(plan.command, "asc");
+        assert_eq!(plan.args[0], "builds");
+        assert!(plan.args.contains(&"--limit".to_string()));
+        assert!(plan.args.contains(&"50".to_string()));
+        assert!(plan.args.contains(&"--next".to_string()));
+        assert!(plan.args.iter().any(|arg| arg.contains("cursor=AQ")));
     }
 
     #[test]
@@ -955,12 +1374,85 @@ mod tests {
     }
 
     #[test]
-    fn builds_real_asc_release_command() {
+    fn builds_real_asc_build_beta_detail_command() {
         let provider = AscServiceProvider;
         let plan = provider
             .build_operation(&ServiceOperationRequest {
                 provider_id: "app-store-connect".to_string(),
-                operation: "release_run".to_string(),
+                operation: "build_beta_detail".to_string(),
+                resource: Some(ServiceResourceRef {
+                    provider_id: "app-store-connect".to_string(),
+                    kind: "build".to_string(),
+                    external_id: "BUILD-ID".to_string(),
+                    label: "42".to_string(),
+                }),
+                artifact: None,
+                input: BTreeMap::new(),
+            })
+            .unwrap();
+
+        assert_eq!(plan.args[0], "builds");
+        assert_eq!(plan.args[1], "build-beta-detail");
+        assert_eq!(plan.args[2], "view");
+        assert!(plan.args.contains(&"--build-id".to_string()));
+    }
+
+    #[test]
+    fn builds_real_asc_build_app_store_version_link_command() {
+        let provider = AscServiceProvider;
+        let plan = provider
+            .build_operation(&ServiceOperationRequest {
+                provider_id: "app-store-connect".to_string(),
+                operation: "build_app_store_version_link".to_string(),
+                resource: Some(ServiceResourceRef {
+                    provider_id: "app-store-connect".to_string(),
+                    kind: "build".to_string(),
+                    external_id: "BUILD-ID".to_string(),
+                    label: "42".to_string(),
+                }),
+                artifact: None,
+                input: BTreeMap::new(),
+            })
+            .unwrap();
+
+        assert_eq!(plan.args[0], "builds");
+        assert_eq!(plan.args[1], "links");
+        assert_eq!(plan.args[2], "view");
+        assert!(plan.args.contains(&"appStoreVersion".to_string()));
+    }
+
+    #[test]
+    fn builds_real_asc_version_view_command() {
+        let provider = AscServiceProvider;
+        let plan = provider
+            .build_operation(&ServiceOperationRequest {
+                provider_id: "app-store-connect".to_string(),
+                operation: "version_view".to_string(),
+                resource: Some(ServiceResourceRef {
+                    provider_id: "app-store-connect".to_string(),
+                    kind: "app_store_version".to_string(),
+                    external_id: "VERSION-ID".to_string(),
+                    label: "1.0".to_string(),
+                }),
+                artifact: None,
+                input: BTreeMap::new(),
+            })
+            .unwrap();
+
+        assert_eq!(plan.args[0], "versions");
+        assert_eq!(plan.args[1], "view");
+        assert!(plan.args.contains(&"--version-id".to_string()));
+        assert!(plan.args.contains(&"VERSION-ID".to_string()));
+    }
+
+    #[test]
+    fn builds_real_asc_publish_testflight_workflow() {
+        let provider = AscServiceProvider;
+        let plan = provider
+            .build_workflow(&ServiceWorkflowRequest {
+                provider_id: "app-store-connect".to_string(),
+                workflow: "publish_testflight".to_string(),
+                target_id: Some("testflight".to_string()),
                 resource: Some(ServiceResourceRef {
                     provider_id: "app-store-connect".to_string(),
                     kind: "app".to_string(),
@@ -969,20 +1461,88 @@ mod tests {
                 }),
                 artifact: None,
                 input: BTreeMap::from([
+                    ("ipa_path".to_string(), "/tmp/Glass.ipa".to_string()),
                     ("version".to_string(), "1.2.3".to_string()),
-                    ("build".to_string(), "BUILD-ID".to_string()),
-                    (
-                        "metadata_dir".to_string(),
-                        "./metadata/version/1.2.3".to_string(),
-                    ),
-                    ("dry_run".to_string(), "true".to_string()),
+                    ("group".to_string(), "External Testers".to_string()),
                 ]),
             })
             .unwrap();
 
-        assert_eq!(plan.args[0], "release");
-        assert_eq!(plan.args[1], "run");
-        assert!(plan.args.contains(&"--metadata-dir".to_string()));
-        assert!(plan.args.contains(&"--dry-run".to_string()));
+        assert_eq!(plan.args[0], "publish");
+        assert_eq!(plan.args[1], "testflight");
+        assert!(plan.args.contains(&"--group".to_string()));
+        assert!(plan.args.contains(&"External Testers".to_string()));
+    }
+
+    #[test]
+    fn builds_real_asc_publish_appstore_workflow() {
+        let provider = AscServiceProvider;
+        let plan = provider
+            .build_workflow(&ServiceWorkflowRequest {
+                provider_id: "app-store-connect".to_string(),
+                workflow: "publish_appstore".to_string(),
+                target_id: Some("app_store".to_string()),
+                resource: Some(ServiceResourceRef {
+                    provider_id: "app-store-connect".to_string(),
+                    kind: "app".to_string(),
+                    external_id: "123456789".to_string(),
+                    label: "Glass".to_string(),
+                }),
+                artifact: None,
+                input: BTreeMap::from([
+                    ("ipa_path".to_string(), "/tmp/Glass.ipa".to_string()),
+                    ("version".to_string(), "1.2.3".to_string()),
+                    ("submit".to_string(), "true".to_string()),
+                    ("confirm".to_string(), "true".to_string()),
+                ]),
+            })
+            .unwrap();
+
+        assert_eq!(plan.args[0], "publish");
+        assert_eq!(plan.args[1], "appstore");
+        assert!(plan.args.contains(&"--submit".to_string()));
+        assert!(plan.args.contains(&"--confirm".to_string()));
+    }
+
+    #[test]
+    fn workflow_descriptors_report_target_support() {
+        let descriptor = AscServiceProvider
+            .descriptor()
+            .workflows
+            .into_iter()
+            .find(|workflow| workflow.id == "publish_testflight")
+            .unwrap();
+
+        assert_eq!(descriptor.kind, ServiceWorkflowKind::Release);
+        assert!(descriptor.supports_target(Some("testflight")));
+        assert!(!descriptor.supports_target(Some("app_store")));
+    }
+
+    #[test]
+    fn rejects_targeted_workflows_without_an_explicit_target() {
+        let provider = AscServiceProvider;
+        let error = provider
+            .build_workflow(&ServiceWorkflowRequest {
+                provider_id: "app-store-connect".to_string(),
+                workflow: "publish_testflight".to_string(),
+                target_id: None,
+                resource: Some(ServiceResourceRef {
+                    provider_id: "app-store-connect".to_string(),
+                    kind: "app".to_string(),
+                    external_id: "123456789".to_string(),
+                    label: "Glass".to_string(),
+                }),
+                artifact: None,
+                input: BTreeMap::from([
+                    ("build_number".to_string(), "42".to_string()),
+                    ("group".to_string(), "External Testers".to_string()),
+                ]),
+            })
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            super::ServiceError::MissingTarget("testflight".to_string())
+        );
     }
 }

@@ -93,11 +93,15 @@ That shared shell should own:
 - provider switching
 - resource or project switching when a provider exposes resources
 - provider section navigation
+- workflow target selection when a provider exposes deploy or release targets
+- workflow selection and invocation for shared service workflows such as deploy, release, and status
+- workflow execution state for the active provider workflow
 - authentication status and authentication UI in the sidebar footer
 
 Provider adapters should own:
 
 - provider-specific async loading and refresh behavior
+- provider-specific mapping from provider data to shared workflow models
 - provider-specific content rendering in the main surface
 - optional footer extensions when a provider needs more than the shared auth shell
 
@@ -210,15 +214,19 @@ Status: Done in this worktree.
 
 - [x] implement GPUI project detection and execution support
 
-### Step 7: Introduce Internal Service Provider Abstractions
+### Step 7: Introduce Internal Service Provider And Workflow Abstractions
 
-Status: Done in this worktree.
+Status: Done in this worktree as of 2026-04-05.
 
 - [x] introduce an internal `service_hub` model
 - [x] add a real App Store Connect provider backed by `asc` command planning
+- [x] mature the internal service model around first-class provider targets, workflows, and workflow run state
+- [x] keep the shared shell responsible for provider switching, resource switching, navigation, workflow selection, workflow execution state, and shared auth chrome
+- [x] keep provider panes provider-specific while layering shared workflow controls above them in the main surface
 - [x] validate explicit artifact handoff for ASC build upload operations
-- [x] surface ASC authentication, app browsing, build browsing, upload, and release operations in a workspace item
-- [x] refactor the Service Hub UI around a reusable provider shell with shared provider, resource, navigation, and auth surfaces
+- [x] replace the deprecated ASC `release run` path with the canonical `asc publish` workflows
+- [x] surface ASC authentication, app browsing, build browsing, publish to TestFlight, publish to App Store, and release status in a workspace item
+- [x] refactor the Service Hub UI around a reusable provider shell with shared provider, resource, navigation, workflow, and auth surfaces
 
 ### Step 8: Consider Protocol Extraction Later
 

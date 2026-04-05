@@ -18,6 +18,10 @@ use workspace_chrome::SidebarRow;
 use crate::service_auth::{
     ServiceAuthFieldState, ServiceAuthStatusSummary, ServiceAuthUiAction, ServiceAuthUiModel,
 };
+use crate::service_workflow::{
+    ServiceWorkflowFieldState, ServiceWorkflowOption, ServiceWorkflowRunSummary,
+    ServiceWorkflowUiAction, ServiceWorkflowUiModel,
+};
 use crate::services_provider::{
     ServiceWorkspacePane, ServicesPageState, build_service_workspace_panes,
     collect_provider_descriptors, normalize_services_page_state,
@@ -145,6 +149,8 @@ impl ServicesPage {
         self.state.provider_id = provider_id;
         self.state.navigation_id = self.provider().shell.default_navigation_item_id.clone();
         self.state.selected_resource_id = None;
+        self.state.selected_target_id = None;
+        self.state.selected_workflow_id = None;
         self.normalize_active_provider_state();
         cx.emit(ItemEvent::UpdateTab);
         self.refresh_provider(window, cx);
@@ -682,16 +688,324 @@ impl ServicesPage {
             )
     }
 
-    fn render_provider_content(
+    fn render_provider_content(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let workflow_ui = self.active_pane().workflow_ui_model(&self.state);
+
+        match workflow_ui {
+            Some(workflow_ui) => v_flex()
+                .size_full()
+                .min_h_0()
+                .gap_4()
+                .child(self.render_workflow_surface(workflow_ui, window, cx))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_h_0()
+                        .child(self.active_pane().render_section(&self.state, window, cx)),
+                )
+                .into_any_element(),
+            None => self.active_pane().render_section(&self.state, window, cx),
+        }
+    }
+
+    fn navigation_icon(navigation_id: &str) -> IconName {
+        match navigation_id {
+            "overview" => IconName::Info,
+            "builds" => IconName::Box,
+            "release" => IconName::ArrowCircle,
+            _ => IconName::Globe,
+        }
+    }
+
+    fn render_workflow_surface(
         &self,
+        workflow_ui: ServiceWorkflowUiModel,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        self.active_pane().render_section(&self.state, window, cx)
+        let page = cx.entity().downgrade();
+        let target_menu = if workflow_ui.targets.is_empty() {
+            None
+        } else {
+            let menu = Self::build_workflow_option_menu(
+                &workflow_ui.targets,
+                page.clone(),
+                workflow_ui.provider_id.clone(),
+                window,
+                cx,
+                |option| ServiceWorkflowUiAction::SelectTarget {
+                    target_id: option.id.clone(),
+                },
+            );
+            Some(
+                v_flex()
+                    .gap_1()
+                    .child(
+                        Label::new(workflow_ui.target_label.clone())
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .child(Self::render_sidebar_popover_menu(
+                        "services-workflow-target-menu",
+                        workflow_ui
+                            .selected_target_id
+                            .as_ref()
+                            .and_then(|selected_id| {
+                                workflow_ui
+                                    .targets
+                                    .iter()
+                                    .find(|target| &target.id == selected_id)
+                                    .map(|target| target.label.clone())
+                            })
+                            .unwrap_or_else(|| workflow_ui.target_label.to_string()),
+                        menu,
+                    ))
+                    .into_any_element(),
+            )
+        };
+
+        let workflow_menu = if workflow_ui.workflows.is_empty() {
+            None
+        } else {
+            let menu = Self::build_workflow_option_menu(
+                &workflow_ui.workflows,
+                page.clone(),
+                workflow_ui.provider_id.clone(),
+                window,
+                cx,
+                |option| ServiceWorkflowUiAction::SelectWorkflow {
+                    workflow_id: option.id.clone(),
+                },
+            );
+            Some(
+                v_flex()
+                    .gap_1()
+                    .child(
+                        Label::new(workflow_ui.workflow_label.clone())
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .child(Self::render_sidebar_popover_menu(
+                        "services-workflow-menu",
+                        workflow_ui
+                            .selected_workflow_id
+                            .as_ref()
+                            .and_then(|selected_id| {
+                                workflow_ui
+                                    .workflows
+                                    .iter()
+                                    .find(|workflow| &workflow.id == selected_id)
+                                    .map(|workflow| workflow.label.clone())
+                            })
+                            .unwrap_or_else(|| workflow_ui.workflow_label.to_string()),
+                        menu,
+                    ))
+                    .into_any_element(),
+            )
+        };
+
+        v_flex()
+            .gap_3()
+            .p_4()
+            .rounded_xl()
+            .border_1()
+            .border_color(cx.theme().colors().border_variant)
+            .bg(cx.theme().colors().background)
+            .when_some(target_menu, |this, target_menu| this.child(target_menu))
+            .when_some(workflow_menu, |this, workflow_menu| {
+                this.child(workflow_menu)
+            })
+            .when(!workflow_ui.form.fields.is_empty(), |this| {
+                this.child(self.render_workflow_form(page.clone(), workflow_ui.clone(), cx))
+            })
+            .child(
+                h_flex()
+                    .justify_between()
+                    .items_center()
+                    .gap_3()
+                    .child(
+                        v_flex()
+                            .gap_1()
+                            .when_some(workflow_ui.run.clone(), |this, run| {
+                                let (color, headline) = Self::render_workflow_run(run);
+                                this.child(Label::new(headline).size(LabelSize::Small).color(color))
+                            })
+                            .when_some(workflow_ui.disabled_reason.clone(), |this, reason| {
+                                this.child(
+                                    Label::new(reason)
+                                        .size(LabelSize::Small)
+                                        .color(Color::Muted),
+                                )
+                            }),
+                    )
+                    .child(
+                        Button::new(
+                            "services-workflow-submit",
+                            workflow_ui.execute_label.clone(),
+                        )
+                        .style(ButtonStyle::Filled)
+                        .size(ButtonSize::Compact)
+                        .disabled(
+                            workflow_ui.form.pending
+                                || workflow_ui.selected_workflow_id.is_none()
+                                || workflow_ui.disabled_reason.is_some(),
+                        )
+                        .on_click({
+                            let page = page.clone();
+                            let provider_id = workflow_ui.provider_id.clone();
+                            move |_, window, cx| {
+                                Self::dispatch_workflow_action(
+                                    &page,
+                                    &provider_id,
+                                    ServiceWorkflowUiAction::Submit,
+                                    window,
+                                    cx,
+                                );
+                            }
+                        }),
+                    ),
+            )
+            .when_some(workflow_ui.form.error_message.clone(), |this, error| {
+                this.child(Label::new(error).size(LabelSize::Small).color(Color::Error))
+            })
     }
 
-    fn navigation_icon(_navigation_id: &str) -> IconName {
-        IconName::Globe
+    fn build_workflow_option_menu(
+        options: &[ServiceWorkflowOption],
+        page: WeakEntity<Self>,
+        provider_id: String,
+        window: &mut Window,
+        cx: &mut App,
+        build_action: impl Fn(&ServiceWorkflowOption) -> ServiceWorkflowUiAction + 'static + Copy,
+    ) -> Entity<ContextMenu> {
+        ContextMenu::build(window, cx, move |mut menu, _, _| {
+            for option in options {
+                let page = page.clone();
+                let provider_id = provider_id.clone();
+                let action = build_action(option);
+                let label = match &option.detail {
+                    Some(detail) => format!("{} ({detail})", option.label),
+                    None => option.label.clone(),
+                };
+                menu = menu.entry(label, None, move |window, cx| {
+                    Self::dispatch_workflow_action(&page, &provider_id, action.clone(), window, cx);
+                });
+            }
+
+            menu
+        })
+    }
+
+    fn render_workflow_form(
+        &self,
+        page: WeakEntity<Self>,
+        workflow_ui: ServiceWorkflowUiModel,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        v_flex()
+            .gap_2()
+            .children(workflow_ui.form.fields.iter().map(|field| {
+                match field {
+                    ServiceWorkflowFieldState::Text { descriptor, input } => {
+                        match descriptor.kind {
+                            service_hub::ServiceInputKind::FilePath => h_flex()
+                                .items_end()
+                                .gap_2()
+                                .child(input.clone())
+                                .child(
+                                    Button::new(
+                                        SharedString::from(format!(
+                                            "browse-workflow-{}",
+                                            descriptor.key
+                                        )),
+                                        "Browse…",
+                                    )
+                                    .style(ButtonStyle::Outlined)
+                                    .size(ButtonSize::Compact)
+                                    .disabled(workflow_ui.form.pending)
+                                    .on_click({
+                                        let page = page.clone();
+                                        let provider_id = workflow_ui.provider_id.clone();
+                                        let field_key = descriptor.key.clone();
+                                        move |_, window, cx| {
+                                            Self::dispatch_workflow_action(
+                                                &page,
+                                                &provider_id,
+                                                ServiceWorkflowUiAction::PickFile {
+                                                    field_key: field_key.clone(),
+                                                },
+                                                window,
+                                                cx,
+                                            );
+                                        }
+                                    }),
+                                )
+                                .into_any_element(),
+                            service_hub::ServiceInputKind::Text
+                            | service_hub::ServiceInputKind::Toggle => {
+                                input.clone().into_any_element()
+                            }
+                        }
+                    }
+                    ServiceWorkflowFieldState::Toggle { descriptor, value } => Checkbox::new(
+                        SharedString::from(format!("workflow-toggle-{}", descriptor.key)),
+                        *value,
+                    )
+                    .label(descriptor.label.clone())
+                    .disabled(workflow_ui.form.pending)
+                    .on_click(cx.listener({
+                        let provider_id = workflow_ui.provider_id.clone();
+                        let field_key = descriptor.key.clone();
+                        move |page, checked, window, cx| {
+                            page.with_provider_mut(&provider_id, |pane, state| {
+                                pane.handle_workflow_ui_action(
+                                    state,
+                                    ServiceWorkflowUiAction::SetToggle {
+                                        field_key: field_key.clone(),
+                                        value: *checked,
+                                    },
+                                    window,
+                                    cx,
+                                );
+                            });
+                            cx.notify();
+                        }
+                    }))
+                    .into_any_element(),
+                }
+            }))
+    }
+
+    fn render_workflow_run(run: ServiceWorkflowRunSummary) -> (Color, String) {
+        let color = match run.state {
+            service_hub::ServiceRunState::Pending | service_hub::ServiceRunState::Running => {
+                Color::Muted
+            }
+            service_hub::ServiceRunState::Succeeded => Color::Success,
+            service_hub::ServiceRunState::Failed => Color::Error,
+        };
+
+        let text = if run.detail.is_empty() {
+            run.headline
+        } else {
+            format!("{}: {}", run.headline, run.detail)
+        };
+        (color, text)
+    }
+
+    fn dispatch_workflow_action(
+        page: &WeakEntity<Self>,
+        provider_id: &str,
+        action: ServiceWorkflowUiAction,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        page.update(cx, |page, cx| {
+            page.with_provider_mut(provider_id, |pane, state| {
+                pane.handle_workflow_ui_action(state, action, window, cx);
+            });
+        })
+        .ok();
     }
 }
 
