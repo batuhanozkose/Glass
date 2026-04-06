@@ -14,26 +14,18 @@ const CONNECT_TIMEOUT: Duration = Duration::from_millis(10);
 const RECEIVE_TIMEOUT: Duration = Duration::from_millis(35);
 const SEND_TIMEOUT: Duration = Duration::from_millis(20);
 const USER_BLOCK: u16 = 100;
-const SINGLE_INSTANCE_PORT_BASE: u16 = 44737;
 
 fn address() -> SocketAddr {
-    // These port numbers are offset by the user ID to avoid conflicts between
-    // different users on the same machine. In addition to that the ports for each
-    // release channel are spaced out by 100 to avoid conflicts between different
-    // users running different release channels on the same machine. This ends up
-    // interleaving the ports between different users and different release channels.
-    //
-    // On macOS user IDs start at 501 and on Linux they start at 1000. The first user
-    // on a Mac with ID 501 running a dev channel build will use port 45238, and the
-    // second user with ID 502 will use port 45239, and so on. User 501 will use ports
-    // 45338, 45438, and 45538 for the preview, stable, and nightly channels,
-    // respectively. User 502 will use ports 45339, 45439, and 45539 for the preview,
-    // stable, and nightly channels, respectively.
-    let port = match *release_channel::RELEASE_CHANNEL {
-        ReleaseChannel::Dev => SINGLE_INSTANCE_PORT_BASE,
-        ReleaseChannel::Preview => SINGLE_INSTANCE_PORT_BASE + USER_BLOCK,
-        ReleaseChannel::Stable => SINGLE_INSTANCE_PORT_BASE + (2 * USER_BLOCK),
-        ReleaseChannel::Nightly => SINGLE_INSTANCE_PORT_BASE + (3 * USER_BLOCK),
+    // Offset the base port by release channel and user ID so different Glass
+    // variants and OS users do not contend for the same localhost port.
+    let release_channel = *release_channel::RELEASE_CHANNEL;
+    let port = match release_channel {
+        ReleaseChannel::Dev => release_channel.single_instance_port_base(),
+        ReleaseChannel::Preview => release_channel.single_instance_port_base() + USER_BLOCK,
+        ReleaseChannel::Stable => release_channel.single_instance_port_base() + (2 * USER_BLOCK),
+        ReleaseChannel::Nightly => {
+            release_channel.single_instance_port_base() + (3 * USER_BLOCK)
+        }
     };
     let mut user_port = port;
     let mut sys = System::new_all();
@@ -71,13 +63,8 @@ fn get_uid_as_u32(uid: &sysinfo::Uid) -> u32 {
         .unwrap_or(0)
 }
 
-fn instance_handshake() -> &'static str {
-    match *release_channel::RELEASE_CHANNEL {
-        ReleaseChannel::Dev => "Zed Editor Dev Instance Running",
-        ReleaseChannel::Nightly => "Zed Editor Nightly Instance Running",
-        ReleaseChannel::Preview => "Zed Editor Preview Instance Running",
-        ReleaseChannel::Stable => "Zed Editor Stable Instance Running",
-    }
+fn single_instance_handshake() -> &'static str {
+    release_channel::RELEASE_CHANNEL.single_instance_handshake()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -119,7 +106,7 @@ pub fn ensure_only_instance() -> IsOnlyInstance {
 
                 _ = stream.set_nodelay(true);
                 _ = stream.set_read_timeout(Some(SEND_TIMEOUT));
-                _ = stream.write_all(instance_handshake().as_bytes());
+                _ = stream.write_all(single_instance_handshake().as_bytes());
             }
         })
         .unwrap();
@@ -130,7 +117,7 @@ pub fn ensure_only_instance() -> IsOnlyInstance {
 fn check_got_handshake() -> bool {
     match TcpStream::connect_timeout(&address(), CONNECT_TIMEOUT) {
         Ok(mut stream) => {
-            let mut buf = vec![0u8; instance_handshake().len()];
+            let mut buf = vec![0u8; single_instance_handshake().len()];
 
             stream.set_read_timeout(Some(RECEIVE_TIMEOUT)).unwrap();
             if let Err(err) = stream.read_exact(&mut buf) {
@@ -138,7 +125,7 @@ fn check_got_handshake() -> bool {
                 return false;
             }
 
-            if buf == instance_handshake().as_bytes() {
+            if buf == single_instance_handshake().as_bytes() {
                 log::info!("Got instance handshake");
                 return true;
             }
