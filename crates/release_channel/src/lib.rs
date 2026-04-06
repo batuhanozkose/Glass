@@ -211,6 +211,21 @@ impl ReleaseChannel {
             Self::Stable => None,
         }
     }
+
+    /// Returns the handshake string used for single-instance coordination.
+    pub fn single_instance_handshake(&self) -> &'static str {
+        match self {
+            Self::Dev => "Glass Dev Instance Running",
+            Self::Nightly => "Glass Nightly Instance Running",
+            Self::Preview => "Glass Preview Instance Running",
+            Self::Stable => "Glass Stable Instance Running",
+        }
+    }
+
+    /// Returns the base localhost port used for single-instance coordination.
+    pub fn single_instance_port_base(&self) -> u16 {
+        44737
+    }
 }
 
 /// Error indicating that release channel string does not match any known release channel names.
@@ -228,5 +243,38 @@ impl FromStr for ReleaseChannel {
             "stable" => ReleaseChannel::Stable,
             _ => return Err(InvalidReleaseChannel),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ReleaseChannel;
+
+    #[test]
+    fn test_single_instance_handshake_uses_glass_identity() {
+        assert_eq!(
+            ReleaseChannel::Dev.single_instance_handshake(),
+            "Glass Dev Instance Running"
+        );
+        assert_eq!(
+            ReleaseChannel::Nightly.single_instance_handshake(),
+            "Glass Nightly Instance Running"
+        );
+        assert_eq!(
+            ReleaseChannel::Preview.single_instance_handshake(),
+            "Glass Preview Instance Running"
+        );
+        assert_eq!(
+            ReleaseChannel::Stable.single_instance_handshake(),
+            "Glass Stable Instance Running"
+        );
+    }
+
+    #[test]
+    fn test_single_instance_port_base_is_glass_specific() {
+        assert_eq!(ReleaseChannel::Dev.single_instance_port_base(), 44737);
+        assert_eq!(ReleaseChannel::Nightly.single_instance_port_base(), 44737);
+        assert_eq!(ReleaseChannel::Preview.single_instance_port_base(), 44737);
+        assert_eq!(ReleaseChannel::Stable.single_instance_port_base(), 44737);
     }
 }
