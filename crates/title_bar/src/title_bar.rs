@@ -59,6 +59,7 @@ use workspace_chrome::ModeControl;
 use workspace_modes::{
     ModeId, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode,
 };
+
 use zed_actions::OpenRemote;
 
 pub use onboarding_banner::restore_banner;

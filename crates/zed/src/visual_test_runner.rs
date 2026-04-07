@@ -167,7 +167,7 @@ fn run_visual_tests(project_path: PathBuf, update_baseline: bool) -> Result<()> 
 
     // Set the global app state so settings_ui and other subsystems can find it
     cx.update(|cx| {
-        AppState::set_global(Arc::downgrade(&app_state), cx);
+        AppState::set_global(app_state.clone(), cx);
     });
 
     // Initialize all Zed subsystems
@@ -973,7 +973,7 @@ fn init_app_state(cx: &mut App) -> Arc<AppState> {
         build_window_options: |_, _| Default::default(),
         session,
     });
-    AppState::set_global(Arc::downgrade(&app_state), cx);
+    AppState::set_global(app_state.clone(), cx);
     app_state
 }
 
