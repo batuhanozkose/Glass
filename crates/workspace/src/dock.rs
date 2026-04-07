@@ -68,6 +68,10 @@ fn show_project_sidebar_tab(
 }
 
 impl DockButtonBar {
+    // Keep this in sync with the current native sidebar chrome: 3 sidebar rows,
+    // 1 supplementary action row, inner padding/gaps, borders, and outer padding.
+    pub const NATIVE_SIDEBAR_HEIGHT: f64 = 142.0;
+
     pub fn new(workspace: WeakEntity<Workspace>, cx: &mut App) -> Entity<Self> {
         cx.new(|_cx| Self {
             workspace,
@@ -120,50 +124,14 @@ impl Render for DockButtonBar {
 
         mode_rows.push(
             SidebarRow::new("sidebar-project-panel", "Project", IconName::FileTree)
-                .selected(active_sidebar_section == crate::WorkspaceSidebarSection::Project)
+                .selected(matches!(
+                    active_sidebar_section,
+                    crate::WorkspaceSidebarSection::Project | crate::WorkspaceSidebarSection::Git
+                ))
                 .end_slot(
                     h_flex()
                         .items_center()
                         .gap_1()
-                        .child(
-                            Button::new("sidebar-project-git", "Git")
-                                .style(ButtonStyle::Transparent)
-                                .size(ButtonSize::None)
-                                .label_size(LabelSize::Small)
-                                .start_icon(
-                                    Icon::new(IconName::GitBranchAlt)
-                                        .size(IconSize::Small)
-                                        .color(Color::Muted),
-                                )
-                                .toggle_state(
-                                    active_sidebar_section == crate::WorkspaceSidebarSection::Git,
-                                )
-                                .on_click({
-                                    let workspace = self.workspace.clone();
-                                    let multi_workspace = multi_workspace.clone();
-                                    move |_, window: &mut Window, cx: &mut App| {
-                                        cx.stop_propagation();
-
-                                        if let Some(multi_workspace) = multi_workspace.as_ref()
-                                            && multi_workspace.read(cx).sidebar_open()
-                                        {
-                                            multi_workspace.update(cx, |multi_workspace, cx| {
-                                                multi_workspace.close_sidebar(window, cx);
-                                            });
-                                        }
-
-                                        if let Some(workspace) = workspace.upgrade() {
-                                            workspace.update(cx, |workspace, cx| {
-                                                workspace.select_sidebar_section(
-                                                    crate::WorkspaceSidebarSection::Git,
-                                                    window,
-                                                    cx,
-                                                );
-                                            });
-                                        }
-                                    }
-                                }),
-                        )
                         .when_some(git_panel_badge, |row, badge| {
                             row.child(
                                 Label::new(badge)
@@ -247,28 +215,11 @@ impl Render for DockButtonBar {
                 .into_any_element(),
         );
 
-        mode_rows.push(
-            SidebarRow::new("sidebar-services", "Services", IconName::Server)
-                .selected(active_sidebar_section == crate::WorkspaceSidebarSection::Services)
-                .on_click({
-                    let multi_workspace = multi_workspace.clone();
-                    move |_, window, cx| {
-                        if let Some(multi_workspace) = multi_workspace.as_ref()
-                            && multi_workspace.read(cx).sidebar_open()
-                        {
-                            multi_workspace.update(cx, |multi_workspace, cx| {
-                                multi_workspace.close_sidebar(window, cx);
-                            });
-                        }
-
-                        window.dispatch_action(OpenServices.boxed_clone(), cx);
-                    }
-                })
-                .into_any_element(),
-        );
-
         let radius = cx.theme().component_radius().panel.unwrap_or(px(10.0));
-        let diagnostics = workspace_read.project().read(cx).diagnostic_summary(false, cx);
+        let diagnostics = workspace_read
+            .project()
+            .read(cx)
+            .diagnostic_summary(false, cx);
         let (diagnostics_icon, diagnostics_icon_color) = if diagnostics.error_count > 0 {
             (IconName::XCircle, Color::Error)
         } else if diagnostics.warning_count > 0 {
@@ -322,6 +273,31 @@ impl Render for DockButtonBar {
                     })
                     .on_click(|_, window, cx| {
                         window.dispatch_action(OpenRuntimeActions.boxed_clone(), cx);
+                    })
+                    .into_any_element(),
+                IconButton::new("sidebar-action-services", IconName::Server)
+                    .shape(IconButtonShape::Square)
+                    .style(ButtonStyle::Transparent)
+                    .size(ButtonSize::Compact)
+                    .icon_size(IconSize::Small)
+                    .toggle_state(
+                        active_sidebar_section == crate::WorkspaceSidebarSection::Services,
+                    )
+                    .selected_style(ButtonStyle::Tinted(TintColor::Accent))
+                    .tooltip(|_window, cx| Tooltip::for_action("Open Services", &OpenServices, cx))
+                    .on_click({
+                        let multi_workspace = multi_workspace.clone();
+                        move |_, window, cx| {
+                            if let Some(multi_workspace) = multi_workspace.as_ref()
+                                && multi_workspace.read(cx).sidebar_open()
+                            {
+                                multi_workspace.update(cx, |multi_workspace, cx| {
+                                    multi_workspace.close_sidebar(window, cx);
+                                });
+                            }
+
+                            window.dispatch_action(OpenServices.boxed_clone(), cx);
+                        }
                     })
                     .into_any_element(),
                 IconButton::new("sidebar-action-diagnostics", diagnostics_icon)

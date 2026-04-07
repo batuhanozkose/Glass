@@ -1420,7 +1420,6 @@ impl Render for ServicesPage {
 struct ServicesSidebarPanel {
     workspace: WeakEntity<Workspace>,
     observed_page: Option<WeakEntity<ServicesPage>>,
-    subscriptions_initialized: bool,
     _workspace_subscription: Option<Subscription>,
     _page_subscription: Option<Subscription>,
 }
@@ -1431,7 +1430,6 @@ impl ServicesSidebarPanel {
         let mut panel = Self {
             workspace,
             observed_page: None,
-            subscriptions_initialized: false,
             _workspace_subscription: None,
             _page_subscription: None,
         };
@@ -1443,6 +1441,17 @@ impl ServicesSidebarPanel {
             }));
         }
 
+        let this = cx.entity().downgrade();
+        cx.defer(move |cx| {
+            let Some(this) = this.upgrade() else {
+                return;
+            };
+
+            this.update(cx, |this, cx| {
+                this.sync_page_subscription(cx);
+                cx.notify();
+            });
+        });
         panel
     }
 
@@ -1477,21 +1486,6 @@ impl ServicesSidebarPanel {
 #[cfg(target_os = "macos")]
 impl Render for ServicesSidebarPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !self.subscriptions_initialized {
-            self.subscriptions_initialized = true;
-            let this = cx.entity().downgrade();
-            cx.defer(move |cx| {
-                let Some(this) = this.upgrade() else {
-                    return;
-                };
-
-                this.update(cx, |this, cx| {
-                    this.sync_page_subscription(cx);
-                    cx.notify();
-                });
-            });
-        }
-
         if let Some(page) = self.observed_page.as_ref().and_then(|page| page.upgrade()) {
             return ServicesPage::render_sidebar_controls(&page, window, cx);
         }

@@ -13,11 +13,11 @@ use agent_ui::{
 };
 use chrono::Utc;
 use editor::Editor;
+use git_ui::git_panel::GitPanel;
 use gpui::{
-    Action as _, AnyElement, AnyView, App, Context, DismissEvent, Entity, FocusHandle, Focusable,
+    Action as _, AnyElement, App, Context, DismissEvent, Entity, FocusHandle, Focusable,
     KeyContext, ListState, Pixels, Render, SharedString, WeakEntity, Window, WindowHandle, list,
-    px,
-    prelude::*,
+    prelude::*, px,
 };
 use menu::{
     Cancel, Confirm, SelectChild, SelectFirst, SelectLast, SelectNext, SelectParent, SelectPrevious,
@@ -41,7 +41,7 @@ use util::ResultExt as _;
 use util::path_list::PathList;
 use workspace::{
     AddFolderToProject, MultiWorkspace, MultiWorkspaceEvent, Open, Sidebar as WorkspaceSidebar,
-    Workspace, WorkspaceId,
+    Workspace, WorkspaceId, WorkspaceSidebarSection,
 };
 
 use zed_actions::OpenRecent;
@@ -396,6 +396,63 @@ impl Render for ProjectSidebarSurface {
     }
 }
 
+pub struct GitSidebarSurface {
+    multi_workspace: WeakEntity<MultiWorkspace>,
+    _subscriptions: Vec<gpui::Subscription>,
+}
+
+impl GitSidebarSurface {
+    fn new(multi_workspace: Entity<MultiWorkspace>, cx: &mut Context<Self>) -> Self {
+        let subscription = cx.subscribe(
+            &multi_workspace,
+            |_this, _multi_workspace, _event: &MultiWorkspaceEvent, cx| {
+                cx.notify();
+            },
+        );
+
+        Self {
+            multi_workspace: multi_workspace.downgrade(),
+            _subscriptions: vec![subscription],
+        }
+    }
+
+    fn active_workspace(&self, cx: &App) -> Option<Entity<Workspace>> {
+        let multi_workspace = self.multi_workspace.upgrade()?;
+        Some(multi_workspace.read(cx).workspace().clone())
+    }
+
+    fn active_git_panel(&self, cx: &App) -> Option<Entity<GitPanel>> {
+        let workspace = self.active_workspace(cx)?;
+        workspace.read(cx).panel::<GitPanel>(cx)
+    }
+}
+
+impl Render for GitSidebarSurface {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(git_panel) = self.active_git_panel(cx) {
+            return div()
+                .size_full()
+                .overflow_hidden()
+                .bg(cx.theme().colors().panel_background)
+                .child(git_panel)
+                .into_any_element();
+        }
+
+        v_flex()
+            .size_full()
+            .justify_center()
+            .p_4()
+            .gap_2()
+            .child(Label::new("Git").size(LabelSize::Large))
+            .child(
+                Label::new("Open the Git panel to view changes and history.")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+            .into_any_element()
+    }
+}
+
 /// The sidebar re-derives its entire entry list from scratch on every
 /// change via `update_entries` → `rebuild_contents`. Avoid adding
 /// incremental or inter-event coordination state — if something can
@@ -403,6 +460,7 @@ impl Render for ProjectSidebarSurface {
 pub struct ThreadsNavigator {
     multi_workspace: WeakEntity<MultiWorkspace>,
     project_surface: WeakEntity<ProjectSidebarSurface>,
+    git_surface: WeakEntity<GitSidebarSurface>,
     width: Pixels,
     focus_handle: FocusHandle,
     filter_editor: Entity<Editor>,
@@ -456,10 +514,38 @@ impl ThreadsNavigator {
         });
     }
 
+    #[cfg(target_os = "macos")]
+    fn install_git_section_view(
+        workspace: &Entity<Workspace>,
+        git_surface: &Entity<GitSidebarSurface>,
+        cx: &mut App,
+    ) {
+        if cfg!(test) {
+            return;
+        }
+
+        let git_surface = git_surface.clone();
+        workspace.update(cx, |workspace, cx| {
+            workspace.set_sidebar_section_view(
+                workspace::WorkspaceSidebarSection::Git,
+                Some(git_surface.into()),
+                cx,
+            );
+        });
+    }
+
     #[cfg(not(target_os = "macos"))]
     fn install_project_section_view(
         _workspace: &Entity<Workspace>,
         _project_surface: &Entity<ProjectSidebarSurface>,
+        _cx: &mut App,
+    ) {
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn install_git_section_view(
+        _workspace: &Entity<Workspace>,
+        _git_surface: &Entity<GitSidebarSurface>,
         _cx: &mut App,
     ) {
     }
@@ -482,6 +568,7 @@ impl ThreadsNavigator {
         let threads_navigator = cx.entity();
         let project_surface =
             cx.new(|cx| ProjectSidebarSurface::new(threads_navigator.clone(), cx));
+        let git_surface = cx.new(|cx| GitSidebarSurface::new(multi_workspace.clone(), cx));
 
         cx.subscribe_in(
             &multi_workspace,
@@ -494,6 +581,9 @@ impl ThreadsNavigator {
                 MultiWorkspaceEvent::WorkspaceAdded(workspace) => {
                     if let Some(project_surface) = this.project_surface.upgrade() {
                         Self::install_project_section_view(workspace, &project_surface, cx);
+                    }
+                    if let Some(git_surface) = this.git_surface.upgrade() {
+                        Self::install_git_section_view(workspace, &git_surface, cx);
                     }
                     this.subscribe_to_workspace(workspace, window, cx);
                     this.update_entries(cx);
@@ -533,6 +623,9 @@ impl ThreadsNavigator {
                 if let Some(project_surface) = this.project_surface.upgrade() {
                     Self::install_project_section_view(workspace, &project_surface, cx);
                 }
+                if let Some(git_surface) = this.git_surface.upgrade() {
+                    Self::install_git_section_view(workspace, &git_surface, cx);
+                }
                 this.subscribe_to_workspace(workspace, window, cx);
             }
             this.update_entries(cx);
@@ -541,6 +634,7 @@ impl ThreadsNavigator {
         Self {
             multi_workspace: multi_workspace.downgrade(),
             project_surface: project_surface.downgrade(),
+            git_surface: git_surface.downgrade(),
             width: DEFAULT_WIDTH,
             focus_handle,
             filter_editor,
@@ -737,6 +831,44 @@ impl ThreadsNavigator {
                     cx.notify();
                 })
             });
+    }
+
+    // Failure modes:
+    // - The sidebar may outlive the active workspace, so project-local controls must no-op.
+    // - The Git panel is only guaranteed to exist after the workspace activates the Git section.
+    // - Archive state should survive a temporary Git detour so a second Git click restores context.
+    fn active_workspace(&self, cx: &App) -> Option<Entity<Workspace>> {
+        let multi_workspace = self.multi_workspace.upgrade()?;
+        Some(multi_workspace.read(cx).workspace().clone())
+    }
+
+    fn active_sidebar_section(&self, cx: &App) -> WorkspaceSidebarSection {
+        self.active_workspace(cx)
+            .map(|workspace| workspace.read(cx).active_sidebar_section())
+            .unwrap_or(WorkspaceSidebarSection::Project)
+    }
+
+    fn active_git_panel(&self, cx: &App) -> Option<Entity<GitPanel>> {
+        let workspace = self.active_workspace(cx)?;
+        workspace.read(cx).panel::<GitPanel>(cx)
+    }
+
+    fn toggle_git_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(workspace) = self.active_workspace(cx) else {
+            return;
+        };
+
+        let next_section = match workspace.read(cx).active_sidebar_section() {
+            WorkspaceSidebarSection::Git => WorkspaceSidebarSection::Project,
+            _ => WorkspaceSidebarSection::Git,
+        };
+
+        workspace.update(cx, |workspace, cx| {
+            if next_section == WorkspaceSidebarSection::Git {
+                workspace.open_panel::<GitPanel>(window, cx);
+            }
+            workspace.select_sidebar_section(next_section, window, cx);
+        });
     }
 
     fn active_draft_text(&self, cx: &App) -> Option<SharedString> {
@@ -1469,11 +1601,17 @@ impl ThreadsNavigator {
     }
 
     fn toggle_project_group_mode(&mut self, path_list: &PathList, cx: &mut Context<Self>) {
-        let next_mode = match self.project_group_modes.get(path_list).copied().unwrap_or_default() {
+        let next_mode = match self
+            .project_group_modes
+            .get(path_list)
+            .copied()
+            .unwrap_or_default()
+        {
             ProjectGroupMode::Threads => ProjectGroupMode::Files,
             ProjectGroupMode::Files => ProjectGroupMode::Threads,
         };
-        self.project_group_modes.insert(path_list.clone(), next_mode);
+        self.project_group_modes
+            .insert(path_list.clone(), next_mode);
         self.selection = None;
         self.update_entries(cx);
     }
@@ -1581,9 +1719,12 @@ impl ThreadsNavigator {
         div()
             .id(SharedString::from(format!("project-files-panel-{ix}")))
             .w_full()
-            .on_mouse_down(gpui::MouseButton::Left, cx.listener(move |this, _, _, cx| {
-                this.activate_workspace_context(&workspace, cx);
-            }))
+            .on_mouse_down(
+                gpui::MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    this.activate_workspace_context(&workspace, cx);
+                }),
+            )
             .child(panel)
             .into_any_element()
     }
@@ -1745,9 +1886,7 @@ impl ThreadsNavigator {
                         .icon_size(IconSize::Small)
                         .icon_color(Color::Muted)
                         .tooltip(match group_mode {
-                            ProjectGroupMode::Threads => {
-                                Tooltip::text("Show File Tree")
-                            }
+                            ProjectGroupMode::Threads => Tooltip::text("Show File Tree"),
                             ProjectGroupMode::Files => Tooltip::text("Show Threads"),
                         })
                         .on_click(cx.listener({
@@ -1760,52 +1899,62 @@ impl ThreadsNavigator {
                     .children(self.project_header_branch_picker(ix, id_prefix, workspace, cx))
                     .child(self.render_project_header_menu(ix, id_prefix, &workspace_for_menu, cx))
                     .when(
-                        group_mode == ProjectGroupMode::Threads && view_more_expanded && !is_collapsed,
+                        group_mode == ProjectGroupMode::Threads
+                            && view_more_expanded
+                            && !is_collapsed,
                         |this| {
-                        this.child(
-                            IconButton::new(
-                                SharedString::from(format!(
-                                    "{id_prefix}project-header-collapse-{ix}",
-                                )),
-                                IconName::ListCollapse,
+                            this.child(
+                                IconButton::new(
+                                    SharedString::from(format!(
+                                        "{id_prefix}project-header-collapse-{ix}",
+                                    )),
+                                    IconName::ListCollapse,
+                                )
+                                .icon_size(IconSize::Small)
+                                .icon_color(Color::Muted)
+                                .tooltip(Tooltip::text("Collapse Displayed Threads"))
+                                .on_click(cx.listener({
+                                    let path_list_for_collapse = path_list_for_collapse.clone();
+                                    move |this, _, _window, cx| {
+                                        this.selection = None;
+                                        this.expanded_groups.remove(&path_list_for_collapse);
+                                        this.update_entries(cx);
+                                    }
+                                })),
                             )
-                            .icon_size(IconSize::Small)
-                            .icon_color(Color::Muted)
-                            .tooltip(Tooltip::text("Collapse Displayed Threads"))
-                            .on_click(cx.listener({
-                                let path_list_for_collapse = path_list_for_collapse.clone();
-                                move |this, _, _window, cx| {
-                                    this.selection = None;
-                                    this.expanded_groups.remove(&path_list_for_collapse);
-                                    this.update_entries(cx);
-                                }
-                            })),
-                        )
-                    })
-                    .when(group_mode == ProjectGroupMode::Threads && show_new_thread_button, |this| {
-                        this.child(
-                            IconButton::new(
-                                SharedString::from(format!(
-                                    "{id_prefix}project-header-new-thread-{ix}",
-                                )),
-                                IconName::Plus,
+                        },
+                    )
+                    .when(
+                        group_mode == ProjectGroupMode::Threads && show_new_thread_button,
+                        |this| {
+                            this.child(
+                                IconButton::new(
+                                    SharedString::from(format!(
+                                        "{id_prefix}project-header-new-thread-{ix}",
+                                    )),
+                                    IconName::Plus,
+                                )
+                                .icon_size(IconSize::Small)
+                                .icon_color(Color::Muted)
+                                .tooltip(Tooltip::text("New Thread"))
+                                .on_click(cx.listener({
+                                    let workspace_for_new_thread = workspace_for_new_thread.clone();
+                                    let path_list_for_new_thread = path_list_for_new_thread.clone();
+                                    move |this, _, window, cx| {
+                                        // Uncollapse the group if collapsed so
+                                        // the new-thread entry becomes visible.
+                                        this.collapsed_groups.remove(&path_list_for_new_thread);
+                                        this.selection = None;
+                                        this.create_new_thread(
+                                            &workspace_for_new_thread,
+                                            window,
+                                            cx,
+                                        );
+                                    }
+                                })),
                             )
-                            .icon_size(IconSize::Small)
-                            .icon_color(Color::Muted)
-                            .tooltip(Tooltip::text("New Thread"))
-                            .on_click(cx.listener({
-                                let workspace_for_new_thread = workspace_for_new_thread.clone();
-                                let path_list_for_new_thread = path_list_for_new_thread.clone();
-                                move |this, _, window, cx| {
-                                    // Uncollapse the group if collapsed so
-                                    // the new-thread entry becomes visible.
-                                    this.collapsed_groups.remove(&path_list_for_new_thread);
-                                    this.selection = None;
-                                    this.create_new_thread(&workspace_for_new_thread, window, cx);
-                                }
-                            })),
-                        )
-                    })
+                        },
+                    )
             })
             .on_click(cx.listener(move |this, _, window, cx| {
                 let _ = window;
@@ -1991,8 +2140,7 @@ impl ThreadsNavigator {
                 .into_iter()
                 .any(|snapshot| {
                     snapshot.is_linked_worktree()
-                        && !known_worktree_paths
-                            .contains(snapshot.work_directory_abs_path.as_ref())
+                        && !known_worktree_paths.contains(snapshot.work_directory_abs_path.as_ref())
                 });
             if should_prune {
                 to_remove.push(workspace.clone());
@@ -3205,6 +3353,7 @@ impl ThreadsNavigator {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let has_query = self.has_filter_query(cx);
+        let git_panel_visible = self.active_sidebar_section(cx) == WorkspaceSidebarSection::Git;
         let traffic_lights = false;
         let header_height = platform_title_bar_height(window);
 
@@ -3241,6 +3390,16 @@ impl ThreadsNavigator {
                                     })),
                             )
                         })
+                        .child(
+                            IconButton::new("git", IconName::GitBranchAlt)
+                                .icon_size(IconSize::Small)
+                                .toggle_state(git_panel_visible)
+                                .selected_style(ButtonStyle::Tinted(TintColor::Accent))
+                                .tooltip(Tooltip::text("Toggle Git Panel"))
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.toggle_git_panel(window, cx);
+                                })),
+                        )
                         .child(
                             IconButton::new("archive", IconName::Archive)
                                 .icon_size(IconSize::Small)
@@ -3369,7 +3528,7 @@ impl Render for ThreadsNavigator {
         let _titlebar_height = ui::utils::platform_title_bar_height(window);
         let ui_font = theme::setup_ui_font(window, cx);
         let sticky_header = self.render_sticky_header(window, cx);
-
+        let active_sidebar_section = self.active_sidebar_section(cx);
         let color = cx.theme().colors();
         let no_open_projects = !self.contents.has_open_projects;
         let no_search_results = self.contents.entries.is_empty();
@@ -3377,6 +3536,10 @@ impl Render for ThreadsNavigator {
         let hosted_in_native_sidebar = true;
         #[cfg(not(target_os = "macos"))]
         let hosted_in_native_sidebar = false;
+        let git_panel =
+            (!hosted_in_native_sidebar && active_sidebar_section == WorkspaceSidebarSection::Git)
+                .then(|| self.active_git_panel(cx))
+                .flatten();
 
         v_flex()
             .id("workspace-sidebar")
@@ -3409,35 +3572,43 @@ impl Render for ThreadsNavigator {
             .when(!hosted_in_native_sidebar, |this| {
                 this.border_r_1().border_color(color.border)
             })
-            .map(|this| match &self.view {
-                SidebarView::ThreadList => this
-                    .child(self.render_sidebar_header(no_open_projects, window, cx))
-                    .map(|this| {
-                        if no_open_projects {
-                            this.child(self.render_empty_state(cx))
-                        } else {
-                            this.child(
-                                v_flex()
-                                    .relative()
-                                    .flex_1()
-                                    .overflow_hidden()
-                                    .child(
-                                        list(
-                                            self.list_state.clone(),
-                                            cx.processor(Self::render_list_entry),
-                                        )
+            .map(|this| {
+                if let Some(git_panel) = git_panel {
+                    return this
+                        .child(self.render_sidebar_header(no_open_projects, window, cx))
+                        .child(div().flex_1().min_h_0().overflow_hidden().child(git_panel));
+                }
+
+                match &self.view {
+                    SidebarView::ThreadList => this
+                        .child(self.render_sidebar_header(no_open_projects, window, cx))
+                        .map(|this| {
+                            if no_open_projects {
+                                this.child(self.render_empty_state(cx))
+                            } else {
+                                this.child(
+                                    v_flex()
+                                        .relative()
                                         .flex_1()
-                                        .size_full(),
-                                    )
-                                    .when(no_search_results, |this| {
-                                        this.child(self.render_no_results(cx))
-                                    })
-                                    .when_some(sticky_header, |this, header| this.child(header))
-                                    .vertical_scrollbar_for(&self.list_state, window, cx),
-                            )
-                        }
-                    }),
-                SidebarView::Archive(archive_view) => this.child(archive_view.clone()),
+                                        .overflow_hidden()
+                                        .child(
+                                            list(
+                                                self.list_state.clone(),
+                                                cx.processor(Self::render_list_entry),
+                                            )
+                                            .flex_1()
+                                            .size_full(),
+                                        )
+                                        .when(no_search_results, |this| {
+                                            this.child(self.render_no_results(cx))
+                                        })
+                                        .when_some(sticky_header, |this, header| this.child(header))
+                                        .vertical_scrollbar_for(&self.list_state, window, cx),
+                                )
+                            }
+                        }),
+                    SidebarView::Archive(archive_view) => this.child(archive_view.clone()),
+                }
             })
     }
 }
@@ -3665,10 +3836,7 @@ mod tests {
         cx.run_until_parked();
     }
 
-    fn trigger_select_next(
-        sidebar: &Entity<ThreadsNavigator>,
-        cx: &mut gpui::VisualTestContext,
-    ) {
+    fn trigger_select_next(sidebar: &Entity<ThreadsNavigator>, cx: &mut gpui::VisualTestContext) {
         sidebar.update_in(cx, |sidebar, window, cx| {
             sidebar.select_next(&SelectNext, window, cx);
         });
@@ -3683,19 +3851,13 @@ mod tests {
         });
     }
 
-    fn trigger_select_first(
-        sidebar: &Entity<ThreadsNavigator>,
-        cx: &mut gpui::VisualTestContext,
-    ) {
+    fn trigger_select_first(sidebar: &Entity<ThreadsNavigator>, cx: &mut gpui::VisualTestContext) {
         sidebar.update_in(cx, |sidebar, window, cx| {
             sidebar.select_first(&SelectFirst, window, cx);
         });
     }
 
-    fn trigger_select_last(
-        sidebar: &Entity<ThreadsNavigator>,
-        cx: &mut gpui::VisualTestContext,
-    ) {
+    fn trigger_select_last(sidebar: &Entity<ThreadsNavigator>, cx: &mut gpui::VisualTestContext) {
         sidebar.update_in(cx, |sidebar, window, cx| {
             sidebar.select_last(&SelectLast, window, cx);
         });
@@ -3707,19 +3869,13 @@ mod tests {
         });
     }
 
-    fn trigger_select_child(
-        sidebar: &Entity<ThreadsNavigator>,
-        cx: &mut gpui::VisualTestContext,
-    ) {
+    fn trigger_select_child(sidebar: &Entity<ThreadsNavigator>, cx: &mut gpui::VisualTestContext) {
         sidebar.update_in(cx, |sidebar, window, cx| {
             sidebar.expand_selected_entry(&SelectChild, window, cx);
         });
     }
 
-    fn trigger_select_parent(
-        sidebar: &Entity<ThreadsNavigator>,
-        cx: &mut gpui::VisualTestContext,
-    ) {
+    fn trigger_select_parent(sidebar: &Entity<ThreadsNavigator>, cx: &mut gpui::VisualTestContext) {
         sidebar.update_in(cx, |sidebar, window, cx| {
             sidebar.collapse_selected_entry(&SelectParent, window, cx);
         });
@@ -4484,7 +4640,9 @@ mod tests {
 
         sidebar.update_in(cx, |sidebar, _window, cx| {
             let path_list = PathList::new(&[std::path::PathBuf::from("/my-project")]);
-            sidebar.project_group_modes.insert(path_list, ProjectGroupMode::Files);
+            sidebar
+                .project_group_modes
+                .insert(path_list, ProjectGroupMode::Files);
             sidebar.update_entries(cx);
         });
         cx.run_until_parked();
@@ -4718,6 +4876,64 @@ mod tests {
         let workspace = multi_workspace.read_with(cx, |mw, _cx| mw.workspace().clone());
         let panel = add_agent_panel(&workspace, project, cx);
         (sidebar, panel)
+    }
+
+    #[gpui::test]
+    async fn test_toggle_git_panel_restores_previous_project_view(cx: &mut TestAppContext) {
+        let project = init_test_project_with_agent_panel("/my-project", cx).await;
+        let (multi_workspace, cx) =
+            cx.add_window_view(|window, cx| MultiWorkspace::test_new(project.clone(), window, cx));
+        let (sidebar, _panel) = setup_sidebar_with_agent_panel(&multi_workspace, &project, cx);
+        let workspace = multi_workspace.read_with(cx, |mw, _cx| mw.workspace().clone());
+
+        workspace.update_in(cx, |workspace, window, cx| {
+            workspace.select_sidebar_section(WorkspaceSidebarSection::Project, window, cx);
+        });
+        cx.run_until_parked();
+
+        sidebar.update_in(cx, |sidebar, window, cx| {
+            sidebar.toggle_archive(&ToggleArchive, window, cx);
+        });
+        cx.run_until_parked();
+
+        sidebar.read_with(cx, |sidebar, _cx| {
+            assert!(
+                matches!(sidebar.view, SidebarView::Archive(_)),
+                "archive state should be active before toggling Git"
+            );
+        });
+
+        sidebar.update_in(cx, |sidebar, window, cx| {
+            sidebar.toggle_git_panel(window, cx);
+        });
+        cx.run_until_parked();
+
+        workspace.read_with(cx, |workspace, _cx| {
+            assert_eq!(
+                workspace.active_sidebar_section(),
+                WorkspaceSidebarSection::Git,
+                "first Git click should show the Git section"
+            );
+        });
+
+        sidebar.update_in(cx, |sidebar, window, cx| {
+            sidebar.toggle_git_panel(window, cx);
+        });
+        cx.run_until_parked();
+
+        workspace.read_with(cx, |workspace, _cx| {
+            assert_eq!(
+                workspace.active_sidebar_section(),
+                WorkspaceSidebarSection::Project,
+                "second Git click should return to the Project section"
+            );
+        });
+        sidebar.read_with(cx, |sidebar, _cx| {
+            assert!(
+                matches!(sidebar.view, SidebarView::Archive(_)),
+                "returning from Git should restore the previous project-local view"
+            );
+        });
     }
 
     #[gpui::test]
@@ -6621,86 +6837,90 @@ mod tests {
 
         let assert_sidebar_state =
             |sidebar: &mut ThreadsNavigator, _cx: &mut Context<ThreadsNavigator>| {
-            let mut project_headers = sidebar.contents.entries.iter().filter_map(|entry| {
-                if let ListEntry::ProjectHeader { label, .. } = entry {
-                    Some(label.as_ref())
-                } else {
-                    None
-                }
-            });
+                let mut project_headers = sidebar.contents.entries.iter().filter_map(|entry| {
+                    if let ListEntry::ProjectHeader { label, .. } = entry {
+                        Some(label.as_ref())
+                    } else {
+                        None
+                    }
+                });
 
-            let Some(project_header) = project_headers.next() else {
-                panic!("expected exactly one sidebar project header named `project`, found none");
-            };
-            assert_eq!(
-                project_header, "project",
-                "expected the only sidebar project header to be `project`"
-            );
-            if let Some(unexpected_header) = project_headers.next() {
-                panic!(
-                    "expected exactly one sidebar project header named `project`, found extra header `{unexpected_header}`"
+                let Some(project_header) = project_headers.next() else {
+                    panic!(
+                        "expected exactly one sidebar project header named `project`, found none"
+                    );
+                };
+                assert_eq!(
+                    project_header, "project",
+                    "expected the only sidebar project header to be `project`"
                 );
-            }
+                if let Some(unexpected_header) = project_headers.next() {
+                    panic!(
+                        "expected exactly one sidebar project header named `project`, found extra header `{unexpected_header}`"
+                    );
+                }
 
-            let mut saw_expected_thread = false;
-            for entry in &sidebar.contents.entries {
-                match entry {
-                    ListEntry::ProjectHeader { label, .. } => {
-                        assert_eq!(
-                            label.as_ref(),
-                            "project",
-                            "expected the only sidebar project header to be `project`"
-                        );
-                    }
-                    ListEntry::Thread(thread)
-                        if thread
-                            .session_info
-                            .title
-                            .as_ref()
-                            .map(|title| title.as_ref())
-                            == Some("WT Thread")
-                            && thread.worktree_name.as_ref().map(|name| name.as_ref())
-                                == Some("wt-feature-a") =>
-                    {
-                        saw_expected_thread = true;
-                    }
-                    ListEntry::Thread(thread) => {
-                        let title = thread
-                            .session_info
-                            .title
-                            .as_ref()
-                            .map(|title| title.as_ref())
-                            .unwrap_or("Untitled");
-                        let worktree_name = thread
-                            .worktree_name
-                            .as_ref()
-                            .map(|name| name.as_ref())
-                            .unwrap_or("<none>");
-                        panic!(
-                            "unexpected sidebar thread while opening linked worktree thread: title=`{title}`, worktree=`{worktree_name}`"
-                        );
-                    }
-                    ListEntry::ViewMore { .. } => {
-                        panic!("unexpected `View More` entry while opening linked worktree thread");
-                    }
-                    ListEntry::NewThread { .. } => {
-                        panic!(
-                            "unexpected `New Thread` entry while opening linked worktree thread"
-                        );
-                    }
-                    ListEntry::FilesPanel { .. } => {
-                        panic!(
-                            "unexpected `File Tree` entry while opening linked worktree thread"
-                        );
+                let mut saw_expected_thread = false;
+                for entry in &sidebar.contents.entries {
+                    match entry {
+                        ListEntry::ProjectHeader { label, .. } => {
+                            assert_eq!(
+                                label.as_ref(),
+                                "project",
+                                "expected the only sidebar project header to be `project`"
+                            );
+                        }
+                        ListEntry::Thread(thread)
+                            if thread
+                                .session_info
+                                .title
+                                .as_ref()
+                                .map(|title| title.as_ref())
+                                == Some("WT Thread")
+                                && thread.worktree_name.as_ref().map(|name| name.as_ref())
+                                    == Some("wt-feature-a") =>
+                        {
+                            saw_expected_thread = true;
+                        }
+                        ListEntry::Thread(thread) => {
+                            let title = thread
+                                .session_info
+                                .title
+                                .as_ref()
+                                .map(|title| title.as_ref())
+                                .unwrap_or("Untitled");
+                            let worktree_name = thread
+                                .worktree_name
+                                .as_ref()
+                                .map(|name| name.as_ref())
+                                .unwrap_or("<none>");
+                            panic!(
+                                "unexpected sidebar thread while opening linked worktree thread: title=`{title}`, worktree=`{worktree_name}`"
+                            );
+                        }
+                        ListEntry::ViewMore { .. } => {
+                            panic!(
+                                "unexpected `View More` entry while opening linked worktree thread"
+                            );
+                        }
+                        ListEntry::NewThread { .. } => {
+                            panic!(
+                                "unexpected `New Thread` entry while opening linked worktree thread"
+                            );
+                        }
+                        ListEntry::FilesPanel { .. } => {
+                            panic!(
+                                "unexpected `File Tree` entry while opening linked worktree thread"
+                            );
+                        }
                     }
                 }
-            }
 
-            assert!(
-                saw_expected_thread,
-                "expected the sidebar to keep showing `WT Thread {{wt-feature-a}}` under `project`"
-            );
-        };
+                assert!(
+                    saw_expected_thread,
+                    "expected the sidebar to keep showing `WT Thread {{wt-feature-a}}` under `project`"
+                );
+            };
 
         sidebar
             .update(cx, |_, cx| cx.observe_self(assert_sidebar_state))

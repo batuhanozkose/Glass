@@ -386,11 +386,6 @@ impl WorkspaceSidebarHost {
 #[cfg(target_os = "macos")]
 impl Render for WorkspaceSidebarHost {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let button_bar = if cfg!(any(test, feature = "test-support")) {
-            None
-        } else {
-            self.left_dock.read(cx).native_sidebar_button_bar()
-        };
         let body = self
             .active_section_view(cx)
             .map(|view| view.into_any_element())
@@ -401,9 +396,6 @@ impl Render for WorkspaceSidebarHost {
             .flex()
             .flex_col()
             .overflow_hidden()
-            .when_some(button_bar, |this, dock_button_bar| {
-                this.child(dock_button_bar)
-            })
             .child(
                 div()
                     .flex()
@@ -7924,6 +7916,7 @@ impl Workspace {
     ) -> AnyElement {
         let sidebar_width = workspace_sidebar_host.read(cx).width();
         let sidebar_collapsed = self.workspace_sidebar_host_collapsed(window, cx);
+        let button_bar = self.button_bar(cx);
         let sidebar_titlebar_fill = match cx.theme().window_background_appearance() {
             WindowBackgroundAppearance::Opaque => Some(cx.theme().colors().panel_background),
             _ => None,
@@ -7960,6 +7953,9 @@ impl Workspace {
             .flex_row()
             .child(
                 native_sidebar("workspace-sidebar-host", &[""; 0])
+                    .when_some(button_bar, |this, dock_button_bar| {
+                        this.header_view(dock_button_bar, DockButtonBar::NATIVE_SIDEBAR_HEIGHT)
+                    })
                     .sidebar_view(workspace_sidebar_host)
                     .sidebar_width(sidebar_width)
                     .min_sidebar_width(160.0)

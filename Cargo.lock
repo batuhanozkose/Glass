@@ -14397,6 +14397,7 @@ dependencies = [
  "feature_flags",
  "fs",
  "git",
+ "git_ui",
  "gpui",
  "language_model",
  "menu",
