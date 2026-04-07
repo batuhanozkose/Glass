@@ -2427,7 +2427,7 @@ impl RenderOnce for SyntaxHighlightedText {
             }
 
             let mut run_style = text_style.clone();
-            if let Some(highlight_style) = highlight_id.style(syntax_theme) {
+            if let Some(highlight_style) = syntax_theme.get(highlight_id).cloned() {
                 run_style = run_style.highlight(highlight_style);
             }
             // add the highlighted range

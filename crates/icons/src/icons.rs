@@ -245,6 +245,8 @@ pub enum IconName {
     ThreadFromSummary,
     ThreadsSidebarLeftClosed,
     ThreadsSidebarLeftOpen,
+    ThreadsSidebarRightClosed,
+    ThreadsSidebarRightOpen,
     ThumbsDown,
     ThumbsUp,
     TodoComplete,

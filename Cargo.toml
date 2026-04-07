@@ -82,6 +82,7 @@ members = [
     "crates/git_ui",
     "crates/go_to_line",
     "crates/google_ai",
+    "crates/grammars",
     "crates/html_to_markdown",
     "crates/icons",
     "crates/image_viewer",
@@ -90,6 +91,7 @@ members = [
     "crates/json_schema_store",
     "crates/keymap_editor",
     "crates/language",
+    "crates/language_core",
     "crates/language_extension",
     "crates/language_model",
     "crates/language_models",
@@ -306,6 +308,7 @@ git_hosting_providers = { path = "crates/git_hosting_providers" }
 git_ui = { path = "crates/git_ui" }
 go_to_line = { path = "crates/go_to_line" }
 google_ai = { path = "crates/google_ai" }
+grammars = { path = "crates/grammars" }
 gpui = { git = "https://github.com/Glass-HQ/gpui.git", rev = "622771c2", default-features = false }
 gpui_macros = { git = "https://github.com/Glass-HQ/gpui.git", rev = "622771c2" }
 gpui_platform = { git = "https://github.com/Glass-HQ/gpui.git", rev = "622771c2", default-features = false, features = ["font-kit"] }
@@ -324,6 +327,7 @@ install_cli = { path = "crates/install_cli" }
 json_schema_store = { path = "crates/json_schema_store" }
 keymap_editor = { path = "crates/keymap_editor" }
 language = { path = "crates/language" }
+language_core = { path = "crates/language_core" }
 language_extension = { path = "crates/language_extension" }
 language_model = { path = "crates/language_model" }
 language_models = { path = "crates/language_models" }

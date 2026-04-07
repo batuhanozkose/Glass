@@ -1872,7 +1872,7 @@ impl Panel for TerminalPanel {
     }
 
     fn activation_priority(&self) -> u32 {
-        1
+        2
     }
 }
 

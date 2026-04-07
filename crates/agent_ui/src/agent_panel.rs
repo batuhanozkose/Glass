@@ -1690,6 +1690,7 @@ impl AgentPanel {
             AgentConfiguration::new(
                 fs,
                 agent_server_store,
+                self.connection_store.clone(),
                 context_server_store,
                 self.context_server_registry.clone(),
                 self.language_registry.clone(),
@@ -3128,7 +3129,7 @@ impl Panel for AgentPanel {
     }
 
     fn activation_priority(&self) -> u32 {
-        8
+        0
     }
 
     fn enabled(&self, cx: &App) -> bool {
@@ -3768,8 +3769,6 @@ impl AgentPanel {
                                     }
                                 }),
                         )
-                        .separator()
-                        .header("External Agents")
                         .map(|mut menu| {
                             let agent_server_store = agent_server_store.read(cx);
                             let registry_store = project::AgentRegistryStore::try_global(cx);
@@ -3800,6 +3799,9 @@ impl AgentPanel {
                                 .sorted_unstable_by_key(|e| e.display_name.to_lowercase())
                                 .collect::<Vec<_>>();
 
+                            if !agent_items.is_empty() {
+                                menu = menu.separator().header("External Agents");
+                            }
                             for item in &agent_items {
                                 let mut entry = ContextMenuEntry::new(item.display_name.clone());
 
