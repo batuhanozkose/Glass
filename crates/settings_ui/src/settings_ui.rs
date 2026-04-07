@@ -33,7 +33,7 @@ use std::{
     sync::{Arc, LazyLock, RwLock},
     time::Duration,
 };
-use theme::ThemeSettings;
+use theme_settings::ThemeSettings;
 use ui::{
     Banner, ContextMenu, Divider, DropdownMenu, DropdownStyle, IconButtonShape, KeyBinding,
     KeybindingHint, PopoverMenu, Scrollbars, Switch, Tooltip, TreeViewItem, WithScrollbar,
@@ -632,7 +632,9 @@ pub fn open_settings_editor(
     // We have to defer this to get the workspace off the stack.
     let path = path.map(ToOwned::to_owned);
     cx.defer(move |cx| {
-        let current_rem_size: f32 = theme::ThemeSettings::get_global(cx).ui_font_size(cx).into();
+        let current_rem_size: f32 = theme_settings::ThemeSettings::get_global(cx)
+            .ui_font_size(cx)
+            .into();
 
         let default_bounds = DEFAULT_ADDITIONAL_WINDOW_SIZE;
         let default_rem_size = 16.0;
@@ -3643,7 +3645,7 @@ impl SettingsWindow {
 
 impl Render for SettingsWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let ui_font = theme::setup_ui_font(window, cx);
+        let ui_font = theme_settings::setup_ui_font(window, cx);
 
         client_side_decorations(
             v_flex()
@@ -4403,7 +4405,7 @@ pub mod test {
 
     pub fn register_settings(cx: &mut App) {
         settings::init(cx);
-        theme::init(theme::LoadThemes::JustBase, cx);
+        theme_settings::init(theme::LoadThemes::JustBase, cx);
         editor::init(cx);
         menu::init();
     }
@@ -5068,7 +5070,7 @@ mod project_settings_update_tests {
         cx.update(|cx| {
             let store = settings::SettingsStore::test(cx);
             cx.set_global(store);
-            theme::init(theme::LoadThemes::JustBase, cx);
+            theme_settings::init(theme::LoadThemes::JustBase, cx);
             editor::init(cx);
             menu::init();
             let queue = ProjectSettingsUpdateQueue::new(cx);

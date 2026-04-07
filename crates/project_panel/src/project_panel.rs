@@ -56,7 +56,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use theme::ThemeSettings;
+use theme_settings::ThemeSettings;
 use toast::{StatusToast, ToastIcon};
 use ui::{
     Color, ContextMenu, ContextMenuEntry, DecoratedIcon, Divider, Icon, IconDecoration,

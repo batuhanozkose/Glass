@@ -9,6 +9,8 @@ use gpui::{
 #[cfg(not(target_os = "macos"))]
 use gpui::{MouseButton, deferred, px};
 use project::Project;
+#[cfg(test)]
+use project::DisableAiSettings;
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -901,7 +903,7 @@ impl Render for MultiWorkspace {
         #[cfg(target_os = "macos")]
         let sidebar: Option<AnyView> = None;
 
-        let ui_font = theme::setup_ui_font(window, cx);
+        let ui_font = theme_settings::setup_ui_font(window, cx);
         let text_color = cx.theme().colors().text;
 
         let workspace = self.workspace().clone();
@@ -1082,7 +1084,9 @@ mod tests {
         cx.update(|cx| {
             let settings_store = SettingsStore::test(cx);
             cx.set_global(settings_store);
-            theme::init(theme::LoadThemes::JustBase, cx);
+            theme_settings::init(theme::LoadThemes::JustBase, cx);
+            DisableAiSettings::register(cx);
+            cx.update_flags(false, vec!["agent-v2".into()]);
             workspace_modes::init(cx);
         });
     }

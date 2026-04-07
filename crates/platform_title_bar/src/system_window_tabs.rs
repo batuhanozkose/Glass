@@ -6,7 +6,7 @@ use gpui::{
     native_icon_button,
 };
 
-use theme::ThemeSettings;
+use theme_settings::ThemeSettings;
 use ui::{
     ContextMenu, DynamicSpacing, Label, LabelSize, Tab, h_flex, prelude::*, right_click_menu,
     tab_close_button,

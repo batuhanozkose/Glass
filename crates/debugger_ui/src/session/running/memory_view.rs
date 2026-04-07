@@ -16,7 +16,7 @@ use gpui::{
 };
 use project::debugger::{MemoryCell, dap_command::DataBreakpointContext, session::Session};
 use settings::Settings;
-use theme::ThemeSettings;
+use theme_settings::ThemeSettings;
 use toast::{StatusToast, ToastIcon};
 use ui::{
     ContextMenu, Divider, DropdownMenu, FluentBuilder, IntoElement, PopoverMenuHandle, Render,

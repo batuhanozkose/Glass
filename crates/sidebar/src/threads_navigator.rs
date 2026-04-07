@@ -3492,7 +3492,7 @@ impl Focusable for ThreadsNavigator {
 impl Render for ThreadsNavigator {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _titlebar_height = ui::utils::platform_title_bar_height(window);
-        let ui_font = theme::setup_ui_font(window, cx);
+        let ui_font = theme_settings::setup_ui_font(window, cx);
         let sticky_header = self.render_sticky_header(window, cx);
         let active_sidebar_section = self.active_sidebar_section(cx);
         let color = cx.theme().colors();
@@ -3654,7 +3654,7 @@ mod tests {
         cx.update(|cx| {
             let settings_store = SettingsStore::test(cx);
             cx.set_global(settings_store);
-            theme::init(theme::LoadThemes::JustBase, cx);
+            theme_settings::init(theme::LoadThemes::JustBase, cx);
             editor::init(cx);
             ThreadStore::init_global(cx);
             SidebarThreadMetadataStore::init_global(cx);

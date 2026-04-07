@@ -22,7 +22,7 @@ use project::{
     image_store::{ImageItemEvent, ImageMetadata},
 };
 use settings::Settings;
-use theme::ThemeSettings;
+use theme_settings::ThemeSettings;
 use ui::{Tooltip, prelude::*};
 use util::paths::PathExt;
 use workspace::{

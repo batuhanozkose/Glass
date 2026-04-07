@@ -23,7 +23,7 @@ use project::DirectoryLister;
 use release_channel::ReleaseChannel;
 use settings::Settings;
 use strum::IntoEnumIterator as _;
-use theme::ThemeSettings;
+use theme_settings::ThemeSettings;
 use ui::{
     Banner, Chip, ContextMenu, PopoverMenu, ScrollableHandle, ToggleButtonGroup,
     ToggleButtonGroupSize, ToggleButtonGroupStyle, ToggleButtonSimple, Tooltip, WithScrollbar,

@@ -64,7 +64,7 @@ use std::ops::Range;
 use std::path::Path;
 use std::{sync::Arc, time::Duration, usize};
 use strum::{IntoEnumIterator, VariantNames};
-use theme::ThemeSettings;
+use theme_settings::ThemeSettings;
 use time::OffsetDateTime;
 use toast::{StatusToast, ToastIcon};
 use ui::{
@@ -6446,7 +6446,7 @@ mod tests {
         cx.update(|cx| {
             let settings_store = SettingsStore::test(cx);
             cx.set_global(settings_store);
-            theme::init(LoadThemes::JustBase, cx);
+            theme_settings::init(LoadThemes::JustBase, cx);
             editor::init(cx);
             crate::init(cx);
         });

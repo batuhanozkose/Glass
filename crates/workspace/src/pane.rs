@@ -41,7 +41,8 @@ use std::{
     },
     time::Duration,
 };
-use theme::{ThemeSettings, active_component_radius};
+use theme::active_component_radius;
+use theme_settings::ThemeSettings;
 use ui::{
     ContextMenu, ContextMenuEntry, ContextMenuItem, DecoratedIcon, IconButtonShape, IconDecoration,
     IconDecorationKind, Indicator, PopoverMenu, PopoverMenuHandle, Tab, TabBar, TabPosition,
@@ -8457,7 +8458,7 @@ mod tests {
         cx.update(|cx| {
             let settings_store = SettingsStore::test(cx);
             cx.set_global(settings_store);
-            theme::init(LoadThemes::JustBase, cx);
+            theme_settings::init(LoadThemes::JustBase, cx);
         });
     }
 

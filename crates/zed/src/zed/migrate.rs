@@ -14,7 +14,7 @@ use gpui::{
     native_button,
 };
 use markdown::{Markdown, MarkdownElement, MarkdownStyle};
-use theme::ThemeSettings;
+use theme_settings::ThemeSettings;
 use ui::prelude::*;
 use workspace::item::ItemHandle;
 use workspace::{ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView, Workspace};
