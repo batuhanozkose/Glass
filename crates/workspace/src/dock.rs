@@ -1345,32 +1345,16 @@ impl Dock {
 
     pub fn activate_panel(&mut self, panel_ix: usize, window: &mut Window, cx: &mut Context<Self>) {
         if Some(panel_ix) != self.active_panel_index {
-            let size_to_preserve = self.visible_content_size(window, cx);
             let previously_active_panel =
                 self.active_panel_entry().map(|entry| entry.panel.clone());
-            let next_panel = self
-                .panel_entries
-                .get(panel_ix)
-                .map(|entry| entry.panel.clone());
 
             if let Some(active_panel) = previously_active_panel {
                 active_panel.set_active(false, window, cx);
             }
 
             self.active_panel_index = Some(panel_ix);
-            if let Some(next_panel) = next_panel {
-                if let Some(size_to_preserve) = size_to_preserve {
-                    let flexible_size_ratio =
-                        self.flexible_size_ratio_for_pixels(size_to_preserve, window, cx);
-                    self.set_panel_size_state(
-                        next_panel.as_ref(),
-                        PanelSizeState {
-                            size: Some(size_to_preserve),
-                            flexible_size_ratio,
-                        },
-                        cx,
-                    );
-                }
+            if let Some(next_panel) = self.active_panel_entry() {
+                let next_panel = next_panel.panel.clone();
                 next_panel.set_active(true, window, cx);
             }
 
