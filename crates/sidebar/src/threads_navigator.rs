@@ -2361,14 +2361,12 @@ impl ThreadsNavigator {
         cx: &mut Context<Self>,
     ) {
         // Eagerly save thread metadata so that the sidebar is updated immediately
-        SidebarThreadMetadataStore::global(cx)
-            .update(cx, |store, cx| {
-                store.save(
-                    ThreadMetadata::from_session_info(agent.id(), &session_info),
-                    cx,
-                )
-            })
-            .detach_and_log_err(cx);
+        SidebarThreadMetadataStore::global(cx).update(cx, |store, cx| {
+            store.save(
+                ThreadMetadata::from_session_info(agent.id(), &session_info),
+                cx,
+            )
+        });
 
         if let Some(path_list) = &session_info.work_dirs {
             if let Some(workspace) = self.find_current_workspace_for_path_list(path_list, cx) {
@@ -2644,8 +2642,7 @@ impl ThreadsNavigator {
         }
 
         SidebarThreadMetadataStore::global(cx)
-            .update(cx, |store, cx| store.delete(session_id.clone(), cx))
-            .detach_and_log_err(cx);
+            .update(cx, |store, cx| store.delete(session_id.clone(), cx));
     }
 
     fn remove_selected_thread(
@@ -3476,10 +3473,10 @@ mod tests {
             created_at: None,
             folder_paths: path_list,
         };
-        let task = cx.update(|cx| {
+        cx.update(|cx| {
             SidebarThreadMetadataStore::global(cx).update(cx, |store, cx| store.save(metadata, cx))
         });
-        task.await.unwrap();
+        cx.run_until_parked();
     }
 
     fn open_and_focus_sidebar(

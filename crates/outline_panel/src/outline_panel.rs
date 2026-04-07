@@ -22,6 +22,7 @@ use gpui::{
     uniform_list,
 };
 use itertools::Itertools;
+use language::language_settings::LanguageSettings;
 use language::{Anchor, BufferId, BufferSnapshot, OffsetRangeExt, OutlineItem};
 use menu::{Cancel, SelectFirst, SelectLast, SelectNext, SelectPrevious};
 use std::{
@@ -784,10 +785,12 @@ impl OutlinePanel {
 
             let mut outline_panel_settings = *OutlinePanelSettings::get_global(cx);
             let mut current_theme = ThemeSettings::get_global(cx).clone();
+            let mut document_symbols_by_buffer = HashMap::default();
             let settings_subscription =
                 cx.observe_global_in::<SettingsStore>(window, move |outline_panel, window, cx| {
                     let new_settings = OutlinePanelSettings::get_global(cx);
                     let new_theme = ThemeSettings::get_global(cx);
+                    let mut outlines_invalidated = false;
                     if &current_theme != new_theme {
                         outline_panel_settings = *new_settings;
                         current_theme = new_theme.clone();
@@ -796,6 +799,7 @@ impl OutlinePanel {
                                 excerpt.invalidate_outlines();
                             }
                         }
+                        outlines_invalidated = true;
                         let update_cached_items = outline_panel.update_non_fs_items(window, cx);
                         if update_cached_items {
                             outline_panel.update_cached_entries(Some(UPDATE_DEBOUNCE), window, cx);
@@ -850,6 +854,38 @@ impl OutlinePanel {
                             }
                         } else {
                             cx.notify();
+                        }
+                    }
+                    if !outlines_invalidated {
+                        let new_document_symbols = outline_panel
+                            .excerpts
+                            .keys()
+                            .filter_map(|buffer_id| {
+                                let buffer = outline_panel
+                                    .project
+                                    .read(cx)
+                                    .buffer_for_id(*buffer_id, cx)?;
+                                let buffer = buffer.read(cx);
+                                let doc_symbols =
+                                    LanguageSettings::for_buffer(buffer, cx).document_symbols;
+                                Some((*buffer_id, doc_symbols))
+                            })
+                            .collect();
+                        if new_document_symbols != document_symbols_by_buffer {
+                            document_symbols_by_buffer = new_document_symbols;
+                            for excerpts in outline_panel.excerpts.values_mut() {
+                                for excerpt in excerpts.values_mut() {
+                                    excerpt.invalidate_outlines();
+                                }
+                            }
+                            let update_cached_items = outline_panel.update_non_fs_items(window, cx);
+                            if update_cached_items {
+                                outline_panel.update_cached_entries(
+                                    Some(UPDATE_DEBOUNCE),
+                                    window,
+                                    cx,
+                                );
+                            }
                         }
                     }
                 });
