@@ -14465,6 +14465,7 @@ dependencies = [
  "project_panel",
  "prompt_store",
  "recent_projects",
+ "remote",
  "serde_json",
  "settings",
  "theme",

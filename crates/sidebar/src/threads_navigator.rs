@@ -4,7 +4,7 @@ use acp_thread::ThreadStatus;
 use action_log::DiffStats;
 use agent_client_protocol::{self as acp};
 use agent_ui::thread_metadata_store::{
-    SidebarThreadMetadataStore, ThreadMetadata, workspace_folder_paths,
+    ThreadMetadata, ThreadMetadataStore, workspace_folder_paths,
     workspace_root_repository_snapshots,
 };
 use agent_ui::threads_archive_view::{
@@ -713,12 +713,9 @@ impl ThreadsNavigator {
         })
         .detach();
 
-        cx.observe(
-            &SidebarThreadMetadataStore::global(cx),
-            |this, _store, cx| {
-                this.update_entries(cx);
-            },
-        )
+        cx.observe(&ThreadMetadataStore::global(cx), |this, _store, cx| {
+            this.update_entries(cx);
+        })
         .detach();
         let workspaces = multi_workspace.read(cx).workspaces().to_vec();
         cx.defer_in(window, move |this, window, cx| {
@@ -1132,12 +1129,12 @@ impl ThreadsNavigator {
             .any(|ws| !workspace_folder_paths(ws, cx).paths().is_empty());
 
         let resolve_agent = |row: &ThreadMetadata| -> (Agent, IconName, Option<SharedString>) {
-            match &row.agent_id {
-                None => (Agent::NativeAgent, IconName::ZedAgent, None),
-                Some(id) => {
+            match Agent::from(row.agent_id.clone()) {
+                Agent::NativeAgent => (Agent::NativeAgent, IconName::ZedAgent, None),
+                Agent::Custom { id } => {
                     let custom_icon = agent_server_store
                         .as_ref()
-                        .and_then(|store| store.read(cx).agent_icon(id));
+                        .and_then(|store| store.read(cx).agent_icon(&id));
                     (
                         Agent::Custom { id: id.clone() },
                         IconName::Terminal,
@@ -1188,7 +1185,7 @@ impl ThreadsNavigator {
 
             if should_load_threads {
                 let mut seen_session_ids: HashSet<acp::SessionId> = HashSet::new();
-                let thread_store = SidebarThreadMetadataStore::global(cx);
+                let thread_store = ThreadMetadataStore::global(cx);
 
                 // Load threads from each workspace in the group.
                 for workspace in &group.workspaces {
@@ -2653,9 +2650,20 @@ impl ThreadsNavigator {
         cx: &mut Context<Self>,
     ) {
         // Eagerly save thread metadata so that the sidebar is updated immediately
-        SidebarThreadMetadataStore::global(cx).update(cx, |store, cx| {
+        ThreadMetadataStore::global(cx).update(cx, |store, cx| {
             store.save(
-                ThreadMetadata::from_session_info(agent.id(), &session_info),
+                ThreadMetadata {
+                    session_id: session_info.session_id.clone(),
+                    agent_id: agent.id(),
+                    title: session_info
+                        .title
+                        .clone()
+                        .unwrap_or_else(|| DEFAULT_THREAD_TITLE.into()),
+                    updated_at: session_info.updated_at.unwrap_or_else(Utc::now),
+                    created_at: session_info.created_at,
+                    folder_paths: session_info.work_dirs.clone().unwrap_or_default(),
+                    archived: false,
+                },
                 cx,
             )
         });
@@ -2943,7 +2951,7 @@ impl ThreadsNavigator {
             }
         }
 
-        SidebarThreadMetadataStore::global(cx)
+        ThreadMetadataStore::global(cx)
             .update(cx, |store, cx| store.delete(session_id.clone(), cx));
     }
 
@@ -3790,8 +3798,6 @@ impl ThreadsNavigator {
             return;
         };
 
-        let thread_store = agent_panel.read(cx).thread_store().clone();
-        let fs = active_workspace.read(cx).project().read(cx).fs().clone();
         let agent_connection_store = agent_panel.read(cx).connection_store().clone();
         let agent_server_store = active_workspace
             .read(cx)
@@ -3799,13 +3805,17 @@ impl ThreadsNavigator {
             .read(cx)
             .agent_server_store()
             .clone();
+        let agent_registry_store = project::AgentRegistryStore::global(cx);
+        let workspace = active_workspace.downgrade();
+        let multi_workspace = self.multi_workspace.clone();
 
         let archive_view = cx.new(|cx| {
             ThreadsArchiveView::new(
-                agent_connection_store,
-                agent_server_store,
-                thread_store,
-                fs,
+                agent_connection_store.downgrade(),
+                agent_server_store.downgrade(),
+                agent_registry_store.downgrade(),
+                workspace,
+                multi_workspace,
                 window,
                 cx,
             )
@@ -3817,12 +3827,22 @@ impl ThreadsNavigator {
                 ThreadsArchiveViewEvent::Close => {
                     this.show_thread_list(window, cx);
                 }
-                ThreadsArchiveViewEvent::Unarchive {
-                    agent,
-                    session_info,
-                } => {
+                ThreadsArchiveViewEvent::Unarchive { thread } => {
+                    let session_info = acp_thread::AgentSessionInfo {
+                        session_id: thread.session_id.clone(),
+                        work_dirs: Some(thread.folder_paths.clone()),
+                        title: Some(thread.title.clone()),
+                        updated_at: Some(thread.updated_at),
+                        created_at: thread.created_at,
+                        meta: None,
+                    };
                     this.show_thread_list(window, cx);
-                    this.activate_archived_thread(agent.clone(), session_info.clone(), window, cx);
+                    this.activate_archived_thread(
+                        Agent::from(thread.agent_id.clone()),
+                        session_info,
+                        window,
+                        cx,
+                    );
                 }
             },
         );
@@ -4050,7 +4070,7 @@ mod tests {
             theme_settings::init(theme::LoadThemes::JustBase, cx);
             editor::init(cx);
             ThreadStore::init_global(cx);
-            SidebarThreadMetadataStore::init_global(cx);
+            ThreadMetadataStore::init_global(cx);
             language_model::LanguageModelRegistry::test(cx);
             prompt_store::init(cx);
         });
@@ -4155,7 +4175,7 @@ mod tests {
             folder_paths: path_list,
         };
         cx.update(|cx| {
-            SidebarThreadMetadataStore::global(cx).update(cx, |store, cx| store.save(metadata, cx))
+            ThreadMetadataStore::global(cx).update(cx, |store, cx| store.save(metadata, cx))
         });
         cx.run_until_parked();
     }
@@ -5185,7 +5205,7 @@ mod tests {
         agent_ui::test_support::init_test(cx);
         cx.update(|cx| {
             ThreadStore::init_global(cx);
-            SidebarThreadMetadataStore::init_global(cx);
+            ThreadMetadataStore::init_global(cx);
             language_model::LanguageModelRegistry::test(cx);
             prompt_store::init(cx);
         });
@@ -6421,7 +6441,7 @@ mod tests {
         cx.update(|cx| {
             cx.update_flags(false, vec!["agent-v2".into()]);
             ThreadStore::init_global(cx);
-            SidebarThreadMetadataStore::init_global(cx);
+            ThreadMetadataStore::init_global(cx);
             language_model::LanguageModelRegistry::test(cx);
             prompt_store::init(cx);
         });
@@ -6790,7 +6810,7 @@ mod tests {
         cx.update(|cx| {
             cx.update_flags(false, vec!["agent-v2".into()]);
             ThreadStore::init_global(cx);
-            SidebarThreadMetadataStore::init_global(cx);
+            ThreadMetadataStore::init_global(cx);
             language_model::LanguageModelRegistry::test(cx);
             prompt_store::init(cx);
         });
@@ -6905,7 +6925,7 @@ mod tests {
         cx.update(|cx| {
             cx.update_flags(false, vec!["agent-v2".into()]);
             ThreadStore::init_global(cx);
-            SidebarThreadMetadataStore::init_global(cx);
+            ThreadMetadataStore::init_global(cx);
             language_model::LanguageModelRegistry::test(cx);
             prompt_store::init(cx);
         });
@@ -7872,7 +7892,7 @@ mod tests {
         cx.update(|cx| {
             cx.update_flags(false, vec!["agent-v2".into()]);
             ThreadStore::init_global(cx);
-            SidebarThreadMetadataStore::init_global(cx);
+            ThreadMetadataStore::init_global(cx);
             language_model::LanguageModelRegistry::test(cx);
             prompt_store::init(cx);
         });
