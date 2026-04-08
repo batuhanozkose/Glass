@@ -2,6 +2,7 @@ mod preview;
 mod repl_menu;
 
 use agent_settings::AgentSettings;
+use app_runtime_ui::OpenRuntimeActions;
 use editor::actions::{
     AddSelectionAbove, AddSelectionBelow, CodeActionSource, DuplicateLineDown, GoToDiagnostic,
     GoToHunk, GoToPreviousDiagnostic, GoToPreviousHunk, MoveLineDown, MoveLineUp, SelectAll,
@@ -158,6 +159,18 @@ impl Render for QuickActionBar {
                 },
             )
         });
+
+        let runtime_actions_button = QuickActionBarButton::new(
+            "open runtime actions",
+            IconName::PlayFilled,
+            false,
+            OpenRuntimeActions.boxed_clone(),
+            focus_handle.clone(),
+            "Runtime Actions",
+            move |_, window, cx| {
+                window.dispatch_action(OpenRuntimeActions.boxed_clone(), cx);
+            },
+        );
 
         let has_diff_hunks = editor
             .read(cx)
@@ -690,6 +703,7 @@ impl Render for QuickActionBar {
             .children(self.render_repl_menu(cx))
             .children(self.render_preview_button(self.workspace.clone(), cx))
             .children(search_button)
+            .child(runtime_actions_button)
             .children(ai_controls)
             .child(editor_settings_dropdown)
     }

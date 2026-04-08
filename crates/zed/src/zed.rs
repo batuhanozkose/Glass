@@ -88,11 +88,9 @@ use uuid::Uuid;
 use workspace::notifications::{NotificationId, dismiss_app_notification, show_app_notification};
 use workspace_modes::ModeId;
 
-use workspace::dock::OpenRuntimeActions as DockOpenRuntimeActions;
-use workspace::dock::OpenServices as DockOpenServices;
 use workspace::{
     AppState, MultiWorkspace, NewFile, NewWindow, OpenLog, Panel, Toast, Workspace,
-    WorkspaceSettings, create_and_open_local_file, item::ItemHandle,
+    WorkspaceSettings, create_and_open_local_file,
     notifications::simple_message_notification::MessageNotification, open_new,
 };
 use workspace::{
@@ -476,104 +474,20 @@ pub fn initialize_workspace(
             });
         }
 
-        workspace.register_action(
-            |_workspace, _: &workspace::DeployProjectDiagnostics, window, cx| {
-                window.dispatch_action(diagnostics::Deploy.boxed_clone(), cx);
-            },
-        );
-        workspace.register_action(
-            |_workspace, _: &workspace::ToggleProjectDiagnostics, window, cx| {
-                window.dispatch_action(diagnostics::Toggle.boxed_clone(), cx);
-            },
-        );
-        workspace.register_action(|_workspace, _: &DockOpenRuntimeActions, window, cx| {
-            window.dispatch_action(app_runtime_ui::OpenRuntimeActions.boxed_clone(), cx);
-        });
-        workspace.register_action(|_workspace, _: &DockOpenServices, window, cx| {
-            window.dispatch_action(service_hub_ui::OpenServices.boxed_clone(), cx);
-        });
-        workspace.register_action(
-            |workspace, _: &workspace::ToggleProjectSearch, window, cx| {
-                if let Some(existing) =
-                    workspace.item_of_type::<search::project_search::ProjectSearchView>(cx)
-                {
-                    let is_active = workspace
-                        .active_item(cx)
-                        .is_some_and(|item| item.item_id() == existing.item_id());
-                    if is_active {
-                        let entity_id = existing.entity_id();
-                        let pane = workspace.active_pane().clone();
-                        pane.update(cx, |pane, cx| {
-                            pane.close_item_by_id(
-                                entity_id,
-                                workspace::SaveIntent::Close,
-                                window,
-                                cx,
-                            )
-                            .detach();
-                        });
-                    } else {
-                        workspace.activate_item(&existing, true, true, window, cx);
-                    }
-                } else {
-                    window.dispatch_action(workspace::DeploySearch::default().boxed_clone(), cx);
-                }
-            },
-        );
-        let lsp_button_menu_handle = PopoverMenuHandle::default();
-        let lsp_button =
-            cx.new(|cx| LspButton::new(workspace, lsp_button_menu_handle.clone(), window, cx));
+        workspace.register_action({
+            move |workspace, _: &lsp_button::ToggleMenu, window, cx| {
+                let toolbar_item = workspace
+                    .active_pane()
+                    .read(cx)
+                    .toolbar()
+                    .read(cx)
+                    .item_of_type::<LspButton>();
 
-        if let Some(button_bar) = workspace.button_bar(cx) {
-            button_bar.update(cx, |button_bar, cx| {
-                button_bar.set_language_server_button(Some(lsp_button.clone().into()), cx);
-            });
-        }
-
-        {
-            let active_pane_item = workspace.active_pane().read(cx).active_item();
-            lsp_button.update(cx, |lsp_button, cx| {
-                workspace::TitleBarItemView::set_active_pane_item(
-                    lsp_button,
-                    active_pane_item.as_deref(),
-                    window,
-                    cx,
-                );
-            });
-        }
-
-        cx.subscribe_in(&workspace_handle, window, {
-            let lsp_button = lsp_button.clone();
-            move |_this, workspace, event: &workspace::Event, window, cx| {
-                if matches!(event, workspace::Event::ActiveItemChanged) {
-                    let workspace = workspace.clone();
-                    let lsp_button = lsp_button.clone();
-                    let window_handle = window.window_handle();
-                    cx.defer(move |cx| {
-                        let active_pane_item =
-                            workspace.read(cx).active_pane().read(cx).active_item();
-                        window_handle
-                            .update(cx, |_, window, cx| {
-                                lsp_button.update(cx, |lsp_button, cx| {
-                                    workspace::TitleBarItemView::set_active_pane_item(
-                                        lsp_button,
-                                        active_pane_item.as_deref(),
-                                        window,
-                                        cx,
-                                    );
-                                });
-                            })
-                            .ok();
+                if let Some(toolbar_item) = toolbar_item {
+                    toolbar_item.update(cx, |this, cx| {
+                        this.toggle_menu(window, cx);
                     });
                 }
-            }
-        })
-        .detach();
-
-        workspace.register_action({
-            let lsp_button_menu_handle = lsp_button_menu_handle.clone();
-            move |_workspace, _: &lsp_button::ToggleMenu, window, cx| {
-                lsp_button_menu_handle.toggle(window, cx);
             }
         });
 
@@ -1339,6 +1253,9 @@ fn initialize_pane(
             toolbar.add_item(quick_action_bar, window, cx);
             let document_status_button = cx.new(|_| DocumentStatusButton::new());
             toolbar.add_item(document_status_button, window, cx);
+            let lsp_button =
+                cx.new(|cx| LspButton::new(workspace, PopoverMenuHandle::default(), window, cx));
+            toolbar.add_item(lsp_button, window, cx);
             let diagnostic_editor_controls = cx.new(|_| diagnostics::ToolbarControls::new());
             toolbar.add_item(diagnostic_editor_controls, window, cx);
             let project_search_bar = cx.new(|_| ProjectSearchBar::new());

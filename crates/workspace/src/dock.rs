@@ -6,37 +6,18 @@ use client::proto;
 use db::kvp::KeyValueStore;
 
 use gpui::{
-    Action, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
-    IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent, ParentElement, Render,
-    SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window,
-    WindowBackgroundAppearance, actions, deferred, div,
+    Action, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter, FocusHandle,
+    Focusable, IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent, ParentElement,
+    Render, SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window,
+    WindowBackgroundAppearance, deferred, div,
 };
 use serde::{Deserialize, Serialize};
 use settings::SettingsStore;
 use std::sync::Arc;
 use theme::{ActiveTheme, active_component_radius};
-use ui::{
-    ContextMenu, CountBadge, Divider, DividerColor, IconButtonShape, TintColor, Tooltip,
-    prelude::*, right_click_menu,
-};
+use ui::{ContextMenu, CountBadge, Divider, DividerColor, Tooltip, prelude::*, right_click_menu};
 use util::ResultExt;
 use workspace_chrome::SidebarRow;
-
-actions!(
-    workspace,
-    [
-        /// Opens the project diagnostics view from the dock button bar.
-        DeployProjectDiagnostics,
-        /// Opens the runtime actions menu from the dock button bar.
-        OpenRuntimeActions,
-        /// Opens the services view from the dock button bar.
-        OpenServices,
-        /// Toggles the project search view open or closed.
-        ToggleProjectSearch,
-        /// Toggles the project diagnostics view open or closed.
-        ToggleProjectDiagnostics,
-    ]
-);
 
 pub(crate) const RESIZE_HANDLE_SIZE: Pixels = px(6.);
 
@@ -45,7 +26,6 @@ pub(crate) const RESIZE_HANDLE_SIZE: Pixels = px(6.);
 /// state during render - when this entity renders, the workspace update is complete.
 pub struct DockButtonBar {
     workspace: WeakEntity<Workspace>,
-    language_server_button: Option<AnyView>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -76,25 +56,15 @@ fn show_project_sidebar_tab(
 }
 
 impl DockButtonBar {
-    // Keep this in sync with the current native sidebar chrome: 3 sidebar rows,
-    // 1 supplementary action row, inner padding/gaps, borders, and outer padding.
-    pub const NATIVE_SIDEBAR_HEIGHT: f64 = 142.0;
+    // Keep this in sync with the native sidebar chrome: 2 sidebar rows,
+    // the gap between them, and the outer vertical padding.
+    pub const NATIVE_SIDEBAR_HEIGHT: f64 = 68.0;
 
     pub fn new(workspace: WeakEntity<Workspace>, cx: &mut App) -> Entity<Self> {
         cx.new(|_cx| Self {
             workspace,
-            language_server_button: None,
             _subscriptions: vec![],
         })
-    }
-
-    pub fn set_language_server_button(
-        &mut self,
-        language_server_button: Option<AnyView>,
-        cx: &mut Context<Self>,
-    ) {
-        self.language_server_button = language_server_button;
-        cx.notify();
     }
 }
 
@@ -166,8 +136,13 @@ impl Render for DockButtonBar {
         );
 
         mode_rows.push(
-            SidebarRow::new("sidebar-browser-tabs", "Browser Tabs", IconName::Globe)
-                .selected(active_sidebar_section == crate::WorkspaceSidebarSection::BrowserTabs)
+            SidebarRow::new("sidebar-tabs", "Tabs", IconName::Tab)
+                .selected(matches!(
+                    active_sidebar_section,
+                    crate::WorkspaceSidebarSection::Tabs
+                        | crate::WorkspaceSidebarSection::BrowserTabs
+                        | crate::WorkspaceSidebarSection::Terminal
+                ))
                 .on_click({
                     let workspace = self.workspace.clone();
                     let multi_workspace = multi_workspace.clone();
@@ -183,7 +158,7 @@ impl Render for DockButtonBar {
                         if let Some(workspace) = workspace.upgrade() {
                             workspace.update(cx, |workspace, cx| {
                                 workspace.select_sidebar_section(
-                                    crate::WorkspaceSidebarSection::BrowserTabs,
+                                    crate::WorkspaceSidebarSection::Tabs,
                                     window,
                                     cx,
                                 );
@@ -192,183 +167,6 @@ impl Render for DockButtonBar {
                     }
                 })
                 .into_any_element(),
-        );
-
-        mode_rows.push(
-            SidebarRow::new("sidebar-terminal", "Terminal Tabs", IconName::Terminal)
-                .selected(active_sidebar_section == crate::WorkspaceSidebarSection::Terminal)
-                .on_click({
-                    let workspace = self.workspace.clone();
-                    let multi_workspace = multi_workspace.clone();
-                    move |_, window, cx| {
-                        if let Some(multi_workspace) = multi_workspace.as_ref()
-                            && multi_workspace.read(cx).sidebar_open()
-                        {
-                            multi_workspace.update(cx, |multi_workspace, cx| {
-                                multi_workspace.close_sidebar(window, cx);
-                            });
-                        }
-
-                        if let Some(workspace) = workspace.upgrade() {
-                            workspace.update(cx, |workspace, cx| {
-                                workspace.select_sidebar_section(
-                                    crate::WorkspaceSidebarSection::Terminal,
-                                    window,
-                                    cx,
-                                );
-                            });
-                        }
-                    }
-                })
-                .into_any_element(),
-        );
-
-        let radius = cx.theme().component_radius().panel.unwrap_or(px(10.0));
-        let diagnostics = workspace_read
-            .project()
-            .read(cx)
-            .diagnostic_summary(false, cx);
-        let (diagnostics_icon, diagnostics_icon_color) = if diagnostics.error_count > 0 {
-            (IconName::XCircle, Color::Error)
-        } else if diagnostics.warning_count > 0 {
-            (IconName::Warning, Color::Warning)
-        } else {
-            (IconName::Check, Color::Success)
-        };
-
-        let supplementary_actions = h_flex()
-            .w_full()
-            .h(px(28.0))
-            .items_center()
-            .justify_center()
-            .gap_1()
-            .children([
-                IconButton::new("sidebar-action-agent", IconName::Thread)
-                    .shape(IconButtonShape::Square)
-                    .style(ButtonStyle::Transparent)
-                    .size(ButtonSize::Compact)
-                    .icon_size(IconSize::Small)
-                    .tooltip(|_window, cx| {
-                        Tooltip::for_action(
-                            "Toggle Agent Panel",
-                            &zed_actions::assistant::Toggle,
-                            cx,
-                        )
-                    })
-                    .on_click(|_, window: &mut Window, cx: &mut App| {
-                        window.dispatch_action(zed_actions::assistant::Toggle.boxed_clone(), cx);
-                    })
-                    .into_any_element(),
-                IconButton::new("sidebar-action-search", IconName::MagnifyingGlass)
-                    .shape(IconButtonShape::Square)
-                    .style(ButtonStyle::Transparent)
-                    .size(ButtonSize::Compact)
-                    .icon_size(IconSize::Small)
-                    .tooltip(|_window, cx| {
-                        Tooltip::for_action("Project Search", &ToggleProjectSearch, cx)
-                    })
-                    .on_click(|_, window, cx| {
-                        window.dispatch_action(ToggleProjectSearch.boxed_clone(), cx);
-                    })
-                    .into_any_element(),
-                IconButton::new("sidebar-action-runtime", IconName::PlayFilled)
-                    .shape(IconButtonShape::Square)
-                    .style(ButtonStyle::Transparent)
-                    .size(ButtonSize::Compact)
-                    .icon_size(IconSize::Small)
-                    .tooltip(|_window, cx| {
-                        Tooltip::for_action("Runtime Actions", &OpenRuntimeActions, cx)
-                    })
-                    .on_click(|_, window, cx| {
-                        window.dispatch_action(OpenRuntimeActions.boxed_clone(), cx);
-                    })
-                    .into_any_element(),
-                IconButton::new("sidebar-action-services", IconName::Server)
-                    .shape(IconButtonShape::Square)
-                    .style(ButtonStyle::Transparent)
-                    .size(ButtonSize::Compact)
-                    .icon_size(IconSize::Small)
-                    .toggle_state(
-                        active_sidebar_section == crate::WorkspaceSidebarSection::Services,
-                    )
-                    .selected_style(ButtonStyle::Tinted(TintColor::Accent))
-                    .tooltip(|_window, cx| Tooltip::for_action("Open Services", &OpenServices, cx))
-                    .on_click({
-                        let multi_workspace = multi_workspace.clone();
-                        move |_, window, cx| {
-                            if let Some(multi_workspace) = multi_workspace.as_ref()
-                                && multi_workspace.read(cx).sidebar_open()
-                            {
-                                multi_workspace.update(cx, |multi_workspace, cx| {
-                                    multi_workspace.close_sidebar(window, cx);
-                                });
-                            }
-
-                            window.dispatch_action(OpenServices.boxed_clone(), cx);
-                        }
-                    })
-                    .into_any_element(),
-                IconButton::new("sidebar-action-diagnostics", diagnostics_icon)
-                    .shape(IconButtonShape::Square)
-                    .style(ButtonStyle::Transparent)
-                    .size(ButtonSize::Compact)
-                    .icon_size(IconSize::Small)
-                    .icon_color(diagnostics_icon_color)
-                    .tooltip(|_window, cx| {
-                        Tooltip::for_action("Project Diagnostics", &ToggleProjectDiagnostics, cx)
-                    })
-                    .on_click(|_, window, cx| {
-                        window.dispatch_action(ToggleProjectDiagnostics.boxed_clone(), cx);
-                    })
-                    .into_any_element(),
-                IconButton::new("sidebar-action-debugger", IconName::Debug)
-                    .shape(IconButtonShape::Square)
-                    .style(ButtonStyle::Transparent)
-                    .size(ButtonSize::Compact)
-                    .icon_size(IconSize::Small)
-                    .tooltip(|_window, cx| {
-                        Tooltip::for_action(
-                            "Toggle Debug Panel",
-                            &zed_actions::debug_panel::Toggle,
-                            cx,
-                        )
-                    })
-                    .on_click(|_, window, cx| {
-                        window.dispatch_action(zed_actions::debug_panel::Toggle.boxed_clone(), cx);
-                    })
-                    .into_any_element(),
-                IconButton::new("sidebar-action-outline-panel", IconName::ListTree)
-                    .shape(IconButtonShape::Square)
-                    .style(ButtonStyle::Transparent)
-                    .size(ButtonSize::Compact)
-                    .icon_size(IconSize::Small)
-                    .toggle_state(active_sidebar_section == crate::WorkspaceSidebarSection::Outline)
-                    .selected_style(ButtonStyle::Tinted(TintColor::Accent))
-                    .tooltip(Tooltip::text("Outline Panel"))
-                    .on_click({
-                        let workspace = self.workspace.clone();
-                        move |_, window, cx| {
-                            if let Some(workspace) = workspace.upgrade() {
-                                workspace.update(cx, |workspace, cx| {
-                                    workspace.select_sidebar_section(
-                                        crate::WorkspaceSidebarSection::Outline,
-                                        window,
-                                        cx,
-                                    );
-                                });
-                            }
-                        }
-                    })
-                    .into_any_element(),
-            ])
-            .when_some(
-                self.language_server_button.clone(),
-                |this, language_server_button| this.child(language_server_button),
-            );
-
-        let has_sidebar_fill = matches!(
-            cx.theme().window_background_appearance(),
-            WindowBackgroundAppearance::Opaque
         );
 
         div()
@@ -378,24 +176,7 @@ impl Render for DockButtonBar {
             .px_1()
             .py_1()
             .gap_1()
-            .when(has_sidebar_fill, |this| {
-                this.bg(cx.theme().colors().panel_background)
-            })
-            .child(
-                v_flex()
-                    .w_full()
-                    .gap_1()
-                    .p_1()
-                    .when(has_sidebar_fill, |this| {
-                        this.bg(cx.theme().colors().elevated_surface_background)
-                    })
-                    .border_1()
-                    .border_color(cx.theme().colors().border_variant)
-                    .rounded(radius)
-                    .overflow_hidden()
-                    .children(mode_rows)
-                    .child(supplementary_actions),
-            )
+            .children(mode_rows)
             .into_any_element()
     }
 }
@@ -1566,7 +1347,9 @@ pub(crate) fn resolve_panel_size(
     cx: &App,
 ) -> Pixels {
     if position.axis() == Axis::Horizontal && panel.supports_flexible_size(cx) {
-        let flex = size_state.flex.or_else(|| workspace.default_dock_flex(position));
+        let flex = size_state
+            .flex
+            .or_else(|| workspace.default_dock_flex(position));
 
         if let Some(flex) = flex {
             return workspace

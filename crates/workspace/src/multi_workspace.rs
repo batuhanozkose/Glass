@@ -6,11 +6,12 @@ use gpui::{
     ManagedView, Pixels, Render, Subscription, Task, Tiling, Window, WindowBackgroundAppearance,
     WindowId, actions,
 };
+use gpui::{MouseButton, deferred};
 #[cfg(not(target_os = "macos"))]
 use gpui::{MouseButton, deferred, px};
-use project::Project;
 #[cfg(test)]
 use project::DisableAiSettings;
+use project::Project;
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -19,7 +20,6 @@ use ui::prelude::*;
 use util::ResultExt;
 use workspace_modes::{ModeId, ModeViewRegistry, RegisteredModeView};
 use zed_actions::agents_sidebar::{MoveWorkspaceToNewWindow, ToggleThreadSwitcher};
-use gpui::{MouseButton, deferred};
 
 #[cfg(not(target_os = "macos"))]
 pub const SIDEBAR_RESIZE_HANDLE_SIZE: Pixels = px(6.0);
@@ -887,7 +887,10 @@ impl MultiWorkspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Option<Entity<Workspace>> {
-        let index = self.workspaces.iter().position(|existing| existing == workspace)?;
+        let index = self
+            .workspaces
+            .iter()
+            .position(|existing| existing == workspace)?;
         self.remove_workspace(index, window, cx)
     }
 
@@ -941,7 +944,8 @@ impl MultiWorkspace {
     ) -> Task<Result<Entity<Workspace>>> {
         let workspace = self.workspace().clone();
 
-        let needs_close_prompt = open_mode == OpenMode::Replace || !self.multi_workspace_enabled(cx);
+        let needs_close_prompt =
+            open_mode == OpenMode::Replace || !self.multi_workspace_enabled(cx);
         let open_mode = if self.multi_workspace_enabled(cx) {
             open_mode
         } else {
@@ -1197,9 +1201,10 @@ impl Render for MultiWorkspace {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use feature_flags::FeatureFlagAppExt;
     use fs::FakeFs;
     use gpui::{Context, FocusHandle, Focusable, Render, TestAppContext, div};
-    use settings::SettingsStore;
+    use settings::{Settings, SettingsStore};
     use std::sync::Arc;
     use workspace_modes::RegisteredModeView;
 

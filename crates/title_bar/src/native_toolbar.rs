@@ -15,7 +15,7 @@ use gpui::{
     NativeToolbarItem, NativeToolbarSizeMode, Window,
 };
 use settings::Settings;
-use workspace::ToggleSidebar;
+use workspace::{ToggleRightDock, ToggleSidebar};
 use workspace_modes::ModeId;
 
 pub(crate) use state::NativeToolbarState;
@@ -229,6 +229,12 @@ impl TitleBar {
 
         toolbar = toolbar
             .item(NativeToolbarItem::Space)
+            .item(self.build_simple_action_button(
+                "glass.right_dock.toggle",
+                "sidebar.right",
+                "Toggle Right Dock",
+                |window, cx| window.dispatch_action(ToggleRightDock.boxed_clone(), cx),
+            ))
             .item(self.build_user_menu_item(&user, menu_plan, cx));
 
         window.set_native_toolbar(Some(toolbar));

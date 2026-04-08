@@ -50,6 +50,7 @@ use ui::{
     tab_row_edge_padding, tab_row_icon_button, tab_row_tab_gap,
 };
 use util::{ResultExt, debug_panic, maybe, paths::PathStyle, truncate_and_remove_front};
+use workspace_modes::ModeId;
 
 /// A selected entry in e.g. project panel.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -4056,6 +4057,23 @@ fn default_render_tab_bar_buttons(
         Some(_) => (false, pane.items_len() > 1),
         None => (false, false),
     };
+    let browser_surface_button = pane.workspace.upgrade().and_then(|workspace| {
+        let tooltip = match workspace.read(cx).active_mode_id() {
+            ModeId::TERMINAL => Some("Show Browser in Terminal"),
+            ModeId::BROWSER => None,
+            _ => Some("Show Browser in Editor"),
+        }?;
+
+        Some(
+            tab_row_icon_button("show_browser_surface", IconName::Globe)
+                .tooltip(Tooltip::text(tooltip))
+                .on_click(move |_, window, cx| {
+                    workspace.update(cx, |workspace, cx| {
+                        workspace.show_browser_surface(true, window, cx).log_err();
+                    });
+                }),
+        )
+    });
     // Ideally we would return a vec of elements here to pass directly to the [TabBar]'s
     // `end_slot`, but due to needing a view here that isn't possible.
     let right_children = tab_row_button_group(cx)
@@ -4087,6 +4105,9 @@ fn default_render_tab_bar_buttons(
                     }))
                 }),
         )
+        .when_some(browser_surface_button, |buttons, button| {
+            buttons.child(button)
+        })
         .child(
             PopoverMenu::new("pane-tab-bar-split")
                 .window_overlay()
@@ -4337,18 +4358,6 @@ impl Render for Pane {
                                 .items_center()
                                 .justify_center()
                                 .size_full()
-                                .when(!show_welcome, |div| {
-                                    let logo_file = match cx.theme().appearance {
-                                        theme::Appearance::Light => "images/glass_logo_light.png",
-                                        theme::Appearance::Dark => "images/glass_logo_dark.png",
-                                    };
-                                    div.child(
-                                        gpui::img(logo_file)
-                                            .w(rems_from_px(80.))
-                                            .h(rems_from_px(92.))
-                                            .opacity(0.15),
-                                    )
-                                })
                                 .on_click(cx.listener(
                                     move |this, event: &ClickEvent, window, cx| {
                                         if event.click_count() == 2 {

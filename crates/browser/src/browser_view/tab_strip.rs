@@ -1,14 +1,15 @@
 use gpui::{
-    Action, App, Context, Entity, IntoElement, MouseButton, NativeImageScaling, NativeMenuItem,
-    ParentElement, Pixels, Point, Render, SharedString, Styled, Subscription, WeakEntity, Window,
-    div, native_image_view, prelude::*, px, show_native_popup_menu,
+    App, Context, Entity, IntoElement, NativeMenuItem, Pixels, Point, Render, SharedString, Styled,
+    Subscription, WeakEntity, Window, prelude::*, show_native_popup_menu,
 };
 #[cfg(not(target_os = "macos"))]
-use gpui::{native_tracking_view, rems};
-use ui::{IconButtonShape, Tooltip, prelude::*};
-use workspace::{Workspace, WorkspaceSidebarSection};
-use workspace_chrome::SidebarRow;
-use workspace_modes::ModeId;
+use gpui::{
+    MouseButton, NativeImageScaling, ParentElement, div, native_image_view, native_tracking_view,
+    px, rems,
+};
+use ui::prelude::*;
+use workspace::{Workspace, WorkspaceTabsSidebarKind};
+use workspace_chrome::{SidebarNavigationList, SidebarNavigationListItem};
 
 use super::BrowserView;
 
@@ -89,6 +90,7 @@ fn show_tab_context_menu(
     );
 }
 
+#[cfg(not(target_os = "macos"))]
 fn render_tab_favicon(id: SharedString, favicon_url: Option<&str>, _cx: &App) -> gpui::AnyElement {
     if let Some(url) = favicon_url {
         native_image_view(id)
@@ -148,172 +150,93 @@ impl BrowserSidebarPanel {
 }
 
 impl Render for BrowserSidebarPanel {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(browser_view) = self.browser_view.upgrade() else {
             return v_flex().size_full().into_any_element();
         };
 
         let browser_view_data = browser_view.read(cx);
         let active_tab_index = browser_view_data.active_tab_index;
-        let active_mode = Workspace::for_window(window, cx)
-            .map(|workspace| workspace.read(cx).active_mode_id())
-            .unwrap_or(ModeId::BROWSER);
-        let open_browser_label = match active_mode {
-            ModeId::TERMINAL => Some("Show Browser in Terminal"),
-            ModeId::BROWSER => None,
-            _ => Some("Show Browser in Editor"),
-        };
+        SidebarNavigationList::new(
+            "native-sidebar-tab-list",
+            "native-sidebar-empty",
+            "No browser tabs",
+            IconName::Globe,
+            browser_view_data
+                .tabs
+                .iter()
+                .enumerate()
+                .map(|(index, tab)| {
+                    let tab_data = tab.read(cx);
+                    let title = tab_data.title().to_string();
+                    let favicon_url = tab_data
+                        .favicon_url()
+                        .map(|favicon_url| SharedString::from(favicon_url.to_string()));
+                    let is_pinned = tab_data.is_pinned();
+                    let is_active = index == active_tab_index;
+                    let tab_id = SharedString::from(tab.entity_id().as_u64().to_string());
+                    let close_tab_id = tab_id.clone();
+                    let activate_tab_id = tab_id.clone();
+                    let displayed_title = if title.len() > 32 {
+                        let truncated_title = match title.char_indices().nth(29) {
+                            Some((byte_index, _)) => &title[..byte_index],
+                            None => &title,
+                        };
+                        format!("{truncated_title}...")
+                    } else {
+                        title
+                    };
+                    let context_menu_view = browser_view.clone().downgrade();
 
-        v_flex()
-            .size_full()
-            .child(
-                v_flex()
-                    .id("native-sidebar-tab-list")
-                    .flex_1()
-                    .items_stretch()
-                    .overflow_y_scroll()
-                    .p_1()
-                    .gap_1()
-                    .children(
-                        browser_view_data
-                            .tabs
-                            .iter()
-                            .enumerate()
-                            .map(|(index, tab)| {
-                                let tab_data = tab.read(cx);
-                                let title = tab_data.title().to_string();
-                                let favicon_url = tab_data.favicon_url();
-                                let is_pinned = tab_data.is_pinned();
-                                let is_active = index == active_tab_index;
-                                let tab_id =
-                                    SharedString::from(tab.entity_id().as_u64().to_string());
-                                let close_tab_id = tab_id.clone();
-                                let activate_tab_id = tab_id.clone();
-                                let favicon_element = render_tab_favicon(
-                                    SharedString::from(format!(
-                                        "native-sidebar-tab-favicon-{index}"
-                                    )),
-                                    favicon_url,
+                    SidebarNavigationListItem::new(
+                        tab_id,
+                        displayed_title,
+                        IconName::Globe,
+                        move |_, window, cx| {
+                            let Some(workspace) = Workspace::for_window(window, cx) else {
+                                return;
+                            };
+                            workspace.update(cx, |workspace, cx| {
+                                workspace.activate_tabs_entry(
+                                    WorkspaceTabsSidebarKind::Browser,
+                                    &activate_tab_id,
+                                    window,
                                     cx,
                                 );
-
-                                let displayed_title = if title.len() > 32 {
-                                    let truncated_title = match title.char_indices().nth(29) {
-                                        Some((byte_index, _)) => &title[..byte_index],
-                                        None => &title,
-                                    };
-                                    format!("{truncated_title}...")
-                                } else {
-                                    title
-                                };
-                                let context_menu_view = browser_view.clone().downgrade();
-
-                                let row = SidebarRow::new(
-                                    format!("native-sidebar-tab-{index}"),
-                                    displayed_title,
-                                    IconName::Globe,
-                                )
-                                .start_slot(favicon_element)
-                                .selected(is_active)
-                                .end_slot(if is_pinned {
-                                    Icon::new(IconName::Pin)
-                                        .size(IconSize::Small)
-                                        .color(Color::Muted)
-                                        .into_any_element()
-                                } else {
-                                    IconButton::new(
-                                        SharedString::from(format!(
-                                            "native-sidebar-close-tab-{index}"
-                                        )),
-                                        IconName::Close,
-                                    )
-                                    .shape(IconButtonShape::Square)
-                                    .icon_size(IconSize::XSmall)
-                                    .icon_color(Color::Muted)
-                                    .tooltip(Tooltip::text("Close tab"))
-                                    .on_click(move |_, window, cx| {
-                                        cx.stop_propagation();
-                                        let Some(workspace) = Workspace::for_window(window, cx)
-                                        else {
-                                            return;
-                                        };
-                                        workspace.update(cx, |workspace, cx| {
-                                            workspace.close_sidebar_entry(
-                                                WorkspaceSidebarSection::BrowserTabs,
-                                                &close_tab_id,
-                                                window,
-                                                cx,
-                                            );
-                                        });
-                                    })
-                                    .into_any_element()
-                                })
-                                .on_click(move |_, window, cx| {
-                                    let Some(workspace) = Workspace::for_window(window, cx) else {
-                                        return;
-                                    };
-                                    workspace.update(cx, |workspace, cx| {
-                                        workspace.activate_sidebar_entry(
-                                            WorkspaceSidebarSection::BrowserTabs,
-                                            &activate_tab_id,
-                                            window,
-                                            cx,
-                                        );
-                                    });
-                                });
-
-                                div().w_full().child(row).on_mouse_down(
-                                    MouseButton::Right,
-                                    move |event, window, cx| {
-                                        show_tab_context_menu(
-                                            context_menu_view.clone(),
-                                            index,
-                                            is_pinned,
-                                            event.position,
-                                            window,
-                                            cx,
-                                        );
-                                    },
-                                )
-                            }),
-                    ),
-            )
-            .child(
-                v_flex()
-                    .w_full()
-                    .p_1()
-                    .gap_1()
-                    .child(
-                        SidebarRow::new("native-sidebar-new-tab-button", "New Tab", IconName::Plus)
-                            .centered()
-                            .on_click(move |_, window, cx| {
-                                let Some(workspace) = Workspace::for_window(window, cx) else {
-                                    return;
-                                };
-                                workspace.update(cx, |workspace, cx| {
-                                    workspace.create_sidebar_entry(
-                                        WorkspaceSidebarSection::BrowserTabs,
-                                        window,
-                                        cx,
-                                    );
-                                });
-                            }),
+                            });
+                        },
                     )
-                    .when_some(open_browser_label, |this, label| {
-                        this.child(
-                            SidebarRow::new(
-                                "native-sidebar-open-browser-surface",
-                                label,
-                                IconName::Globe,
-                            )
-                            .centered()
-                            .on_click(|_, window, cx| {
-                                window.dispatch_action(super::OpenBrowserPane.boxed_clone(), cx);
-                            }),
-                        )
-                    }),
-            )
-            .into_any_element()
+                    .image_uri(favicon_url)
+                    .selected(is_active)
+                    .pinned(is_pinned)
+                    .close_tooltip("Close tab")
+                    .on_close(move |_, window, cx| {
+                        let Some(workspace) = Workspace::for_window(window, cx) else {
+                            return;
+                        };
+                        workspace.update(cx, |workspace, cx| {
+                            workspace.close_tabs_entry(
+                                WorkspaceTabsSidebarKind::Browser,
+                                &close_tab_id,
+                                window,
+                                cx,
+                            );
+                        });
+                    })
+                    .on_secondary_mouse_down(move |position, window, cx| {
+                        show_tab_context_menu(
+                            context_menu_view.clone(),
+                            index,
+                            is_pinned,
+                            position,
+                            window,
+                            cx,
+                        );
+                    })
+                })
+                .collect(),
+        )
+        .into_any_element()
     }
 }
 

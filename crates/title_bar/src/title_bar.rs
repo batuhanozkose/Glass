@@ -51,7 +51,7 @@ use util::ResultExt;
 #[allow(unused_imports)]
 use workspace::{
     CloseProjectNavigation, FocusProjectNavigation, MultiWorkspace, Pane, TitleBarItemViewHandle,
-    ToggleProjectNavigation, ToggleWorktreeSecurity, Workspace, WorkspaceId,
+    ToggleProjectNavigation, ToggleRightDock, ToggleWorktreeSecurity, Workspace, WorkspaceId,
     notifications::NotifyResultExt,
 };
 use workspace_chrome::ModeControl;
@@ -299,6 +299,7 @@ impl TitleBar {
                     |this| this.child(self.render_sign_in_button(cx)),
                 )
                 .child(self.render_organization_menu_button(cx))
+                .child(self.render_right_dock_toggle(cx))
                 .when(TitleBarSettings::get_global(cx).show_user_menu, |this| {
                     this.child(self.render_user_menu_button(cx))
                 })
@@ -962,6 +963,29 @@ impl TitleBar {
                 .into_any_element(),
         )
     }
+
+    fn render_right_dock_toggle(&self, cx: &mut Context<Self>) -> AnyElement {
+        let is_open = self
+            .workspace
+            .upgrade()
+            .map(|workspace| workspace.read(cx).right_dock().read(cx).is_open())
+            .unwrap_or(false);
+        let icon = if is_open {
+            IconName::ThreadsSidebarRightOpen
+        } else {
+            IconName::ThreadsSidebarRightClosed
+        };
+
+        IconButton::new("toggle-right-dock", icon)
+            .icon_size(IconSize::Small)
+            .toggle_state(is_open)
+            .tooltip(|_, cx| Tooltip::for_action("Toggle Right Dock", &ToggleRightDock, cx))
+            .on_click(|_, window, cx| {
+                window.dispatch_action(ToggleRightDock.boxed_clone(), cx);
+            })
+            .into_any_element()
+    }
+
     fn render_project_name(
         &self,
         name: Option<SharedString>,

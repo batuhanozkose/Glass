@@ -23,7 +23,7 @@ pub mod welcome;
 mod workspace_settings;
 
 pub use crate::notifications::NotificationFrame;
-pub use dock::{DeployProjectDiagnostics, Panel, ToggleProjectDiagnostics, ToggleProjectSearch};
+pub use dock::Panel;
 pub use multi_workspace::{
     CloseProjectNavigation, DraggedSidebar, FocusProjectNavigation, MultiWorkspace,
     MultiWorkspaceEvent, NextWorkspace, PreviousWorkspace, Sidebar, SidebarHandle,
@@ -57,13 +57,13 @@ use futures::{
 #[cfg(target_os = "macos")]
 use gpui::native_sidebar;
 use gpui::{
-    Action, AnyEntity, AnyView, AnyWeakView, App, AsyncApp, AsyncWindowContext, Axis, Bounds,
-    Context, CursorStyle, Decorations, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle,
-    Focusable, Global, HitboxBehavior, Hsla, KeyContext, Keystroke, ManagedView, MouseButton,
-    PathPromptOptions, Point, PromptLevel, Render, ResizeEdge, Size, Stateful, Subscription,
-    SystemWindowTabController, Task, Tiling, WeakEntity, WindowBackgroundAppearance, WindowBounds,
-    WindowHandle, WindowId, WindowOptions, actions, canvas, point, px, relative, size,
-    transparent_black,
+    Action, AnyElement, AnyEntity, AnyView, AnyWeakView, App, AsyncApp, AsyncWindowContext, Axis,
+    Bounds, ClickEvent, Context, CursorStyle, Decorations, DragMoveEvent, Entity, EntityId,
+    EventEmitter, FocusHandle, Focusable, Global, HitboxBehavior, Hsla, KeyContext, Keystroke,
+    ManagedView, MouseButton, PathPromptOptions, Point, PromptLevel, Render, ResizeEdge, Size,
+    Stateful, Subscription, SystemWindowTabController, Task, Tiling, WeakEntity,
+    WindowBackgroundAppearance, WindowBounds, WindowHandle, WindowId, WindowOptions, actions,
+    canvas, point, px, relative, size, transparent_black,
 };
 pub use history_manager::*;
 pub use item::{
@@ -139,7 +139,7 @@ pub use toolbar::{
     PaneSearchBarCallbacks, Toolbar, ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView,
 };
 pub use ui;
-use ui::{IconButtonShape, Tooltip, Window, prelude::*};
+use ui::{Window, prelude::*};
 use util::{
     ResultExt, TryFutureExt,
     paths::{PathStyle, SanitizedPath},
@@ -148,7 +148,7 @@ use util::{
 };
 use uuid::Uuid;
 #[cfg(target_os = "macos")]
-use workspace_chrome::SidebarRow;
+use workspace_chrome::{SidebarNavigationList, SidebarNavigationListItem};
 use workspace_modes::{
     ModeActivateCallback, ModeDeactivateCallback, ModeId, ModeNavigationHost, ModeViewRegistry,
     SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode,
@@ -179,9 +179,38 @@ pub enum WorkspaceSidebarSection {
     Project,
     Outline,
     Git,
+    Tabs,
     BrowserTabs,
     Services,
     Terminal,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WorkspaceTabsSidebarKind {
+    Browser,
+    Terminal,
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone)]
+struct WorkspaceTabsSidebarFooterButton {
+    id: SharedString,
+    label: SharedString,
+    icon: IconName,
+    action: WorkspaceTabsSidebarFooterAction,
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WorkspaceTabsSidebarFooterAction {
+    CreateEntry,
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone)]
+struct WorkspaceTabsSidebarSource {
+    content_view: AnyView,
+    footer_buttons: Vec<WorkspaceTabsSidebarFooterButton>,
 }
 
 #[cfg(target_os = "macos")]
@@ -217,7 +246,7 @@ impl WorkspaceSidebarHost {
             left_dock,
             bottom_dock,
             right_dock,
-            active_section: WorkspaceSidebarSection::BrowserTabs,
+            active_section: WorkspaceSidebarSection::Tabs,
             section_views: HashMap::default(),
             workspace_sidebar_view: None,
             collapsed: false,
@@ -371,6 +400,9 @@ impl WorkspaceSidebarHost {
                 .section_view(WorkspaceSidebarSection::Git)
                 .cloned()
                 .or_else(|| self.panel_view("GitPanel", cx)),
+            WorkspaceSidebarSection::Tabs => {
+                self.section_view(WorkspaceSidebarSection::Tabs).cloned()
+            }
             WorkspaceSidebarSection::BrowserTabs => self
                 .section_view(WorkspaceSidebarSection::BrowserTabs)
                 .cloned(),
@@ -485,119 +517,271 @@ impl Render for WorkspaceTerminalSidebarPanel {
         };
 
         let entries = workspace.read(cx).terminal_navigation_entries(window, cx);
-        let has_entries = !entries.is_empty();
+        SidebarNavigationList::new(
+            "workspace-terminal-sidebar-list",
+            "workspace-terminal-sidebar-empty",
+            "No terminal tabs",
+            IconName::Terminal,
+            entries
+                .into_iter()
+                .map(|entry| {
+                    let entry_id = entry.id;
+                    let close_entry_id = entry_id.clone();
+                    let activate_entry_id = entry_id.clone();
+                    let workspace = self.workspace.clone();
+                    let close_workspace = self.workspace.clone();
+                    SidebarNavigationListItem::new(
+                        SharedString::from(format!("workspace-terminal-sidebar-{entry_id}")),
+                        entry.detail.unwrap_or(entry.label),
+                        IconName::Terminal,
+                        move |_, window, cx| {
+                            let Some(workspace) = workspace.upgrade() else {
+                                return;
+                            };
+                            workspace.update(cx, |workspace, cx| {
+                                workspace.activate_tabs_entry(
+                                    WorkspaceTabsSidebarKind::Terminal,
+                                    &activate_entry_id,
+                                    window,
+                                    cx,
+                                );
+                            });
+                        },
+                    )
+                    .selected(entry.is_selected)
+                    .pinned(entry.is_pinned)
+                    .close_tooltip("Close terminal")
+                    .on_close(move |_, window, cx| {
+                        let Some(workspace) = close_workspace.upgrade() else {
+                            return;
+                        };
+                        workspace.update(cx, |workspace, cx| {
+                            workspace.close_tabs_entry(
+                                WorkspaceTabsSidebarKind::Terminal,
+                                &close_entry_id,
+                                window,
+                                cx,
+                            );
+                        });
+                    })
+                })
+                .collect(),
+        )
+        .into_any_element()
+    }
+}
+
+#[cfg(target_os = "macos")]
+struct WorkspaceTabsSidebarPanel {
+    workspace: WeakEntity<Workspace>,
+    _subscriptions: Vec<Subscription>,
+}
+
+#[cfg(target_os = "macos")]
+impl WorkspaceTabsSidebarPanel {
+    fn new(workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
+        let mut subscriptions = Vec::new();
+        if let Some(workspace_entity) = workspace.upgrade() {
+            subscriptions.push(cx.observe(&workspace_entity, |_this, _, cx| {
+                cx.notify();
+            }));
+        }
+
+        Self {
+            workspace,
+            _subscriptions: subscriptions,
+        }
+    }
+
+    fn render_footer_button(
+        id: SharedString,
+        label: SharedString,
+        icon: IconName,
+        trailing_icon_button: Option<AnyElement>,
+        on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+        cx: &App,
+    ) -> AnyElement {
+        let theme = cx.theme();
+        let hover_background = theme.colors().text.opacity(0.09);
 
         div()
+            .id(id)
+            .relative()
+            .flex()
+            .items_center()
+            .justify_center()
+            .w_full()
+            .h(px(28.0))
+            .px_2()
+            .rounded(theme.component_radius().tab.unwrap_or(px(8.0)))
+            .cursor_pointer()
+            .hover(move |style| style.bg(hover_background))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .gap_1()
+                    .max_w_full()
+                    .child(Icon::new(icon).size(IconSize::Small).color(Color::Muted))
+                    .child(
+                        div()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .text_ellipsis()
+                            .text_size(rems(0.75))
+                            .text_color(theme.colors().text_muted)
+                            .child(label),
+                    ),
+            )
+            .when_some(trailing_icon_button, |this, trailing_icon_button| {
+                this.child(div().absolute().right_1().child(trailing_icon_button))
+            })
+            .on_click(on_click)
+            .into_any_element()
+    }
+
+    fn render_segment_button(
+        id: SharedString,
+        label: SharedString,
+        selected: bool,
+        on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+        cx: &App,
+    ) -> AnyElement {
+        let theme = cx.theme();
+        let selected_background = theme.colors().text.opacity(0.14);
+        let hover_background = theme.colors().text.opacity(0.09);
+        let label_color = if selected {
+            theme.colors().text
+        } else {
+            theme.colors().text_muted
+        };
+
+        div()
+            .id(id)
+            .flex_1()
+            .h(px(28.0))
+            .rounded(theme.component_radius().tab.unwrap_or(px(8.0)))
+            .when(selected, |this| this.bg(selected_background))
+            .when(!selected, |this| {
+                this.hover(move |style| style.bg(hover_background))
+            })
+            .cursor_pointer()
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(
+                div()
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_ellipsis()
+                    .text_size(rems(0.75))
+                    .text_color(label_color)
+                    .child(label),
+            )
+            .on_click(on_click)
+            .into_any_element()
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl Render for WorkspaceTabsSidebarPanel {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let Some(workspace) = self.workspace.upgrade() else {
+            return div().size_full().into_any_element();
+        };
+
+        let source = workspace.read(cx).tabs_sidebar_source(window, cx);
+        let Some(source) = source else {
+            return div().size_full().into_any_element();
+        };
+
+        let active_kind = workspace.read(cx).active_tabs_sidebar_kind();
+        let mut footer_buttons = source.footer_buttons.into_iter();
+        let primary_button = footer_buttons
+            .by_ref()
+            .find(|button| button.action == WorkspaceTabsSidebarFooterAction::CreateEntry);
+        v_flex()
             .size_full()
+            .child(source.content_view)
             .child(
                 v_flex()
-                    .size_full()
-                    .child(
-                        v_flex()
-                            .id("workspace-terminal-sidebar-list")
-                            .flex_1()
-                            .items_stretch()
-                            .overflow_y_scroll()
-                            .p_1()
-                            .gap_1()
-                            .children(entries.into_iter().map(|entry| {
-                                let entry_id = entry.id;
-                                let close_entry_id = entry_id.clone();
-                                let activate_entry_id = entry_id.clone();
-                                let label = entry.label;
-                                let detail = entry.detail;
-                                let is_pinned = entry.is_pinned;
-                                let is_selected = entry.is_selected;
+                    .w_full()
+                    .p_1()
+                    .gap_1()
+                    .when_some(primary_button, |this, primary_button| {
+                        let WorkspaceTabsSidebarFooterButton {
+                            id,
+                            label,
+                            icon,
+                            action,
+                        } = primary_button;
+                        let workspace = self.workspace.clone();
+                        this.child(Self::render_footer_button(
+                            id,
+                            label,
+                            icon,
+                            None,
+                            move |_, window, cx| {
+                                let Some(workspace) = workspace.upgrade() else {
+                                    return;
+                                };
+                                workspace.update(cx, |workspace, cx| {
+                                    workspace.handle_tabs_footer_action(
+                                        action,
+                                        active_kind,
+                                        window,
+                                        cx,
+                                    );
+                                });
+                            },
+                            cx,
+                        ))
+                    })
+                    .child(h_flex().w_full().gap_1().children([
+                        Self::render_segment_button(
+                            SharedString::from("workspace-tabs-sidebar-kind-browser"),
+                            SharedString::from("Browser"),
+                            active_kind == WorkspaceTabsSidebarKind::Browser,
+                            {
                                 let workspace = self.workspace.clone();
-                                let close_workspace = self.workspace.clone();
-                                SidebarRow::new(
-                                    SharedString::from(format!(
-                                        "workspace-terminal-sidebar-{}",
-                                        entry_id
-                                    )),
-                                    detail.unwrap_or(label),
-                                    IconName::Terminal,
-                                )
-                                .selected(is_selected)
-                                .end_slot(if is_pinned {
-                                    Icon::new(IconName::Pin)
-                                        .size(IconSize::Small)
-                                        .color(Color::Muted)
-                                        .into_any_element()
-                                } else {
-                                    IconButton::new(
-                                        SharedString::from(format!(
-                                            "workspace-terminal-sidebar-close-{}",
-                                            entry_id
-                                        )),
-                                        IconName::Close,
-                                    )
-                                    .shape(IconButtonShape::Square)
-                                    .icon_size(IconSize::XSmall)
-                                    .icon_color(Color::Muted)
-                                    .tooltip(Tooltip::text("Close terminal"))
-                                    .on_click(move |_, window, cx| {
-                                        cx.stop_propagation();
-                                        let Some(workspace) = close_workspace.upgrade() else {
-                                            return;
-                                        };
-                                        workspace.update(cx, |workspace, cx| {
-                                            workspace.close_sidebar_entry(
-                                                WorkspaceSidebarSection::Terminal,
-                                                &close_entry_id,
-                                                window,
-                                                cx,
-                                            );
-                                        });
-                                    })
-                                    .into_any_element()
-                                })
-                                .on_click(move |_, window, cx| {
+                                move |_, window, cx| {
                                     let Some(workspace) = workspace.upgrade() else {
                                         return;
                                     };
                                     workspace.update(cx, |workspace, cx| {
-                                        workspace.activate_sidebar_entry(
-                                            WorkspaceSidebarSection::Terminal,
-                                            &activate_entry_id,
-                                            window,
-                                            cx,
-                                        );
-                                    });
-                                })
-                            }))
-                            .when(!has_entries, |this| {
-                                this.child(
-                                    SidebarRow::new(
-                                        "workspace-terminal-sidebar-empty",
-                                        "No terminal tabs",
-                                        IconName::Terminal,
-                                    )
-                                    .disabled(true),
-                                )
-                            }),
-                    )
-                    .child(
-                        v_flex().w_full().p_1().child(
-                            SidebarRow::new(
-                                "workspace-terminal-sidebar-new",
-                                "New Terminal",
-                                IconName::Plus,
-                            )
-                            .centered()
-                            .on_click(|_, window, cx| {
-                                if let Some(workspace) = Workspace::for_window(window, cx) {
-                                    workspace.update(cx, |workspace, cx| {
-                                        workspace.create_sidebar_entry(
-                                            WorkspaceSidebarSection::Terminal,
+                                        workspace.set_active_tabs_sidebar_kind(
+                                            WorkspaceTabsSidebarKind::Browser,
                                             window,
                                             cx,
                                         );
                                     });
                                 }
-                            }),
+                            },
+                            cx,
                         ),
-                    ),
+                        Self::render_segment_button(
+                            SharedString::from("workspace-tabs-sidebar-kind-terminal"),
+                            SharedString::from("Terminal"),
+                            active_kind == WorkspaceTabsSidebarKind::Terminal,
+                            {
+                                let workspace = self.workspace.clone();
+                                move |_, window, cx| {
+                                    let Some(workspace) = workspace.upgrade() else {
+                                        return;
+                                    };
+                                    workspace.update(cx, |workspace, cx| {
+                                        workspace.set_active_tabs_sidebar_kind(
+                                            WorkspaceTabsSidebarKind::Terminal,
+                                            window,
+                                            cx,
+                                        );
+                                    });
+                                }
+                            },
+                            cx,
+                        ),
+                    ])),
             )
             .into_any_element()
     }
@@ -1741,6 +1925,7 @@ struct DispatchingKeystrokes {
 
 struct PerWorkspaceModeView {
     view: AnyView,
+    sidebar_view: Option<AnyView>,
     focus_handle: FocusHandle,
     navigation_host: Option<ModeNavigationHost>,
     on_activate: Option<ModeActivateCallback>,
@@ -1805,10 +1990,13 @@ pub struct Workspace {
     /// The active workspace mode (Browser, Editor, or Terminal)
     active_mode: ModeId,
     active_sidebar_section: WorkspaceSidebarSection,
+    active_tabs_sidebar_kind: WorkspaceTabsSidebarKind,
     /// Mode views owned only by this workspace.
     per_workspace_mode_views: HashMap<ModeId, PerWorkspaceModeView>,
     /// Mode views shared by every workspace in the current MultiWorkspace window.
     shared_mode_views: HashMap<ModeId, PerWorkspaceModeView>,
+    #[cfg(target_os = "macos")]
+    terminal_tabs_sidebar_panel: Entity<WorkspaceTerminalSidebarPanel>,
     /// Tracks whether the bottom dock was visible before entering Terminal Mode,
     /// so we can restore it when returning to Editor Mode
     bottom_dock_visible_before_terminal_mode: Option<bool>,
@@ -2105,13 +2293,16 @@ impl Workspace {
             })
         };
         #[cfg(target_os = "macos")]
+        let terminal_tabs_sidebar_panel =
+            cx.new(|cx| WorkspaceTerminalSidebarPanel::new(weak_handle.clone(), cx));
+        #[cfg(target_os = "macos")]
         {
-            let terminal_sidebar_panel =
-                cx.new(|cx| WorkspaceTerminalSidebarPanel::new(weak_handle.clone(), cx));
+            let tabs_sidebar_panel =
+                cx.new(|cx| WorkspaceTabsSidebarPanel::new(weak_handle.clone(), cx));
             workspace_sidebar_host.update(cx, |sidebar, cx| {
                 sidebar.set_section_view(
-                    WorkspaceSidebarSection::Terminal,
-                    terminal_sidebar_panel.into(),
+                    WorkspaceSidebarSection::Tabs,
+                    tabs_sidebar_panel.into(),
                     cx,
                 );
             });
@@ -2244,9 +2435,12 @@ impl Workspace {
             session_id: Some(session_id),
             terminal_session_manager: None,
             active_mode: ModeId::BROWSER,
-            active_sidebar_section: WorkspaceSidebarSection::BrowserTabs,
+            active_sidebar_section: WorkspaceSidebarSection::Tabs,
+            active_tabs_sidebar_kind: WorkspaceTabsSidebarKind::Browser,
             per_workspace_mode_views: HashMap::default(),
             shared_mode_views: HashMap::default(),
+            #[cfg(target_os = "macos")]
+            terminal_tabs_sidebar_panel,
             bottom_dock_visible_before_terminal_mode: None,
 
             scheduled_tasks: Vec::new(),
@@ -5945,6 +6139,79 @@ impl Workspace {
     }
 
     #[cfg(target_os = "macos")]
+    pub fn active_tabs_sidebar_kind(&self) -> WorkspaceTabsSidebarKind {
+        self.active_tabs_sidebar_kind
+    }
+
+    #[cfg(target_os = "macos")]
+    fn tabs_sidebar_source(
+        &self,
+        _window: &Window,
+        _cx: &App,
+    ) -> Option<WorkspaceTabsSidebarSource> {
+        match self.active_tabs_sidebar_kind {
+            WorkspaceTabsSidebarKind::Browser => {
+                let content_view = self
+                    .mode_view_entry(ModeId::BROWSER)
+                    .and_then(|entry| entry.sidebar_view.clone())?;
+                let footer_buttons = vec![WorkspaceTabsSidebarFooterButton {
+                    id: SharedString::from("workspace-tabs-sidebar-new-browser-tab"),
+                    label: SharedString::from("New Tab"),
+                    icon: IconName::Plus,
+                    action: WorkspaceTabsSidebarFooterAction::CreateEntry,
+                }];
+                Some(WorkspaceTabsSidebarSource {
+                    content_view,
+                    footer_buttons,
+                })
+            }
+            WorkspaceTabsSidebarKind::Terminal => Some(WorkspaceTabsSidebarSource {
+                content_view: self.terminal_tabs_sidebar_panel.clone().into(),
+                footer_buttons: vec![WorkspaceTabsSidebarFooterButton {
+                    id: SharedString::from("workspace-tabs-sidebar-new-terminal"),
+                    label: SharedString::from("New Terminal"),
+                    icon: IconName::Plus,
+                    action: WorkspaceTabsSidebarFooterAction::CreateEntry,
+                }],
+            }),
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn set_active_tabs_sidebar_kind(
+        &mut self,
+        kind: WorkspaceTabsSidebarKind,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.active_tabs_sidebar_kind == kind {
+            return;
+        }
+
+        if kind == WorkspaceTabsSidebarKind::Browser {
+            self.mode_view(ModeId::BROWSER, cx);
+        }
+
+        self.active_tabs_sidebar_kind = kind;
+        cx.notify();
+    }
+
+    #[cfg(target_os = "macos")]
+    fn handle_tabs_footer_action(
+        &mut self,
+        action: WorkspaceTabsSidebarFooterAction,
+        kind: WorkspaceTabsSidebarKind,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match action {
+            WorkspaceTabsSidebarFooterAction::CreateEntry => {
+                self.create_tabs_entry(kind, window, cx);
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
     pub fn set_sidebar_section_view(
         &mut self,
         section: WorkspaceSidebarSection,
@@ -5963,6 +6230,7 @@ impl Workspace {
     ) -> PerWorkspaceModeView {
         PerWorkspaceModeView {
             view: registered.view,
+            sidebar_view: registered.sidebar_view,
             focus_handle: registered.focus_handle,
             navigation_host: registered.navigation_host,
             on_activate: registered.on_activate,
@@ -5992,11 +6260,19 @@ impl Workspace {
             WorkspaceSidebarSection::Git => {
                 self.activate_sidebar_panel("GitPanel", window, cx);
             }
+            WorkspaceSidebarSection::Tabs => {
+                if self.active_tabs_sidebar_kind == WorkspaceTabsSidebarKind::Browser {
+                    self.mode_view(ModeId::BROWSER, cx);
+                }
+            }
             WorkspaceSidebarSection::BrowserTabs => {
+                self.active_tabs_sidebar_kind = WorkspaceTabsSidebarKind::Browser;
                 self.mode_view(ModeId::BROWSER, cx);
             }
             WorkspaceSidebarSection::Services => {}
-            WorkspaceSidebarSection::Terminal => {}
+            WorkspaceSidebarSection::Terminal => {
+                self.active_tabs_sidebar_kind = WorkspaceTabsSidebarKind::Terminal;
+            }
         }
 
         self.active_sidebar_section = section;
@@ -6071,17 +6347,8 @@ impl Workspace {
         &mut self,
         mode_id: ModeId,
         registered: workspace_modes::RegisteredModeView,
-        cx: &mut Context<Self>,
+        _cx: &mut Context<Self>,
     ) {
-        #[cfg(target_os = "macos")]
-        if mode_id == ModeId::BROWSER {
-            self.set_sidebar_section_view(
-                WorkspaceSidebarSection::BrowserTabs,
-                registered.sidebar_view.clone(),
-                cx,
-            );
-        }
-
         let mode_view = Self::registered_mode_view_to_workspace_mode_view(registered);
 
         self.shared_mode_views.insert(mode_id, mode_view);
@@ -6105,19 +6372,11 @@ impl Workspace {
             if let Some(factory) = factory {
                 let registered = factory(cx);
 
-                #[cfg(target_os = "macos")]
-                if mode_id == ModeId::BROWSER {
-                    self.set_sidebar_section_view(
-                        WorkspaceSidebarSection::BrowserTabs,
-                        registered.sidebar_view.clone(),
-                        cx,
-                    );
-                }
-
                 self.per_workspace_mode_views.insert(
                     mode_id,
                     PerWorkspaceModeView {
                         view: registered.view,
+                        sidebar_view: registered.sidebar_view,
                         focus_handle: registered.focus_handle,
                         navigation_host: registered.navigation_host,
                         on_activate: registered.on_activate,
@@ -6260,7 +6519,8 @@ impl Workspace {
     fn sidebar_mode(section: WorkspaceSidebarSection) -> Option<ModeId> {
         match section {
             WorkspaceSidebarSection::Terminal => Some(ModeId::TERMINAL),
-            WorkspaceSidebarSection::BrowserTabs
+            WorkspaceSidebarSection::Tabs
+            | WorkspaceSidebarSection::BrowserTabs
             | WorkspaceSidebarSection::Services
             | WorkspaceSidebarSection::Project
             | WorkspaceSidebarSection::Outline
@@ -6296,7 +6556,7 @@ impl Workspace {
             WorkspaceSidebarSection::Project => Some("ProjectPanel"),
             WorkspaceSidebarSection::Outline => Some("OutlinePanel"),
             WorkspaceSidebarSection::Git => Some("GitPanel"),
-            WorkspaceSidebarSection::Services => None,
+            WorkspaceSidebarSection::Tabs | WorkspaceSidebarSection::Services => None,
             WorkspaceSidebarSection::BrowserTabs => None,
         }?;
 
@@ -6395,6 +6655,71 @@ impl Workspace {
         }
         #[cfg(not(target_os = "macos"))]
         let _ = (section, window, cx);
+    }
+
+    fn tabs_sidebar_section_for_kind(kind: WorkspaceTabsSidebarKind) -> WorkspaceSidebarSection {
+        match kind {
+            WorkspaceTabsSidebarKind::Browser => WorkspaceSidebarSection::BrowserTabs,
+            WorkspaceTabsSidebarKind::Terminal => WorkspaceSidebarSection::Terminal,
+        }
+    }
+
+    pub fn activate_tabs_entry(
+        &mut self,
+        kind: WorkspaceTabsSidebarKind,
+        entry_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let section = Self::tabs_sidebar_section_for_kind(kind);
+        self.active_tabs_sidebar_kind = kind;
+
+        if kind == WorkspaceTabsSidebarKind::Browser {
+            if let Err(error) = self.show_browser_surface(true, window, cx) {
+                log::error!("failed to show browser surface from tabs activation: {error}");
+                return;
+            }
+        } else if let Some(mode_id) = Self::sidebar_mode(section) {
+            self.switch_to_mode(mode_id, window, cx);
+        }
+
+        #[cfg(target_os = "macos")]
+        self.select_sidebar_section(WorkspaceSidebarSection::Tabs, window, cx);
+        self.activate_navigation_entry(section, entry_id, window, cx);
+    }
+
+    pub fn close_tabs_entry(
+        &mut self,
+        kind: WorkspaceTabsSidebarKind,
+        entry_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let section = Self::tabs_sidebar_section_for_kind(kind);
+        self.close_navigation_entry(section, entry_id, window, cx);
+    }
+
+    pub fn create_tabs_entry(
+        &mut self,
+        kind: WorkspaceTabsSidebarKind,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let section = Self::tabs_sidebar_section_for_kind(kind);
+        self.active_tabs_sidebar_kind = kind;
+
+        if kind == WorkspaceTabsSidebarKind::Browser {
+            if let Err(error) = self.show_browser_surface(true, window, cx) {
+                log::error!("failed to show browser surface from tabs creation: {error}");
+                return;
+            }
+        } else if let Some(mode_id) = Self::sidebar_mode(section) {
+            self.switch_to_mode(mode_id, window, cx);
+        }
+
+        #[cfg(target_os = "macos")]
+        self.select_sidebar_section(WorkspaceSidebarSection::Tabs, window, cx);
+        self.create_navigation_entry(section, window, cx);
     }
 
     pub fn activate_sidebar_entry(
@@ -9301,7 +9626,7 @@ pub async fn get_any_active_multi_workspace(
                 cx,
             )
         })
-            .await?;
+        .await?;
     }
     activate_any_workspace_window(&mut cx).context("could not open zed")
 }
@@ -15002,11 +15327,15 @@ mod tests {
 
         workspace.update_in(cx, |workspace, window, cx| {
             workspace.mode_view(ModeId::BROWSER, cx);
-            workspace.select_sidebar_section(WorkspaceSidebarSection::BrowserTabs, window, cx);
+            workspace.select_sidebar_section(WorkspaceSidebarSection::Tabs, window, cx);
 
             assert_eq!(
                 workspace.active_sidebar_section(),
-                WorkspaceSidebarSection::BrowserTabs
+                WorkspaceSidebarSection::Tabs
+            );
+            assert_eq!(
+                workspace.active_tabs_sidebar_kind(),
+                WorkspaceTabsSidebarKind::Browser
             );
             assert!(!workspace.workspace_sidebar_host_collapsed(window, cx));
 
@@ -15014,7 +15343,7 @@ mod tests {
 
             assert_eq!(
                 workspace.active_sidebar_section(),
-                WorkspaceSidebarSection::BrowserTabs
+                WorkspaceSidebarSection::Tabs
             );
             assert!(!workspace.workspace_sidebar_host_collapsed(window, cx));
         });
@@ -15022,7 +15351,7 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[gpui::test]
-    async fn test_activate_sidebar_entry_routes_browser_navigation_through_workspace(
+    async fn test_tabs_sidebar_routes_browser_navigation_through_workspace(
         cx: &mut TestAppContext,
     ) {
         init_test(cx);
@@ -15060,13 +15389,25 @@ mod tests {
             cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
         workspace.update_in(cx, |workspace, window, cx| {
-            workspace.activate_sidebar_entry(WorkspaceSidebarSection::BrowserTabs, "2", window, cx);
+            workspace.select_sidebar_section(WorkspaceSidebarSection::Tabs, window, cx);
+            workspace.set_active_tabs_sidebar_kind(WorkspaceTabsSidebarKind::Browser, window, cx);
+            workspace.activate_navigation_entry(
+                WorkspaceSidebarSection::BrowserTabs,
+                "2",
+                window,
+                cx,
+            );
 
             assert_eq!(workspace.active_mode_id(), ModeId::BROWSER);
             assert_eq!(
                 workspace.active_sidebar_section(),
-                WorkspaceSidebarSection::BrowserTabs
+                WorkspaceSidebarSection::Tabs
             );
+            assert_eq!(
+                workspace.active_tabs_sidebar_kind(),
+                WorkspaceTabsSidebarKind::Browser
+            );
+            assert_eq!(workspace.active_pane().read(cx).items_len(), 1);
 
             let browser_view = workspace
                 .get_mode_view(ModeId::BROWSER)
@@ -15075,11 +15416,36 @@ mod tests {
                 .expect("browser view should downcast");
             assert_eq!(browser_view.read(cx).active_tab_id, 2);
 
-            workspace.create_sidebar_entry(WorkspaceSidebarSection::BrowserTabs, window, cx);
+            workspace.create_navigation_entry(WorkspaceSidebarSection::BrowserTabs, window, cx);
             assert_eq!(browser_view.read(cx).create_call_count, 1);
 
-            workspace.close_sidebar_entry(WorkspaceSidebarSection::BrowserTabs, "2", window, cx);
+            workspace.close_navigation_entry(WorkspaceSidebarSection::BrowserTabs, "2", window, cx);
             assert_eq!(browser_view.read(cx).closed_tab_ids, vec![2]);
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    #[gpui::test]
+    async fn test_tabs_sidebar_kind_switch_keeps_tabs_section(cx: &mut TestAppContext) {
+        init_test(cx);
+
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
+
+        workspace.update_in(cx, |workspace, window, cx| {
+            workspace.select_sidebar_section(WorkspaceSidebarSection::Tabs, window, cx);
+            workspace.set_active_tabs_sidebar_kind(WorkspaceTabsSidebarKind::Terminal, window, cx);
+
+            assert_eq!(
+                workspace.active_sidebar_section(),
+                WorkspaceSidebarSection::Tabs
+            );
+            assert_eq!(
+                workspace.active_tabs_sidebar_kind(),
+                WorkspaceTabsSidebarKind::Terminal
+            );
         });
     }
 
@@ -15475,7 +15841,14 @@ mod tests {
 
         workspace.update_in(cx, |workspace, window, cx| {
             workspace.switch_to_mode(ModeId::EDITOR, window, cx);
-            workspace.activate_sidebar_entry(WorkspaceSidebarSection::BrowserTabs, "2", window, cx);
+            workspace.select_sidebar_section(WorkspaceSidebarSection::Tabs, window, cx);
+            workspace.set_active_tabs_sidebar_kind(WorkspaceTabsSidebarKind::Browser, window, cx);
+            workspace.activate_navigation_entry(
+                WorkspaceSidebarSection::BrowserTabs,
+                "2",
+                window,
+                cx,
+            );
 
             let browser_view = workspace
                 .get_mode_view(ModeId::BROWSER)
@@ -15484,7 +15857,10 @@ mod tests {
                 .expect("browser mode view should downcast");
 
             assert_eq!(workspace.active_mode_id(), ModeId::EDITOR);
-            assert_eq!(workspace.active_pane().read(cx).items_len(), 1);
+            assert_eq!(
+                workspace.active_sidebar_section(),
+                WorkspaceSidebarSection::Tabs
+            );
             assert_eq!(browser_view.read(cx).active_tab_id, 2);
         });
     }

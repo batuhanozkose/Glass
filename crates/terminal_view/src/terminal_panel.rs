@@ -329,6 +329,7 @@ impl TerminalPanel {
         cx: &mut Context<Self>,
     ) {
         let assistant_tab_bar_button = self.assistant_tab_bar_button.clone();
+        let workspace = self.workspace.clone();
         terminal_pane.update(cx, |pane, cx| {
             pane.set_render_tab_bar_buttons(cx, move |pane, window, cx| {
                 let split_context = pane
@@ -360,6 +361,15 @@ impl TerminalPanel {
                             cx,
                         )
                     });
+                let browser_surface_button = workspace.upgrade().map(|workspace| {
+                    tab_row_icon_button("show_browser_surface", IconName::Globe)
+                        .tooltip(Tooltip::text("Show Browser"))
+                        .on_click(move |_, window, cx| {
+                            workspace.update(cx, |workspace, cx| {
+                                workspace.show_browser_surface(true, window, cx).log_err();
+                            });
+                        })
+                });
 
                 let right_children: Option<AnyElement> = tab_row_button_group(cx)
                     .child(
@@ -388,6 +398,9 @@ impl TerminalPanel {
                                 Some(menu)
                             }),
                     )
+                    .when_some(browser_surface_button, |buttons, button| {
+                        buttons.child(button)
+                    })
                     .children(assistant_tab_bar_button.clone())
                     .child(
                         PopoverMenu::new("terminal-pane-tab-bar-split")
