@@ -13,6 +13,7 @@ pub mod path_list {
 mod persistence;
 pub mod searchable;
 mod security_modal;
+pub mod focus_follows_mouse;
 pub mod tasks;
 mod terminal_session_manager;
 mod theme_preview;
@@ -88,15 +89,15 @@ use persistence::{SerializedWindowBounds, model::SerializedWorkspace};
 pub use persistence::{
     WorkspaceDb, delete_unloaded_items,
     model::{
-        DockStructure, ItemId, SerializedMultiWorkspace, SerializedWorkspaceLocation,
-        SessionWorkspace,
+        DockStructure, ItemId, MultiWorkspaceState, SerializedMultiWorkspace,
+        SerializedWorkspaceLocation, SessionWorkspace,
     },
     read_serialized_multi_workspaces, resolve_worktree_workspaces,
 };
 use postage::stream::Stream;
 use project::{
-    DirectoryLister, Project, ProjectEntryId, ProjectPath, ResolvedPath, Worktree, WorktreeId,
-    WorktreeSettings,
+    DirectoryLister, Project, ProjectEntryId, ProjectGroupKey, ProjectPath, ResolvedPath, Worktree,
+    WorktreeId, WorktreeSettings,
     debugger::{breakpoint_store::BreakpointStoreEvent, session::ThreadStatus},
     project_settings::ProjectSettings,
     toolchain_store::ToolchainStoreEvent,
@@ -155,7 +156,8 @@ use workspace_modes::{
     SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode,
 };
 pub use workspace_settings::{
-    AutosaveSetting, BottomDockLayout, RestoreOnStartupBehavior, TabBarSettings, WorkspaceSettings,
+    AutosaveSetting, BottomDockLayout, FocusFollowsMouse, RestoreOnStartupBehavior,
+    TabBarSettings, WorkspaceSettings,
 };
 use zed_actions::{Spawn, feedback::FileBugReport, theme::ToggleMode};
 
@@ -1282,13 +1284,25 @@ impl From<WorkspaceId> for i64 {
     }
 }
 
-fn prompt_and_open_paths(app_state: Arc<AppState>, options: PathPromptOptions, cx: &mut App) {
+fn prompt_and_open_paths(
+    app_state: Arc<AppState>,
+    options: PathPromptOptions,
+    create_new_window: bool,
+    cx: &mut App,
+) {
     if let Some(workspace_window) = local_workspace_windows(cx).into_iter().next() {
         workspace_window
             .update(cx, |multi_workspace, window, cx| {
                 let workspace = multi_workspace.workspace().clone();
                 workspace.update(cx, |workspace, cx| {
-                    prompt_for_open_path_and_open(workspace, app_state, options, true, window, cx);
+                    prompt_for_open_path_and_open(
+                        workspace,
+                        app_state,
+                        options,
+                        create_new_window,
+                        window,
+                        cx,
+                    );
                 });
             })
             .ok();
@@ -1308,7 +1322,14 @@ fn prompt_and_open_paths(app_state: Arc<AppState>, options: PathPromptOptions, c
                 window.activate_window();
                 let workspace = multi_workspace.workspace().clone();
                 workspace.update(cx, |workspace, cx| {
-                    prompt_for_open_path_and_open(workspace, app_state, options, true, window, cx);
+                    prompt_for_open_path_and_open(
+                        workspace,
+                        app_state,
+                        options,
+                        create_new_window,
+                        window,
+                        cx,
+                    );
                 });
             })?;
             anyhow::Ok(())
@@ -1369,7 +1390,7 @@ pub fn init(app_state: Arc<AppState>, cx: &mut App) {
 
     cx.on_action(|_: &CloseWindow, cx| Workspace::close_global(cx))
         .on_action(|_: &Reload, cx| reload(cx))
-        .on_action(|_: &Open, cx: &mut App| {
+        .on_action(|action: &Open, cx: &mut App| {
             let app_state = AppState::global(cx);
             prompt_and_open_paths(
                 app_state,
@@ -1379,6 +1400,7 @@ pub fn init(app_state: Arc<AppState>, cx: &mut App) {
                     multiple: true,
                     prompt: None,
                 },
+                action.create_new_window,
                 cx,
             );
         })
@@ -1393,6 +1415,7 @@ pub fn init(app_state: Arc<AppState>, cx: &mut App) {
                     multiple: true,
                     prompt: None,
                 },
+                true,
                 cx,
             );
         });
@@ -2783,6 +2806,10 @@ impl Workspace {
         })
     }
 
+    pub fn project_group_key(&self, cx: &App) -> ProjectGroupKey {
+        self.project.read(cx).project_group_key(cx)
+    }
+
     pub fn weak_handle(&self) -> WeakEntity<Self> {
         self.weak_self.clone()
     }
@@ -4088,7 +4115,7 @@ impl Workspace {
         let has_dirty_items = self.items(cx).any(|item| item.is_dirty(cx));
         let workspace_is_empty = !is_remote && !has_worktree && !has_dirty_items;
         if workspace_is_empty {
-            open_mode = OpenMode::Replace;
+            open_mode = OpenMode::Activate;
         }
         let app_state = self.app_state.clone();
 
@@ -9986,30 +10013,32 @@ pub async fn last_session_workspace_locations(
         .log_err()
 }
 
-pub struct MultiWorkspaceRestoreResult {
-    pub window_handle: WindowHandle<MultiWorkspace>,
-    pub errors: Vec<anyhow::Error>,
-}
-
 pub async fn restore_multiworkspace(
     multi_workspace: SerializedMultiWorkspace,
     app_state: Arc<AppState>,
     cx: &mut AsyncApp,
-) -> anyhow::Result<MultiWorkspaceRestoreResult> {
-    let SerializedMultiWorkspace { workspaces, state } = multi_workspace;
-    let mut group_iter = workspaces.into_iter();
-    let first = group_iter
-        .next()
-        .context("window group must not be empty")?;
+) -> anyhow::Result<WindowHandle<MultiWorkspace>> {
+    let SerializedMultiWorkspace {
+        active_workspace,
+        state,
+    } = multi_workspace;
+    let MultiWorkspaceState {
+        sidebar_open,
+        project_group_keys,
+        sidebar_state,
+        ..
+    } = state;
 
-    let window_handle = if first.paths.is_empty() {
-        cx.update(|cx| open_workspace_by_id(first.workspace_id, app_state.clone(), None, cx))
-            .await?
+    let window_handle = if active_workspace.paths.is_empty() {
+        cx.update(|cx| {
+            open_workspace_by_id(active_workspace.workspace_id, app_state.clone(), None, cx)
+        })
+        .await?
     } else {
         let OpenResult { window, .. } = cx
             .update(|cx| {
                 Workspace::new_local(
-                    first.paths.paths().to_vec(),
+                    active_workspace.paths.paths().to_vec(),
                     app_state.clone(),
                     None,
                     None,
@@ -10022,48 +10051,16 @@ pub async fn restore_multiworkspace(
         window
     };
 
-    let mut errors = Vec::new();
-
-    for session_workspace in group_iter {
-        let error = if session_workspace.paths.is_empty() {
-            cx.update(|cx| {
-                open_workspace_by_id(
-                    session_workspace.workspace_id,
-                    app_state.clone(),
-                    Some(window_handle),
-                    cx,
-                )
-            })
-            .await
-            .err()
-        } else {
-            cx.update(|cx| {
-                Workspace::new_local(
-                    session_workspace.paths.paths().to_vec(),
-                    app_state.clone(),
-                    Some(window_handle),
-                    None,
-                    None,
-                    OpenMode::Add,
-                    cx,
-                )
-            })
-            .await
-            .err()
-        };
-
-        if let Some(error) = error {
-            errors.push(error);
-        }
-    }
-
-    if let Some(target_id) = state.active_workspace_id {
+    if !project_group_keys.is_empty() {
+        let restored_keys: Vec<ProjectGroupKey> =
+            project_group_keys.into_iter().map(Into::into).collect();
         window_handle
             .update(cx, |multi_workspace, window, cx| {
+                multi_workspace.restore_project_group_keys(restored_keys);
                 let target_index = multi_workspace
                     .workspaces()
                     .iter()
-                    .position(|ws| ws.read(cx).database_id() == Some(target_id));
+                    .position(|ws| ws.read(cx).database_id() == Some(active_workspace.workspace_id));
                 if let Some(index) = target_index {
                     multi_workspace.activate_index(index, window, cx);
                 } else if !multi_workspace.workspaces().is_empty() {
@@ -10081,7 +10078,7 @@ pub async fn restore_multiworkspace(
             .ok();
     }
 
-    if state.sidebar_open {
+    if sidebar_open {
         window_handle
             .update(cx, |multi_workspace, _, cx| {
                 multi_workspace.open_sidebar(cx);
@@ -10089,8 +10086,7 @@ pub async fn restore_multiworkspace(
             .ok();
     }
 
-    if let Some(sidebar_state) = &state.sidebar_state {
-        let sidebar_state = sidebar_state.clone();
+    if let Some(sidebar_state) = sidebar_state {
         window_handle
             .update(cx, |multi_workspace, window, cx| {
                 if let Some(sidebar) = multi_workspace.sidebar() {
@@ -10107,10 +10103,7 @@ pub async fn restore_multiworkspace(
         })
         .ok();
 
-    Ok(MultiWorkspaceRestoreResult {
-        window_handle,
-        errors,
-    })
+    Ok(window_handle)
 }
 
 actions!(
@@ -10443,7 +10436,7 @@ pub fn open_workspace_by_id(
 pub fn open_paths(
     abs_paths: &[PathBuf],
     app_state: Arc<AppState>,
-    open_options: OpenOptions,
+    mut open_options: OpenOptions,
     cx: &mut App,
 ) -> Task<anyhow::Result<OpenResult>> {
     let abs_paths = abs_paths.to_vec();
@@ -10468,10 +10461,9 @@ pub fn open_paths(
             let all_metadatas = futures::future::join_all(all_paths)
                 .await
                 .into_iter()
-                .filter_map(|result| result.ok().flatten())
-                .collect::<Vec<_>>();
+                .filter_map(|result| result.ok().flatten());
 
-            if all_metadatas.iter().all(|file| !file.is_dir) {
+            if all_metadatas.into_iter().all(|file| !file.is_dir) {
                 cx.update(|cx| {
                     let windows = workspace_windows_for_location(
                         &SerializedWorkspaceLocation::Local,
@@ -10490,6 +10482,35 @@ pub fn open_paths(
                         }
                     }
                 });
+            }
+        }
+
+        // Fallback for directories: when no flag is specified and no existing
+        // workspace matched, add the directory as a new workspace in the
+        // active window's MultiWorkspace (instead of opening a new window).
+        if open_options.open_new_workspace.is_none() && existing.is_none() {
+            let target_window = cx.update(|cx| {
+                let windows = workspace_windows_for_location(
+                    &SerializedWorkspaceLocation::Local,
+                    cx,
+                );
+                let window = cx
+                    .active_window()
+                    .and_then(|window| window.downcast::<MultiWorkspace>())
+                    .filter(|window| windows.contains(window))
+                    .or_else(|| windows.into_iter().next());
+                window.filter(|window| {
+                    window.read(cx).is_ok_and(|mw| mw.multi_workspace_enabled(cx))
+                })
+            });
+
+            if let Some(window) = target_window {
+                open_options.requesting_window = Some(window);
+                window
+                    .update(cx, |multi_workspace, _, cx| {
+                        multi_workspace.open_sidebar(cx);
+                    })
+                    .log_err();
             }
         }
 

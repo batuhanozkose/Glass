@@ -10,7 +10,7 @@ use editor::actions::OpenExcerpts;
 
 use crate::StartThreadIn;
 use crate::message_editor::SharedSessionCapabilities;
-use gpui::{Corner, List};
+use gpui::{Corner, FollowMode, List};
 use heapless::Vec as ArrayVec;
 use language_model::{LanguageModelEffortLevel, Speed};
 use settings::update_settings_file;
@@ -541,24 +541,15 @@ impl ThreadView {
         let thread_view = cx.entity().downgrade();
 
         this.list_state
-            .set_scroll_handler(move |event, _window, cx| {
+            .set_scroll_handler(move |_event, _window, cx| {
                 let list_state = list_state_for_scroll.clone();
                 let thread_view = thread_view.clone();
-                let is_following_tail = event.is_following_tail;
                 // N.B. We must defer because the scroll handler is called while the
                 // ListState's RefCell is mutably borrowed. Reading logical_scroll_top()
                 // directly would panic from a double borrow.
                 cx.defer(move |cx| {
                     let scroll_top = list_state.logical_scroll_top();
                     let _ = thread_view.update(cx, |this, cx| {
-                        if !is_following_tail {
-                            let is_generating =
-                                matches!(this.thread.read(cx).status(), ThreadStatus::Generating);
-
-                            if list_state.is_following_tail() && is_generating {
-                                list_state.set_follow_tail(true);
-                            }
-                        }
                         if let Some(thread) = this.as_native_thread(cx) {
                             thread.update(cx, |thread, _cx| {
                                 thread.set_ui_scroll_position(Some(scroll_top));
@@ -825,13 +816,10 @@ impl ThreadView {
                 }
             }
         }));
-        if self.parent_id.is_none() {
-            self.suppress_merge_conflict_notification(cx);
-        }
         generation
     }
 
-    pub fn stop_turn(&mut self, generation: usize, cx: &mut Context<Self>) {
+    pub fn stop_turn(&mut self, generation: usize, _cx: &mut Context<Self>) {
         if self.turn_fields.turn_generation != generation {
             return;
         }
@@ -842,25 +830,6 @@ impl ThreadView {
             .map(|started| started.elapsed());
         self.turn_fields.last_turn_tokens = self.turn_fields.turn_tokens.take();
         self.turn_fields._turn_timer_task = None;
-        if self.parent_id.is_none() {
-            self.unsuppress_merge_conflict_notification(cx);
-        }
-    }
-
-    fn suppress_merge_conflict_notification(&self, cx: &mut Context<Self>) {
-        self.workspace
-            .update(cx, |workspace, cx| {
-                workspace.suppress_notification(&workspace::merge_conflict_notification_id(), cx);
-            })
-            .ok();
-    }
-
-    fn unsuppress_merge_conflict_notification(&self, cx: &mut Context<Self>) {
-        self.workspace
-            .update(cx, |workspace, _cx| {
-                workspace.unsuppress(workspace::merge_conflict_notification_id());
-            })
-            .ok();
     }
 
     pub fn update_turn_tokens(&mut self, cx: &App) {
@@ -1070,7 +1039,7 @@ impl ThreadView {
             })?;
 
             let _ = this.update(cx, |this, cx| {
-                this.list_state.set_follow_tail(true);
+                this.list_state.scroll_to_end();
                 cx.notify();
             });
 
@@ -4945,7 +4914,7 @@ impl ThreadView {
     }
 
     pub fn scroll_to_end(&mut self, cx: &mut Context<Self>) {
-        self.list_state.set_follow_tail(true);
+        self.list_state.scroll_to_end();
         cx.notify();
     }
 
@@ -4967,7 +4936,6 @@ impl ThreadView {
     }
 
     pub(crate) fn scroll_to_top(&mut self, cx: &mut Context<Self>) {
-        self.list_state.set_follow_tail(false);
         self.list_state.scroll_to(ListOffset::default());
         cx.notify();
     }
@@ -4979,7 +4947,6 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         let page_height = self.list_state.viewport_bounds().size.height;
-        self.list_state.set_follow_tail(false);
         self.list_state.scroll_by(-page_height * 0.9);
         cx.notify();
     }
@@ -4991,10 +4958,9 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         let page_height = self.list_state.viewport_bounds().size.height;
-        self.list_state.set_follow_tail(false);
         self.list_state.scroll_by(page_height * 0.9);
         if self.list_state.is_following_tail() {
-            self.list_state.set_follow_tail(true);
+            self.list_state.set_follow_mode(FollowMode::Tail);
         }
         cx.notify();
     }
@@ -5005,7 +4971,6 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.list_state.set_follow_tail(false);
         self.list_state.scroll_by(-window.line_height() * 3.);
         cx.notify();
     }
@@ -5016,10 +4981,9 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.list_state.set_follow_tail(false);
         self.list_state.scroll_by(window.line_height() * 3.);
         if self.list_state.is_following_tail() {
-            self.list_state.set_follow_tail(true);
+            self.list_state.set_follow_mode(FollowMode::Tail);
         }
         cx.notify();
     }
@@ -5054,7 +5018,6 @@ impl ThreadView {
             .rev()
             .find(|&i| matches!(entries.get(i), Some(AgentThreadEntry::UserMessage(_))))
         {
-            self.list_state.set_follow_tail(false);
             self.list_state.scroll_to(ListOffset {
                 item_ix: target_ix,
                 offset_in_item: px(0.),
@@ -5074,7 +5037,6 @@ impl ThreadView {
         if let Some(target_ix) = (current_ix + 1..entries.len())
             .find(|&i| matches!(entries.get(i), Some(AgentThreadEntry::UserMessage(_))))
         {
-            self.list_state.set_follow_tail(false);
             self.list_state.scroll_to(ListOffset {
                 item_ix: target_ix,
                 offset_in_item: px(0.),
@@ -8841,7 +8803,7 @@ pub(crate) fn open_link(
                     .open_path(path, None, true, window, cx)
                     .detach_and_log_err(cx);
             }
-            MentionUri::PastedImage => {}
+            MentionUri::PastedImage { .. } => {}
             MentionUri::Directory { abs_path } => {
                 let project = workspace.project();
                 let Some(entry_id) = project.update(cx, |project, cx| {

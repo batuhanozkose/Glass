@@ -220,6 +220,7 @@ members = [
     # Tooling
     #
 
+    "tooling/compliance",
     "tooling/perf",
     "tooling/xtask",
 ]
@@ -266,9 +267,10 @@ clock = { path = "crates/clock" }
 cloud_api_client = { path = "crates/cloud_api_client" }
 cloud_api_types = { path = "crates/cloud_api_types" }
 cloud_llm_client = { path = "crates/cloud_llm_client" }
-collections = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4", version = "0.1.0" }
+collections = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0", version = "0.1.0" }
 command_palette = { path = "crates/command_palette" }
 command_palette_hooks = { path = "crates/command_palette_hooks" }
+compliance = { path = "tooling/compliance" }
 component = { path = "crates/component" }
 component_preview = { path = "crates/component_preview" }
 context_server = { path = "crates/context_server" }
@@ -286,7 +288,7 @@ debug_adapter_extension = { path = "crates/debug_adapter_extension" }
 debugger_tools = { path = "crates/debugger_tools" }
 debugger_ui = { path = "crates/debugger_ui" }
 deepseek = { path = "crates/deepseek" }
-derive_refineable = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4" }
+derive_refineable = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0" }
 dev_container = { path = "crates/dev_container" }
 diagnostics = { path = "crates/diagnostics" }
 editor = { path = "crates/editor" }
@@ -310,14 +312,14 @@ git_ui = { path = "crates/git_ui" }
 go_to_line = { path = "crates/go_to_line" }
 google_ai = { path = "crates/google_ai" }
 grammars = { path = "crates/grammars" }
-gpui = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4", default-features = false }
-gpui_macros = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4" }
-gpui_platform = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4", default-features = false, features = ["font-kit"] }
-gpui_tokio = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4" }
-gpui_util = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4" }
+gpui = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0", default-features = false }
+gpui_macros = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0" }
+gpui_platform = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0", default-features = false, features = ["font-kit"] }
+gpui_tokio = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0" }
+gpui_util = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0" }
 html_to_markdown = { path = "crates/html_to_markdown" }
-http_client = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4" }
-http_client_tls = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4" }
+http_client = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0" }
+http_client_tls = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0" }
 icons = { path = "crates/icons" }
 image_viewer = { path = "crates/image_viewer" }
 edit_prediction_types = { path = "crates/edit_prediction_types" }
@@ -342,7 +344,7 @@ lsp = { path = "crates/lsp" }
 markdown = { path = "crates/markdown" }
 markdown_preview = { path = "crates/markdown_preview" }
 svg_preview = { path = "crates/svg_preview" }
-media = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4" }
+media = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0" }
 menu = { path = "crates/menu" }
 mermaid-rs-renderer = { git = "https://github.com/zed-industries/mermaid-rs-renderer", rev = "374db9ead5426697c6c2111151d9f246899bc638", default-features = false }
 migrator = { path = "crates/migrator" }
@@ -373,7 +375,7 @@ project_symbols = { path = "crates/project_symbols" }
 prompt_store = { path = "crates/prompt_store" }
 proto = { path = "crates/proto" }
 recent_projects = { path = "crates/recent_projects" }
-refineable = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4" }
+refineable = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0" }
 release_channel = { path = "crates/release_channel" }
 remote = { path = "crates/remote" }
 remote_connection = { path = "crates/remote_connection" }
@@ -384,7 +386,7 @@ rodio = { git = "https://github.com/RustAudio/rodio", rev = "e50e726ddd0292f6ef9
 rope = { path = "crates/rope" }
 rpc = { path = "crates/rpc" }
 rules_library = { path = "crates/rules_library" }
-scheduler = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4" }
+scheduler = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0" }
 search = { path = "crates/search" }
 service_hub = { path = "crates/service_hub" }
 service_hub_ui = { path = "crates/service_hub_ui" }
@@ -402,7 +404,7 @@ snippets_ui = { path = "crates/snippets_ui" }
 sqlez = { path = "crates/sqlez" }
 sqlez_macros = { path = "crates/sqlez_macros" }
 streaming_diff = { path = "crates/streaming_diff" }
-sum_tree = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4" }
+sum_tree = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0" }
 codestral = { path = "crates/codestral" }
 system_specs = { path = "crates/system_specs" }
 syntax_theme = { path = "crates/syntax_theme" }
@@ -427,7 +429,7 @@ ui = { path = "crates/ui" }
 ui_input = { path = "crates/ui_input" }
 ui_macros = { path = "crates/ui_macros" }
 ui_prompt = { path = "crates/ui_prompt" }
-util = { git = "https://github.com/Glass-HQ/gpui.git", rev = "5019a7f4" }
+util = { git = "https://github.com/Glass-HQ/gpui.git", rev = "d74fd2d0" }
 util_macros = { path = "crates/util_macros" }
 vercel = { path = "crates/vercel" }
 which_key = { path = "crates/which_key" }
@@ -521,6 +523,7 @@ derive_more = { version = "2.1.1", features = [
     "add_assign",
     "deref",
     "deref_mut",
+    "display",
     "from_str",
     "mul",
     "mul_assign",

@@ -1,18 +1,19 @@
+use crate::focus_follows_mouse::FocusFollowsMouse as _;
 use crate::persistence::model::DockData;
-use crate::{DraggedDock, Event, ModalLayer, Pane};
-use crate::{MultiWorkspace, Workspace};
+use crate::{DraggedDock, Event, FocusFollowsMouse, ModalLayer, MultiWorkspace, Pane, Workspace};
+use crate::WorkspaceSettings;
 use anyhow::Context as _;
 use client::proto;
 use db::kvp::KeyValueStore;
 
 use gpui::{
-    Action, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter, FocusHandle,
-    Focusable, IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent, ParentElement,
-    Render, SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window,
+    Action, AnyElement, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter,
+    FocusHandle, Focusable, IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent,
+    ParentElement, Render, SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window,
     WindowBackgroundAppearance, deferred, div,
 };
 use serde::{Deserialize, Serialize};
-use settings::SettingsStore;
+use settings::{Settings, SettingsStore};
 use std::sync::Arc;
 use theme::{ActiveTheme, active_component_radius};
 use ui::{ContextMenu, CountBadge, Divider, DividerColor, Tooltip, prelude::*, right_click_menu};
@@ -463,6 +464,7 @@ pub struct Dock {
     is_open: bool,
     active_panel_index: Option<usize>,
     focus_handle: FocusHandle,
+    focus_follows_mouse: FocusFollowsMouse,
     pub(crate) serialized_dock: Option<DockData>,
     zoom_layer_open: bool,
     modal_layer: Entity<ModalLayer>,
@@ -585,6 +587,7 @@ impl Dock {
                 active_panel_index: None,
                 is_open: false,
                 focus_handle: focus_handle.clone(),
+                focus_follows_mouse: WorkspaceSettings::get_global(cx).focus_follows_mouse,
                 _subscriptions: [focus_subscription, zoom_subscription],
                 serialized_dock: None,
                 zoom_layer_open: false,
@@ -1375,7 +1378,9 @@ impl Render for Dock {
         let dispatch_context = Self::dispatch_context();
 
         if self.in_native_sidebar {
-            return self.render_native_sidebar_content(window, cx, dispatch_context);
+            return self
+                .render_native_sidebar_content(window, cx, dispatch_context)
+                .into_any_element();
         }
 
         if let Some(entry) = self.visible_entry() {
@@ -1443,9 +1448,11 @@ impl Render for Dock {
             };
 
             div()
+                .id("dock-panel")
                 .key_context(dispatch_context)
                 .track_focus(&self.focus_handle(cx))
                 .relative()
+                .focus_follows_mouse(self.focus_follows_mouse, cx)
                 .flex()
                 .map(|this| match self.position().axis() {
                     Axis::Horizontal => this.w(size).h_full().flex_row(),
@@ -1540,10 +1547,13 @@ impl Render for Dock {
                 .when(self.resizable(cx), |this| {
                     this.child(create_resize_handle())
                 })
+                .into_any_element()
         } else {
             div()
+                .id("dock-panel")
                 .key_context(dispatch_context)
                 .track_focus(&self.focus_handle(cx))
+                .into_any_element()
         }
     }
 }
