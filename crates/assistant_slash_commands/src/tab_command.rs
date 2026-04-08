@@ -89,7 +89,7 @@ impl SlashCommand for TabSlashCommand {
             cx,
         );
 
-        let comment_id = cx.theme().syntax().highlight_id("comment").map(HighlightId);
+        let comment_id = cx.theme().syntax().highlight_id("comment").map(HighlightId::new);
         window.spawn(cx, async move |_| {
             let tab_items = tab_items_search.await?;
             let run_command = tab_items.len() == 1;

@@ -15,9 +15,6 @@ members = [
     "crates/app_runtime_ui",
     "crates/askpass",
     "crates/assets",
-    "crates/assistant_text_thread",
-    "crates/assistant_slash_command",
-    "crates/assistant_slash_commands",
     "crates/audio",
     "crates/auto_update",
     "crates/auto_update_helper",
@@ -60,6 +57,7 @@ members = [
     "crates/edit_prediction_context",
     "crates/editor",
     "crates/encoding_selector",
+    "crates/env_var",
     "crates/etw_tracing",
     "crates/eval_cli",
     "crates/eval_utils",
@@ -200,6 +198,7 @@ members = [
     "crates/x_ai",
     "crates/zed",
     "crates/zed_actions",
+    "crates/zed_credentials_provider",
     "crates/zed_env_vars",
     "crates/edit_prediction_cli",
     "crates/zeta_prompt",
@@ -215,7 +214,6 @@ members = [
     "extensions/glsl",
     "extensions/html",
     "extensions/proto",
-    "extensions/slash-commands-example",
     "extensions/test-extension",
 
     #
@@ -293,6 +291,7 @@ dev_container = { path = "crates/dev_container" }
 diagnostics = { path = "crates/diagnostics" }
 editor = { path = "crates/editor" }
 encoding_selector = { path = "crates/encoding_selector" }
+env_var = { path = "crates/env_var" }
 etw_tracing = { path = "crates/etw_tracing" }
 eval_utils = { path = "crates/eval_utils" }
 extension = { path = "crates/extension" }
@@ -443,6 +442,7 @@ worktree = { path = "crates/worktree" }
 x_ai = { path = "crates/x_ai" }
 zed = { path = "crates/zed" }
 zed_actions = { path = "crates/zed_actions" }
+zed_credentials_provider = { path = "crates/zed_credentials_provider" }
 zed_env_vars = { path = "crates/zed_env_vars" }
 edit_prediction = { path = "crates/edit_prediction" }
 zeta_prompt = { path = "crates/zeta_prompt" }

@@ -625,7 +625,7 @@ impl ThreadsArchiveView {
                 h_flex()
                     .ml_1()
                     .min_w_0()
-                    .w_full()
+                    .flex_1()
                     .gap_1()
                     .child(
                         Icon::new(IconName::MagnifyingGlass)
@@ -639,6 +639,8 @@ impl ThreadsArchiveView {
             })
             .child(
                 h_flex()
+                    .flex_none()
+                    .items_center()
                     .gap_1()
                     .map(|this| {
                         if has_query {
@@ -758,28 +760,26 @@ impl Render for ThreadsArchiveView {
                 this.child(self.render_header(window, cx))
             })
             .child(content)
-            .when(!self.should_render_acp_import_onboarding(cx), |this| {
-                this.child(
-                    div()
-                        .w_full()
-                        .p_1p5()
-                        .border_t_1()
-                        .border_color(cx.theme().colors().border)
-                        .child(
-                            Button::new("import-acp", "Import ACP Threads")
-                                .full_width()
-                                .style(ButtonStyle::OutlinedCustom(cx.theme().colors().border))
-                                .label_size(LabelSize::Small)
-                                .start_icon(
-                                    Icon::new(IconName::ArrowDown)
-                                        .size(IconSize::XSmall)
-                                        .color(Color::Muted),
-                                )
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    this.show_thread_import_modal(window, cx);
-                                })),
-                        ),
-                )
-            })
+            .child(
+                div()
+                    .w_full()
+                    .p_1p5()
+                    .border_t_1()
+                    .border_color(cx.theme().colors().border)
+                    .child(
+                        Button::new("import-acp", "Import ACP Threads")
+                            .full_width()
+                            .style(ButtonStyle::OutlinedCustom(cx.theme().colors().border))
+                            .label_size(LabelSize::Small)
+                            .start_icon(
+                                Icon::new(IconName::ArrowDown)
+                                    .size(IconSize::XSmall)
+                                    .color(Color::Muted),
+                            )
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.show_thread_import_modal(window, cx);
+                            })),
+                    ),
+            )
     }
 }

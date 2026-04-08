@@ -19,7 +19,6 @@ use editor::{
     actions::ExpandAllDiffHunks,
 };
 use editor::{EditorStyle, RewrapOptions};
-use feature_flags::{FeatureFlagAppExt as _, GitGraphFeatureFlag};
 use file_icons::FileIcons;
 use futures::StreamExt as _;
 use git::commit::ParsedCommitMessage;
@@ -42,13 +41,13 @@ use gpui::{
     anchored, deferred, point, size, uniform_list,
 };
 use itertools::Itertools;
-use language::{Buffer, File};
+use language::{Buffer, BufferSnapshot, File};
 use language_model::{
     CompletionIntent, ConfiguredModel, LanguageModelRegistry, LanguageModelRequest,
     LanguageModelRequestMessage, Role,
 };
 use menu;
-use multi_buffer::ExcerptInfo;
+use multi_buffer::ExcerptBoundaryInfo;
 use panel::{PanelHeader, panel_button, panel_filled_button, panel_icon_button};
 use project::{
     Fs, Project, ProjectPath,
@@ -4462,7 +4461,7 @@ impl GitPanel {
         let commit = branch.most_recent_commit.as_ref()?.clone();
         let workspace = self.workspace.clone();
         let this = cx.entity();
-        let can_open_git_graph = cx.has_flag::<GitGraphFeatureFlag>();
+        let can_open_git_graph = true;
 
         Some(
             h_flex()
@@ -5679,11 +5678,13 @@ impl editor::Addon for GitPanelAddon {
 
     fn render_buffer_header_controls(
         &self,
-        excerpt_info: &ExcerptInfo,
+        excerpt_info: &ExcerptBoundaryInfo,
+        buffer: &BufferSnapshot,
         window: &Window,
         cx: &App,
     ) -> Option<AnyElement> {
-        let file = excerpt_info.buffer.file()?;
+        let _ = excerpt_info;
+        let file = buffer.file()?;
         let git_panel = self.workspace.upgrade()?.read(cx).panel::<GitPanel>(cx)?;
 
         git_panel

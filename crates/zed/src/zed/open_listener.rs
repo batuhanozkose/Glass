@@ -36,6 +36,7 @@ pub struct OpenRequest {
     pub open_paths: Vec<String>,
     pub diff_paths: Vec<[String; 2]>,
     pub diff_all: bool,
+    pub dev_container: bool,
     pub remote_connection: Option<RemoteConnectionOptions>,
 }
 
@@ -405,6 +406,7 @@ pub async fn handle_cli_connection(
                 open_new_workspace,
                 reuse,
                 env,
+                dev_container: _,
                 user_data_dir: _,
             } => {
                 if !urls.is_empty() {

@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt::Display,
     path::{Path, PathBuf},
 };
@@ -270,6 +270,8 @@ pub async fn start_dev_container_with_config(
                 container_id,
                 use_podman: context.use_podman,
                 remote_user,
+                extension_ids: Vec::new(),
+                remote_env: BTreeMap::default(),
             };
 
             Ok((connection, remote_workspace_folder))

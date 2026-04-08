@@ -975,6 +975,9 @@ impl Domain for WorkspaceDb {
         sql!(
             ALTER TABLE workspaces ADD COLUMN active_mode TEXT;
         ),
+        sql!(
+            ALTER TABLE remote_connections ADD COLUMN remote_env TEXT;
+        ),
     ];
 
     // Allow recovering from bad migration that was initially shipped to nightly
@@ -1784,6 +1787,7 @@ impl WorkspaceDb {
                     remote_user: user?,
                     upload_binary_over_docker_exec: false,
                     use_podman: use_podman?,
+                    remote_env: BTreeMap::default(),
                 }))
             }
         }

@@ -98,6 +98,10 @@ message Envelope {
 
         GetUsers get_users = 92;
         UsersResponse users_response = 94;
+        Follow follow = 98;
+        FollowResponse follow_response = 99;
+        UpdateFollowers update_followers = 100;
+        Unfollow unfollow = 101;
 
         UpdateDiffBases update_diff_bases = 104;
 
@@ -362,6 +366,13 @@ message Envelope {
 
         GitCreateRemote git_create_remote = 402;
         GitRemoveRemote git_remove_remote = 403;
+        GitCreateCheckpoint git_create_checkpoint = 433;
+        GitCreateCheckpointResponse git_create_checkpoint_response = 434;
+        GitRestoreCheckpoint git_restore_checkpoint = 435;
+        GitCompareCheckpoints git_compare_checkpoints = 436;
+        GitCompareCheckpointsResponse git_compare_checkpoints_response = 437;
+        GitDiffCheckpoints git_diff_checkpoints = 438;
+        GitDiffCheckpointsResponse git_diff_checkpoints_response = 439; // current max
 
         TrustWorktrees trust_worktrees = 404;
         RestrictWorktrees restrict_worktrees = 405;

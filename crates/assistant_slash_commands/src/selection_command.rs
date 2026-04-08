@@ -133,8 +133,8 @@ pub fn selections_creases(
             continue;
         }
 
-        for (buffer_snapshot, buffer_range, _excerpt_id) in buffer_ranges {
-            creases.extend(crease_for_buffer_range(buffer_snapshot, buffer_range, cx));
+        for (buffer_snapshot, buffer_range, _excerpt_range) in buffer_ranges {
+            creases.extend(crease_for_buffer_range(&buffer_snapshot, buffer_range, cx));
         }
     }
     creases
@@ -233,11 +233,11 @@ fn crease_for_range(
     // Get actual file line numbers (not multibuffer row numbers)
     let start_buffer_row = snapshot
         .point_to_buffer_point(range.start)
-        .map(|(_, point, _)| point.row)
+        .map(|(_, point)| point.row)
         .unwrap_or(range.start.row);
     let end_buffer_row = snapshot
         .point_to_buffer_point(range.end)
-        .map(|(_, point, _)| point.row)
+        .map(|(_, point)| point.row)
         .unwrap_or(range.end.row);
 
     let start_language = snapshot.language_at(range.start);

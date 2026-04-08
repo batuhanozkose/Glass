@@ -10,7 +10,7 @@ use agent_ui::AgentPanel;
 use anyhow::{Context as _, Error, Result};
 use clap::Parser;
 use cli::FORCE_CLI_MODE_ENV_VAR_NAME;
-use client::{Client, ProxySettings, UserStore, parse_zed_link};
+use client::{Client, ProxySettings, RefreshLlmTokenListener, UserStore, parse_zed_link};
 use collections::HashMap;
 use crashes::InitCrashHandler;
 use db::kvp::{GlobalKeyValueStore, KeyValueStore};
@@ -670,7 +670,12 @@ fn main() {
         );
 
         copilot_ui::init(&app_state, cx);
-        language_model::init(app_state.user_store.clone(), app_state.client.clone(), cx);
+        RefreshLlmTokenListener::register(
+            app_state.client.clone(),
+            app_state.user_store.clone(),
+            cx,
+        );
+        language_model::init(cx);
         language_models::init(app_state.user_store.clone(), app_state.client.clone(), cx);
         acp_tools::init(cx);
         zed::telemetry_log::init(cx);
@@ -688,7 +693,6 @@ fn main() {
         );
         agent_ui::init(
             app_state.fs.clone(),
-            app_state.client.clone(),
             prompt_builder.clone(),
             app_state.languages.clone(),
             is_new_install,

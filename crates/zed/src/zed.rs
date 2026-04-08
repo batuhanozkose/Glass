@@ -14,7 +14,7 @@ pub mod visual_tests;
 #[cfg(target_os = "windows")]
 pub(crate) mod windows_only_instance;
 
-use agent_ui::{AgentDiffToolbar, AgentPanelDelegate};
+use agent_ui::AgentDiffToolbar;
 use anyhow::Context as _;
 pub use app_menus::*;
 use assets::Assets;
@@ -35,10 +35,11 @@ use git_ui::commit_view::CommitViewToolbar;
 use git_ui::git_panel::GitPanel;
 use git_ui::project_diff::{BranchDiffToolbar, ProjectDiffToolbar};
 use gpui::{
-    Action, App, AppContext as _, AsyncWindowContext, Context, DismissEvent, Element, Entity,
-    Focusable, KeyBinding, ParentElement, PathPromptOptions, PromptLevel, ReadGlobal, SharedString,
-    Task, TitlebarOptions, UpdateGlobal, WeakEntity, Window, WindowHandle, WindowKind,
-    WindowOptions, actions, image_cache, px, retain_all,
+    Action, App, AppContext as _, AsyncWindowContext, ClipboardItem, Context, DismissEvent,
+    Element, Entity, FocusHandle, Focusable, Image, ImageFormat, KeyBinding, ParentElement,
+    PathPromptOptions, PromptLevel, ReadGlobal, SharedString, Size, Task, TitlebarOptions,
+    UpdateGlobal, WeakEntity, Window, WindowBounds, WindowHandle, WindowKind, WindowOptions,
+    actions, image_cache, img, point, px, retain_all,
 };
 use image_viewer::ImageInfo;
 use language::Capability;
@@ -741,19 +742,19 @@ async fn initialize_agent_panel(
 ) -> anyhow::Result<()> {
     workspace_handle
         .update_in(&mut cx, |workspace, window, cx| {
-            let prompt_builder = prompt_builder.clone();
+            let _prompt_builder = prompt_builder.clone();
             setup_or_teardown_ai_panel(workspace, window, cx, move |workspace, cx| {
-                agent_ui::AgentPanel::load(workspace, prompt_builder, cx)
+                agent_ui::AgentPanel::load(workspace, cx)
             })
         })?
         .await?;
 
     workspace_handle.update_in(&mut cx, |workspace, window, cx| {
-        let prompt_builder = prompt_builder.clone();
+        let _prompt_builder = prompt_builder.clone();
         cx.observe_global_in::<SettingsStore>(window, move |workspace, window, cx| {
-            let prompt_builder = prompt_builder.clone();
+            let _prompt_builder = prompt_builder.clone();
             setup_or_teardown_ai_panel(workspace, window, cx, move |workspace, cx| {
-                agent_ui::AgentPanel::load(workspace, prompt_builder, cx)
+                agent_ui::AgentPanel::load(workspace, cx)
             })
             .detach_and_log_err(cx);
         })
@@ -766,11 +767,6 @@ async fn initialize_agent_panel(
         //
         // Once we ship `assistant2` we can push this back down into `agent::agent_panel::init`.
         if !cfg!(test) {
-            <dyn AgentPanelDelegate>::set_global(
-                Arc::new(agent_ui::ConcreteAssistantPanelDelegate),
-                cx,
-            );
-
             workspace
                 .register_action(agent_ui::AgentPanel::toggle_focus)
                 .register_action(agent_ui::AgentPanel::toggle)

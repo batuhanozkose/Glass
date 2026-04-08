@@ -17,11 +17,13 @@ use gpui::{
 use itertools::Itertools as _;
 use language::{AnchorRangeExt, Bias, Buffer, LanguageRegistry, OffsetRangeExt, Point, ToOffset};
 use language_model::{
-    AnthropicCompletionType, AnthropicEventData, AnthropicEventType, CompletionIntent,
-    LanguageModel, LanguageModelCacheConfiguration, LanguageModelCompletionEvent,
-    LanguageModelImage, LanguageModelRegistry, LanguageModelRequest, LanguageModelRequestMessage,
-    LanguageModelToolUseId, MessageContent, PaymentRequiredError, Role, StopReason,
-    report_anthropic_event,
+    CompletionIntent, LanguageModel, LanguageModelCacheConfiguration,
+    LanguageModelCompletionEvent, LanguageModelImage, LanguageModelRegistry,
+    LanguageModelRequest, LanguageModelRequestMessage, LanguageModelToolUseId, MessageContent,
+    PaymentRequiredError, Role, StopReason,
+};
+use language_models::provider::anthropic::telemetry::{
+    AnthropicCompletionType, AnthropicEventData, AnthropicEventType, report_anthropic_event,
 };
 use open_ai::Model as OpenAiModel;
 use paths::text_threads_dir;
@@ -42,6 +44,22 @@ use text::{BufferSnapshot, ToPoint};
 use ui::IconName;
 use util::{ResultExt, TryFutureExt, post_inc};
 use uuid::Uuid;
+
+fn role_from_proto(value: i32) -> Role {
+    match value {
+        1 => Role::Assistant,
+        2 => Role::System,
+        _ => Role::User,
+    }
+}
+
+fn role_to_proto(value: Role) -> i32 {
+    match value {
+        Role::User => 0,
+        Role::Assistant => 1,
+        Role::System => 2,
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TextThreadId(String);
@@ -176,7 +194,7 @@ impl TextThreadOperation {
                         .context("invalid anchor")?,
                     },
                     metadata: MessageMetadata {
-                        role: Role::from_proto(message.role),
+                        role: role_from_proto(message.role),
                         status: MessageStatus::from_proto(
                             message.status.context("invalid status")?,
                         ),
@@ -191,7 +209,7 @@ impl TextThreadOperation {
                     update.message_id.context("invalid message id")?,
                 )),
                 metadata: MessageMetadata {
-                    role: Role::from_proto(update.role),
+                    role: role_from_proto(update.role),
                     status: MessageStatus::from_proto(update.status.context("invalid status")?),
                     timestamp: language::proto::deserialize_timestamp(
                         update.timestamp.context("invalid timestamp")?,
@@ -287,7 +305,7 @@ impl TextThreadOperation {
                         message: Some(proto::ContextMessage {
                             id: Some(language::proto::serialize_timestamp(anchor.id.0)),
                             start: Some(language::proto::serialize_anchor(&anchor.start)),
-                            role: metadata.role.to_proto() as i32,
+                            role: role_to_proto(metadata.role),
                             status: Some(metadata.status.to_proto()),
                         }),
                         version: language::proto::serialize_version(version),
@@ -302,7 +320,7 @@ impl TextThreadOperation {
                 variant: Some(proto::context_operation::Variant::UpdateMessage(
                     proto::context_operation::UpdateMessage {
                         message_id: Some(language::proto::serialize_timestamp(message_id.0)),
-                        role: metadata.role.to_proto() as i32,
+                        role: role_to_proto(metadata.role),
                         status: Some(metadata.status.to_proto()),
                         timestamp: Some(language::proto::serialize_timestamp(metadata.timestamp)),
                         version: language::proto::serialize_version(version),

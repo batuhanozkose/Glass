@@ -2,14 +2,15 @@ pub mod running;
 
 use crate::{persistence::SerializedLayout, session::running::DebugTerminal};
 use dap::client::SessionId;
-use gpui::{App, Axis, Entity, EventEmitter, FocusHandle, Focusable, WeakEntity};
+use gpui::{App, Axis, Entity, EventEmitter, FocusHandle, Focusable, Task, WeakEntity};
+use rpc::proto;
 use project::debugger::session::Session;
 
 use project::{Project, debugger::session::SessionQuirks};
 use running::RunningState;
 use ui::prelude::*;
 use workspace::{
-    CollaboratorId, FollowableItem, Workspace,
+    CollaboratorId, FollowableItem, ViewId, Workspace,
     item::{self, Item},
 };
 
@@ -107,6 +108,40 @@ impl Item for DebugSession {
 impl FollowableItem for DebugSession {
     fn remote_id(&self) -> Option<workspace::ViewId> {
         self.remote_id
+    }
+
+    fn to_state_proto(&self, _window: &mut Window, _cx: &mut App) -> Option<proto::view::Variant> {
+        None
+    }
+
+    fn from_state_proto(
+        _workspace: Entity<Workspace>,
+        _remote_id: ViewId,
+        _state: &mut Option<proto::view::Variant>,
+        _window: &mut Window,
+        _cx: &mut App,
+    ) -> Option<gpui::Task<anyhow::Result<Entity<Self>>>> {
+        None
+    }
+
+    fn add_event_to_update_proto(
+        &self,
+        _event: &Self::Event,
+        _update: &mut Option<proto::update_view::Variant>,
+        _window: &mut Window,
+        _cx: &mut App,
+    ) -> bool {
+        true
+    }
+
+    fn apply_update_proto(
+        &mut self,
+        _project: &Entity<project::Project>,
+        _message: proto::update_view::Variant,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> gpui::Task<anyhow::Result<()>> {
+        Task::ready(Ok(()))
     }
 
     fn set_leader_id(

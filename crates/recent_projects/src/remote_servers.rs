@@ -11,11 +11,12 @@ use dev_container::{
 };
 use editor::Editor;
 
+use extension_host::ExtensionStore;
 use futures::{FutureExt, channel::oneshot, future::Shared};
 use gpui::{
     Action, AnyElement, App, ClickEvent, ClipboardItem, Context, DismissEvent, Entity,
     EventEmitter, FocusHandle, Focusable, PromptLevel, ScrollHandle, Subscription, Task,
-    WeakEntity, Window, canvas, native_icon_button,
+    WeakEntity, Window, canvas,
 };
 use log::{debug, info};
 use open_path_prompt::OpenPathDelegate;
@@ -41,9 +42,11 @@ use std::{
         atomic::{self, AtomicUsize},
     },
 };
+
 use ui::{
-    CommonAnimationExt, KeyBinding, List, ListItem, ListSeparator, Modal, ModalFooter, ModalHeader,
-    Navigable, NavigableEntry, Section, Tooltip, WithScrollbar, prelude::*,
+    CommonAnimationExt, IconButtonShape, KeyBinding, List, ListItem, ListSeparator, Modal,
+    ModalFooter, ModalHeader, Navigable, NavigableEntry, Section, Tooltip, WithScrollbar,
+    prelude::*,
 };
 use util::{
     ResultExt,
@@ -1620,20 +1623,24 @@ impl RemoteServerProjects {
                     }))
                     .tooltip(Tooltip::text(project.paths.join("\n")))
                     .when(is_from_zed, |server_list_item| {
-                        server_list_item.end_hover_slot::<AnyElement>(Some(
-                            div()
-                                .mr_2()
-                                .child({
-                                    let project = project.clone();
-                                    // Right-margin to offset it from the Scrollbar
-                                    native_icon_button("remove-remote-project", "trash")
-                                        .tooltip("Delete Remote Project")
-                                        .on_click(cx.listener(move |this, _, _, cx| {
-                                            this.delete_remote_project(server_ix, &project, cx)
-                                        }))
-                                })
-                                .into_any_element(),
-                        ))
+                        server_list_item
+                            .end_slot(
+                                div()
+                                    .mr_2()
+                                    .child({
+                                        let project = project.clone();
+                                        IconButton::new("remove-remote-project", IconName::Trash)
+                                            .icon_size(IconSize::Small)
+                                            .shape(IconButtonShape::Square)
+                                            .size(ButtonSize::Large)
+                                            .tooltip(Tooltip::text("Delete Remote Project"))
+                                            .on_click(cx.listener(move |this, _, _, cx| {
+                                                this.delete_remote_project(server_ix, &project, cx)
+                                            }))
+                                    })
+                                    .into_any_element(),
+                            )
+                            .show_end_slot_on_hover()
                     }),
             )
     }
@@ -1849,10 +1856,11 @@ impl RemoteServerProjects {
     ) {
         let replace_window = window.window_handle().downcast::<MultiWorkspace>();
         let app_state = Arc::downgrade(&app_state);
+
         cx.spawn_in(window, async move |entity, cx| {
-            let (connection, starting_dir) =
+            let (dev_container_connection, starting_dir) =
                 match start_dev_container_with_config(context, config).await {
-                    Ok((c, s)) => (Connection::DevContainer(c), s),
+                    Ok((c, s)) => (c, s),
                     Err(e) => {
                         log::error!("Failed to start dev container: {:?}", e);
                         cx.prompt(
@@ -1876,6 +1884,16 @@ impl RemoteServerProjects {
                         return;
                     }
                 };
+            cx.update(|_, cx| {
+                ExtensionStore::global(cx).update(cx, |this, cx| {
+                    for extension in &dev_container_connection.extension_ids {
+                        log::info!("Installing extension {extension} from devcontainer");
+                        this.install_latest_extension(Arc::from(extension.clone()), cx);
+                    }
+                })
+            })
+            .log_err();
+
             entity
                 .update(cx, |_, cx| {
                     cx.emit(DismissEvent);
@@ -1886,7 +1904,7 @@ impl RemoteServerProjects {
                 return;
             };
             let result = open_remote_project(
-                connection.into(),
+                Connection::DevContainer(dev_container_connection).into(),
                 vec![starting_dir].into_iter().map(PathBuf::from).collect(),
                 app_state,
                 OpenOptions {
@@ -2409,9 +2427,8 @@ impl RemoteServerProjects {
                             .spacing(ui::ListItemSpacing::Sparse)
                             .start_slot(Icon::new(IconName::Copy).color(Color::Muted))
                             .child(Label::new("Copy Server Address"))
-                            .end_hover_slot(
-                                Label::new(connection_string.clone()).color(Color::Muted),
-                            )
+                            .end_slot(Label::new(connection_string.clone()).color(Color::Muted))
+                            .show_end_slot_on_hover()
                             .on_click({
                                 let connection_string = connection_string.clone();
                                 move |_, _, cx| {

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use extension::{Extension, ExtensionHostProxy, ExtensionSlashCommandProxy, WorktreeDelegate};
+use extension::{Extension, WorktreeDelegate};
 use gpui::{App, Task, WeakEntity, Window};
 use language::{BufferSnapshot, LspAdapterDelegate};
 use std::sync::{Arc, atomic::AtomicBool};
@@ -14,30 +14,7 @@ use crate::{
 };
 
 pub fn init(cx: &mut App) {
-    let proxy = ExtensionHostProxy::default_global(cx);
-    proxy.register_slash_command_proxy(SlashCommandRegistryProxy {
-        slash_command_registry: SlashCommandRegistry::global(cx),
-    });
-}
-
-struct SlashCommandRegistryProxy {
-    slash_command_registry: Arc<SlashCommandRegistry>,
-}
-
-impl ExtensionSlashCommandProxy for SlashCommandRegistryProxy {
-    fn register_slash_command(
-        &self,
-        extension: Arc<dyn Extension>,
-        command: extension::SlashCommand,
-    ) {
-        self.slash_command_registry
-            .register_command(ExtensionSlashCommand::new(extension, command), false)
-    }
-
-    fn unregister_slash_command(&self, command_name: Arc<str>) {
-        self.slash_command_registry
-            .unregister_command_by_name(&command_name)
-    }
+    let _ = cx;
 }
 
 /// An adapter that allows an [`LspAdapterDelegate`] to be used as a [`WorktreeDelegate`].

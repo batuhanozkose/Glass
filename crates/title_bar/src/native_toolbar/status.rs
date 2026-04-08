@@ -38,7 +38,7 @@ impl TitleBar {
                     let mut encoding = None;
                     let mut line_ending = None;
 
-                    if let Some((_, buffer, _)) = editor.active_excerpt(cx) {
+                    if let Some(buffer) = editor.buffer().read(cx).as_singleton() {
                         let buffer = buffer.read(cx);
                         let active_encoding = buffer.encoding();
                         if active_encoding != encoding_rs::UTF_8 || buffer.has_bom() {

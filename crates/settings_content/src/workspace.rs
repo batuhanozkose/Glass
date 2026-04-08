@@ -426,6 +426,36 @@ pub struct TabBarSettingsContent {
     pub show_pinned_tabs_in_separate_row: Option<bool>,
 }
 
+#[with_fallible_options]
+#[derive(Clone, Default, Serialize, Deserialize, JsonSchema, MergeFrom, Debug, PartialEq, Eq)]
+pub struct StatusBarSettingsContent {
+    /// Whether to show the status bar.
+    ///
+    /// Default: true
+    #[serde(rename = "experimental.show")]
+    pub show: Option<bool>,
+    /// Whether to show the name of the active file in the status bar.
+    ///
+    /// Default: false
+    pub show_active_file: Option<bool>,
+    /// Whether to display the active language button in the status bar.
+    ///
+    /// Default: true
+    pub active_language_button: Option<bool>,
+    /// Whether to show the cursor position button in the status bar.
+    ///
+    /// Default: true
+    pub cursor_position_button: Option<bool>,
+    /// Whether to show active line endings button in the status bar.
+    ///
+    /// Default: false
+    pub line_endings_button: Option<bool>,
+    /// Whether to show the active encoding button in the status bar.
+    ///
+    /// Default: non_utf8
+    pub active_encoding_button: Option<EncodingDisplayOptions>,
+}
+
 #[derive(
     Copy,
     Clone,

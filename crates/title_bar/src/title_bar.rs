@@ -428,7 +428,7 @@ impl TitleBar {
                 IconName::AiClaude,
                 "Claude Agent",
                 Some("Introducing:".into()),
-                zed_actions::agent::OpenClaudeAgentOnboardingModal.boxed_clone(),
+                zed_actions::agent::OpenAcpOnboardingModal.boxed_clone(),
                 cx,
             )
             // When updating this to a non-AI feature release, remove this line.

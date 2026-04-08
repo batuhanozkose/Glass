@@ -65,7 +65,9 @@ macro_rules! settings_overrides {
         }
     }
 }
-use std::{collections::BTreeSet, sync::Arc};
+use std::collections::{BTreeMap, BTreeSet};
+use std::hash::Hash;
+use std::sync::Arc;
 pub use util::serde::default_true;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,6 +106,7 @@ pub struct SettingsContent {
 
     pub tabs: Option<ItemSettingsContent>,
     pub tab_bar: Option<TabBarSettingsContent>,
+    pub status_bar: Option<StatusBarSettingsContent>,
 
     pub preview_tabs: Option<PreviewTabsSettingsContent>,
 
@@ -143,6 +146,13 @@ pub struct SettingsContent {
     pub image_viewer: Option<ImageViewerSettingsContent>,
 
     pub repl: Option<ReplSettingsContent>,
+
+    /// Whether or not to enable Helix mode.
+    ///
+    /// Default: false
+    pub helix_mode: Option<bool>,
+
+    pub journal: Option<JournalSettingsContent>,
 
     /// A map of log scopes to the desired log level.
     /// Useful for filtering out noisy logs or enabling more verbose logging.
@@ -255,6 +265,35 @@ settings_overrides! {
     pub struct PlatformOverrides { macos, linux, windows }
 }
 
+/// Determines what settings a profile starts from before applying its overrides.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, MergeFrom,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum ProfileBase {
+    /// Apply profile settings on top of the user's current settings.
+    #[default]
+    User,
+    /// Apply profile settings on top of Zed's default settings, ignoring user customizations.
+    Default,
+}
+
+/// A named settings profile that can temporarily override settings.
+#[with_fallible_options]
+#[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize, JsonSchema, MergeFrom)]
+pub struct SettingsProfile {
+    /// What base settings to start from before applying this profile's overrides.
+    ///
+    /// - `user`: Apply on top of user's settings (default)
+    /// - `default`: Apply on top of Zed's default settings, ignoring user customizations
+    #[serde(default)]
+    pub base: ProfileBase,
+
+    /// The settings overrides for this profile.
+    #[serde(default)]
+    pub settings: Box<SettingsContent>,
+}
+
 #[with_fallible_options]
 #[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize, JsonSchema, MergeFrom)]
 pub struct UserSettingsContent {
@@ -268,7 +307,7 @@ pub struct UserSettingsContent {
     pub platform_overrides: PlatformOverrides,
 
     #[serde(default)]
-    pub profiles: IndexMap<String, SettingsContent>,
+    pub profiles: IndexMap<String, SettingsProfile>,
 }
 
 pub struct ExtensionsSettingsContent {
@@ -405,7 +444,7 @@ pub struct DebuggerSettingsContent {
     ///
     /// Default: true
     pub save_breakpoints: Option<bool>,
-    /// Whether to show the debugger panel button in the dock header.
+    /// Whether to show the debug button in the status bar.
     ///
     /// Default: true
     pub button: Option<bool>,
@@ -474,22 +513,6 @@ pub enum DockPosition {
     Right,
 }
 
-/// Settings for slash commands.
-#[with_fallible_options]
-#[derive(Deserialize, Serialize, Debug, Default, Clone, JsonSchema, MergeFrom, PartialEq, Eq)]
-pub struct SlashCommandSettings {
-    /// Settings for the `/cargo-workspace` slash command.
-    pub cargo_workspace: Option<CargoWorkspaceCommandSettings>,
-}
-
-/// Settings for the `/cargo-workspace` slash command.
-#[with_fallible_options]
-#[derive(Deserialize, Serialize, Debug, Default, Clone, JsonSchema, MergeFrom, PartialEq, Eq)]
-pub struct CargoWorkspaceCommandSettings {
-    /// Whether `/cargo-workspace` is enabled.
-    pub enabled: Option<bool>,
-}
-
 /// Configuration of voice calls in Zed.
 #[with_fallible_options]
 #[derive(Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema, MergeFrom, Debug)]
@@ -508,7 +531,7 @@ pub struct CallSettingsContent {
 #[with_fallible_options]
 #[derive(Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema, MergeFrom, Debug)]
 pub struct GitPanelSettingsContent {
-    /// Whether to show the panel button in the dock header.
+    /// Whether to show the panel button in the status bar.
     ///
     /// Default: true
     pub button: Option<bool>,
@@ -611,7 +634,7 @@ pub struct ScrollbarSettings {
 #[with_fallible_options]
 #[derive(Clone, Default, Serialize, Deserialize, JsonSchema, MergeFrom, Debug, PartialEq)]
 pub struct NotificationPanelSettingsContent {
-    /// Whether to show the panel button in the dock header.
+    /// Whether to show the panel button in the status bar.
     ///
     /// Default: true
     pub button: Option<bool>,
@@ -633,7 +656,7 @@ pub struct NotificationPanelSettingsContent {
 #[with_fallible_options]
 #[derive(Clone, Default, Serialize, Deserialize, JsonSchema, MergeFrom, Debug, PartialEq)]
 pub struct PanelSettingsContent {
-    /// Whether to show the panel button in the dock header.
+    /// Whether to show the panel button in the status bar.
     ///
     /// Default: true
     pub button: Option<bool>,
@@ -741,7 +764,7 @@ pub struct VimSettingsContent {
     pub use_system_clipboard: Option<UseSystemClipboard>,
     pub use_smartcase_find: Option<bool>,
     /// When enabled, the `:substitute` command replaces all matches in a line
-    /// by default. The 'g' flag then toggles this behavior.
+    /// by default. The 'g' flag then toggles this behavior.,
     pub gdefault: Option<bool>,
     pub custom_digraphs: Option<HashMap<String, Arc<str>>>,
     pub highlight_on_yank_duration: Option<u64>,
@@ -844,6 +867,85 @@ pub struct CursorShapeSettings {
     pub insert: Option<VimInsertModeCursorShape>,
 }
 
+/// Settings specific to journaling
+#[with_fallible_options]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, MergeFrom, PartialEq)]
+pub struct JournalSettingsContent {
+    /// The path of the directory where journal entries are stored.
+    ///
+    /// Default: `~`
+    pub path: Option<String>,
+    /// What format to display the hours in.
+    ///
+    /// Default: hour12
+    pub hour_format: Option<HourFormat>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, MergeFrom, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum HourFormat {
+    #[default]
+    Hour12,
+    Hour24,
+}
+
+#[with_fallible_options]
+#[derive(Clone, Default, Serialize, Deserialize, JsonSchema, MergeFrom, Debug, PartialEq)]
+pub struct OutlinePanelSettingsContent {
+    /// Whether to show the outline panel button in the status bar.
+    ///
+    /// Default: true
+    pub button: Option<bool>,
+    /// Customize default width (in pixels) taken by outline panel
+    ///
+    /// Default: 240
+    #[serde(serialize_with = "crate::serialize_optional_f32_with_two_decimal_places")]
+    pub default_width: Option<f32>,
+    /// The position of outline panel
+    ///
+    /// Default: left
+    pub dock: Option<DockSide>,
+    /// Whether to show file icons in the outline panel.
+    ///
+    /// Default: true
+    pub file_icons: Option<bool>,
+    /// Whether to show folder icons or chevrons for directories in the outline panel.
+    ///
+    /// Default: true
+    pub folder_icons: Option<bool>,
+    /// Whether to show the git status in the outline panel.
+    ///
+    /// Default: true
+    pub git_status: Option<bool>,
+    /// Amount of indentation (in pixels) for nested items.
+    ///
+    /// Default: 20
+    #[serde(serialize_with = "crate::serialize_optional_f32_with_two_decimal_places")]
+    pub indent_size: Option<f32>,
+    /// Whether to reveal it in the outline panel automatically,
+    /// when a corresponding project entry becomes active.
+    /// Gitignored entries are never auto revealed.
+    ///
+    /// Default: true
+    pub auto_reveal_entries: Option<bool>,
+    /// Whether to fold directories automatically
+    /// when directory has only one directory inside.
+    ///
+    /// Default: true
+    pub auto_fold_dirs: Option<bool>,
+    /// Settings related to indent guides in the outline panel.
+    pub indent_guides: Option<IndentGuidesSettingsContent>,
+    /// Scrollbar-related settings
+    pub scrollbar: Option<ScrollbarSettingsContent>,
+    /// Default depth to expand outline items in the current file.
+    /// The default depth to which outline entries are expanded on reveal.
+    /// - Set to 0 to collapse all items that have children
+    /// - Set to 1 or higher to collapse items at that depth or deeper
+    ///
+    /// Default: 100
+    pub expand_outlines_with_depth: Option<usize>,
+}
+
 #[derive(
     Clone,
     Copy,
@@ -887,7 +989,7 @@ pub enum ShowIndentGuides {
     Copy, Clone, Debug, Serialize, Deserialize, JsonSchema, MergeFrom, PartialEq, Eq, Default,
 )]
 pub struct IndentGuidesSettingsContent {
-    /// When to show indent guides in the editor.
+    /// When to show the scrollbar in the outline panel.
     pub show: Option<ShowIndentGuides>,
 }
 
@@ -951,6 +1053,8 @@ pub struct DevContainerConnection {
     pub remote_user: String,
     pub container_id: String,
     pub use_podman: bool,
+    pub extension_ids: Vec<String>,
+    pub remote_env: BTreeMap<String, String>,
 }
 
 #[with_fallible_options]

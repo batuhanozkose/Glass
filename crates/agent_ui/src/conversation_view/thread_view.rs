@@ -552,17 +552,10 @@ impl ThreadView {
                     let scroll_top = list_state.logical_scroll_top();
                     let _ = thread_view.update(cx, |this, cx| {
                         if !is_following_tail {
-                            let is_at_bottom = {
-                                let current_offset =
-                                    list_state.scroll_px_offset_for_scrollbar().y.abs();
-                                let max_offset = list_state.max_offset_for_scrollbar().y;
-                                current_offset >= max_offset - px(1.0)
-                            };
-
                             let is_generating =
                                 matches!(this.thread.read(cx).status(), ThreadStatus::Generating);
 
-                            if is_at_bottom && is_generating {
+                            if list_state.is_following_tail() && is_generating {
                                 list_state.set_follow_tail(true);
                             }
                         }
@@ -2977,6 +2970,7 @@ impl ThreadView {
                                 window.dispatch_action(OpenAgentDiff.boxed_clone(), cx);
                             })),
                     )
+                    .child(Divider::vertical().color(DividerColor::Border))
                     .child(
                         Button::new("reject-all-changes", "Reject All")
                             .label_size(LabelSize::Small)
@@ -3136,24 +3130,11 @@ impl ThreadView {
             .on_action(cx.listener(Self::expand_message_editor))
             .p_2()
             .gap_2()
+            .when(!v2_empty_state, |this| {
+                this.border_t_1().border_color(cx.theme().colors().border)
+            })
             .bg(editor_bg_color)
             .when(v2_empty_state, |this| this.flex_1().size_full())
-            .when(!v2_empty_state, |this| {
-                this.when_some(
-                    theme::active_component_radius(cx.theme().component_radius().input),
-                    |this, radius| {
-                        this.m_2()
-                            .rounded(radius)
-                            .overflow_hidden()
-                            .border_1()
-                            .border_color(cx.theme().colors().border)
-                    },
-                )
-                .when(
-                    theme::active_component_radius(cx.theme().component_radius().input).is_none(),
-                    |this| this.border_t_1().border_color(cx.theme().colors().border),
-                )
-            })
             .when(editor_expanded && !v2_empty_state, |this| {
                 this.h(vh(0.8, window)).size_full().justify_between()
             })
@@ -3431,12 +3412,10 @@ impl ThreadView {
             }
         };
 
-        let used = crate::text_thread_editor::humanize_token_count(usage.used_tokens);
-        let max = crate::text_thread_editor::humanize_token_count(usage.max_tokens);
-        let input_tokens_label =
-            crate::text_thread_editor::humanize_token_count(usage.input_tokens);
-        let output_tokens_label =
-            crate::text_thread_editor::humanize_token_count(usage.output_tokens);
+        let used = crate::humanize_token_count(usage.used_tokens);
+        let max = crate::humanize_token_count(usage.max_tokens);
+        let input_tokens_label = crate::humanize_token_count(usage.input_tokens);
+        let output_tokens_label = crate::humanize_token_count(usage.output_tokens);
 
         let progress_ratio = if usage.max_tokens > 0 {
             usage.used_tokens as f32 / usage.max_tokens as f32
@@ -3480,10 +3459,9 @@ impl ThreadView {
             .and_then(|thread| thread.read(cx).model())
             .and_then(|model| model.max_output_tokens())
             .unwrap_or(0);
-        let input_max_label = crate::text_thread_editor::humanize_token_count(
-            usage.max_tokens.saturating_sub(max_output_tokens),
-        );
-        let output_max_label = crate::text_thread_editor::humanize_token_count(max_output_tokens);
+        let input_max_label =
+            crate::humanize_token_count(usage.max_tokens.saturating_sub(max_output_tokens));
+        let output_max_label = crate::humanize_token_count(max_output_tokens);
 
         let build_tooltip = {
             move |_window: &mut Window, cx: &mut App| {
@@ -4820,12 +4798,9 @@ impl ThreadView {
                     .last_turn_tokens
                     .filter(|&tokens| tokens > TOKEN_THRESHOLD)
                     .map(|tokens| {
-                        Label::new(format!(
-                            "{} tokens",
-                            crate::text_thread_editor::humanize_token_count(tokens)
-                        ))
-                        .size(LabelSize::Small)
-                        .color(Color::Muted)
+                        Label::new(format!("{} tokens", crate::humanize_token_count(tokens)))
+                            .size(LabelSize::Small)
+                            .color(Color::Muted)
                     })
             })
             .flatten();
@@ -4970,7 +4945,7 @@ impl ThreadView {
     }
 
     pub fn scroll_to_end(&mut self, cx: &mut Context<Self>) {
-        self.list_state.scroll_to_end();
+        self.list_state.set_follow_tail(true);
         cx.notify();
     }
 
@@ -4992,8 +4967,120 @@ impl ThreadView {
     }
 
     pub(crate) fn scroll_to_top(&mut self, cx: &mut Context<Self>) {
+        self.list_state.set_follow_tail(false);
         self.list_state.scroll_to(ListOffset::default());
         cx.notify();
+    }
+
+    fn scroll_output_page_up(
+        &mut self,
+        _: &ScrollOutputPageUp,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let page_height = self.list_state.viewport_bounds().size.height;
+        self.list_state.set_follow_tail(false);
+        self.list_state.scroll_by(-page_height * 0.9);
+        cx.notify();
+    }
+
+    fn scroll_output_page_down(
+        &mut self,
+        _: &ScrollOutputPageDown,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let page_height = self.list_state.viewport_bounds().size.height;
+        self.list_state.set_follow_tail(false);
+        self.list_state.scroll_by(page_height * 0.9);
+        if self.list_state.is_following_tail() {
+            self.list_state.set_follow_tail(true);
+        }
+        cx.notify();
+    }
+
+    fn scroll_output_line_up(
+        &mut self,
+        _: &ScrollOutputLineUp,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.list_state.set_follow_tail(false);
+        self.list_state.scroll_by(-window.line_height() * 3.);
+        cx.notify();
+    }
+
+    fn scroll_output_line_down(
+        &mut self,
+        _: &ScrollOutputLineDown,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.list_state.set_follow_tail(false);
+        self.list_state.scroll_by(window.line_height() * 3.);
+        if self.list_state.is_following_tail() {
+            self.list_state.set_follow_tail(true);
+        }
+        cx.notify();
+    }
+
+    fn scroll_output_to_top(
+        &mut self,
+        _: &ScrollOutputToTop,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.scroll_to_top(cx);
+    }
+
+    fn scroll_output_to_bottom(
+        &mut self,
+        _: &ScrollOutputToBottom,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.scroll_to_end(cx);
+    }
+
+    fn scroll_output_to_previous_message(
+        &mut self,
+        _: &ScrollOutputToPreviousMessage,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let entries = self.thread.read(cx).entries();
+        let current_ix = self.list_state.logical_scroll_top().item_ix;
+        if let Some(target_ix) = (0..current_ix)
+            .rev()
+            .find(|&i| matches!(entries.get(i), Some(AgentThreadEntry::UserMessage(_))))
+        {
+            self.list_state.set_follow_tail(false);
+            self.list_state.scroll_to(ListOffset {
+                item_ix: target_ix,
+                offset_in_item: px(0.),
+            });
+            cx.notify();
+        }
+    }
+
+    fn scroll_output_to_next_message(
+        &mut self,
+        _: &ScrollOutputToNextMessage,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let entries = self.thread.read(cx).entries();
+        let current_ix = self.list_state.logical_scroll_top().item_ix;
+        if let Some(target_ix) = (current_ix + 1..entries.len())
+            .find(|&i| matches!(entries.get(i), Some(AgentThreadEntry::UserMessage(_))))
+        {
+            self.list_state.set_follow_tail(false);
+            self.list_state.scroll_to(ListOffset {
+                item_ix: target_ix,
+                offset_in_item: px(0.),
+            });
+            cx.notify();
+        }
     }
 
     pub fn open_thread_as_markdown(
@@ -5108,7 +5195,7 @@ impl ThreadView {
                 self.turn_fields
                     .turn_tokens
                     .filter(|&tokens| tokens > TOKEN_THRESHOLD)
-                    .map(|tokens| crate::text_thread_editor::humanize_token_count(tokens))
+                    .map(|tokens| crate::humanize_token_count(tokens))
             })
             .flatten();
 
@@ -5170,9 +5257,12 @@ impl ThreadView {
     }
 
     pub(crate) fn auto_expand_streaming_thought(&mut self, cx: &mut Context<Self>) {
-        // Only auto-expand thinking blocks in Automatic mode.
-        // AlwaysExpanded shows them open by default; AlwaysCollapsed keeps them closed.
-        if AgentSettings::get_global(cx).thinking_display != ThinkingBlockDisplay::Automatic {
+        let thinking_display = AgentSettings::get_global(cx).thinking_display;
+
+        if !matches!(
+            thinking_display,
+            ThinkingBlockDisplay::Auto | ThinkingBlockDisplay::Preview
+        ) {
             return;
         }
 
@@ -5201,6 +5291,13 @@ impl ThreadView {
                 cx.notify();
             }
         } else if self.auto_expanded_thinking_block.is_some() {
+            if thinking_display == ThinkingBlockDisplay::Auto {
+                if let Some(key) = self.auto_expanded_thinking_block {
+                    if !self.user_toggled_thinking_blocks.contains(&key) {
+                        self.expanded_thinking_blocks.remove(&key);
+                    }
+                }
+            }
             self.auto_expanded_thinking_block = None;
             cx.notify();
         }
@@ -5214,7 +5311,19 @@ impl ThreadView {
         let thinking_display = AgentSettings::get_global(cx).thinking_display;
 
         match thinking_display {
-            ThinkingBlockDisplay::Automatic => {
+            ThinkingBlockDisplay::Auto => {
+                let is_open = self.expanded_thinking_blocks.contains(&key)
+                    || self.user_toggled_thinking_blocks.contains(&key);
+
+                if is_open {
+                    self.expanded_thinking_blocks.remove(&key);
+                    self.user_toggled_thinking_blocks.remove(&key);
+                } else {
+                    self.expanded_thinking_blocks.insert(key);
+                    self.user_toggled_thinking_blocks.insert(key);
+                }
+            }
+            ThinkingBlockDisplay::Preview => {
                 let is_user_expanded = self.user_toggled_thinking_blocks.contains(&key);
                 let is_in_expanded_set = self.expanded_thinking_blocks.contains(&key);
 
@@ -5267,7 +5376,11 @@ impl ThreadView {
         let is_in_expanded_set = self.expanded_thinking_blocks.contains(&key);
 
         let (is_open, is_constrained) = match thinking_display {
-            ThinkingBlockDisplay::Automatic => {
+            ThinkingBlockDisplay::Auto => {
+                let is_open = is_user_toggled || is_in_expanded_set;
+                (is_open, false)
+            }
+            ThinkingBlockDisplay::Preview => {
                 let is_open = is_user_toggled || is_in_expanded_set;
                 let is_constrained = is_in_expanded_set && !is_user_toggled;
                 (is_open, is_constrained)
@@ -5746,6 +5859,7 @@ impl ThreadView {
                             .color(Color::Muted)
                             .with_rotate_animation(2)
                     )
+                    .child(div().h(relative(0.6)).ml_1p5().child(Divider::vertical().color(DividerColor::Border)))
                     .child(
                         IconButton::new(
                             SharedString::from(format!("stop-terminal-{}", terminal.entity_id())),
@@ -7120,17 +7234,10 @@ impl ThreadView {
                 };
 
                 active_editor.update_in(cx, |editor, window, cx| {
-                    let singleton = editor
-                        .buffer()
-                        .read(cx)
-                        .read(cx)
-                        .as_singleton()
-                        .map(|(a, b, _)| (a, b));
-                    if let Some((excerpt_id, buffer_id)) = singleton
-                        && let Some(agent_buffer) = agent_location.buffer.upgrade()
-                        && agent_buffer.read(cx).remote_id() == buffer_id
+                    let snapshot = editor.buffer().read(cx).snapshot(cx);
+                    if snapshot.as_singleton().is_some()
+                        && let Some(anchor) = snapshot.anchor_in_excerpt(agent_location.position)
                     {
-                        let anchor = editor::Anchor::in_buffer(excerpt_id, agent_location.position);
                         editor.change_selections(Default::default(), window, cx, |selections| {
                             selections.select_anchor_ranges([anchor..anchor]);
                         })
@@ -7537,7 +7644,7 @@ impl ThreadView {
         } else if is_failed {
             "Subagent Failed".into()
         } else {
-            "Spawning agent…".into()
+            "Spawning Agent…".into()
         };
 
         let card_header_id = format!("subagent-header-{}", entry_ix);
@@ -8539,6 +8646,14 @@ impl Render for ThreadView {
             .on_action(cx.listener(Self::handle_toggle_command_pattern))
             .on_action(cx.listener(Self::open_permission_dropdown))
             .on_action(cx.listener(Self::open_add_context_menu))
+            .on_action(cx.listener(Self::scroll_output_page_up))
+            .on_action(cx.listener(Self::scroll_output_page_down))
+            .on_action(cx.listener(Self::scroll_output_line_up))
+            .on_action(cx.listener(Self::scroll_output_line_down))
+            .on_action(cx.listener(Self::scroll_output_to_top))
+            .on_action(cx.listener(Self::scroll_output_to_bottom))
+            .on_action(cx.listener(Self::scroll_output_to_previous_message))
+            .on_action(cx.listener(Self::scroll_output_to_next_message))
             .on_action(cx.listener(|this, _: &ToggleFastMode, _window, cx| {
                 this.toggle_fast_mode(cx);
             }))
@@ -8783,15 +8898,6 @@ pub(crate) fn open_link(
                 if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
                     panel.update(cx, |panel, cx| {
                         panel.open_thread(id, None, Some(name.into()), window, cx)
-                    });
-                }
-            }
-            MentionUri::TextThread { path, .. } => {
-                if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
-                    panel.update(cx, |panel, cx| {
-                        panel
-                            .open_saved_text_thread(path.as_path().into(), window, cx)
-                            .detach_and_log_err(cx);
                     });
                 }
             }

@@ -2,7 +2,7 @@ use crate::text_thread_editor::TextThreadEditor;
 use anyhow::Result;
 pub use assistant_slash_command::SlashCommand;
 use assistant_slash_command::{AfterCompletion, SlashCommandLine, SlashCommandWorkingSet};
-use editor::{CompletionProvider, Editor, ExcerptId};
+use editor::{CompletionProvider, Editor};
 use fuzzy::{StringMatchCandidate, match_strings};
 use gpui::{App, AppContext as _, Context, Entity, Task, WeakEntity, Window};
 use language::{Anchor, Buffer, ToPoint};
@@ -263,7 +263,6 @@ impl SlashCommandCompletionProvider {
 impl CompletionProvider for SlashCommandCompletionProvider {
     fn completions(
         &self,
-        _excerpt_id: ExcerptId,
         buffer: &Entity<Buffer>,
         buffer_position: Anchor,
         _: editor::CompletionContext,

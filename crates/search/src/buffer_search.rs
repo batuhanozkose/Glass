@@ -20,9 +20,9 @@ use editor::{
 };
 use futures::channel::oneshot;
 use gpui::{
-    App, ClickEvent, Context, Entity, EventEmitter, Focusable, InteractiveElement as _,
-    IntoElement, KeyContext, ParentElement as _, Render, ScrollHandle, Styled, Subscription, Task,
-    WeakEntity, Window, div,
+    Action as _, App, ClickEvent, Context, Entity, EventEmitter, Focusable,
+    InteractiveElement as _, IntoElement, KeyContext, ParentElement as _, Render, ScrollHandle,
+    Styled, Subscription, Task, WeakEntity, Window, div,
 };
 use language::{Language, LanguageRegistry};
 use project::{
@@ -33,7 +33,9 @@ use project::{
 use fs::Fs;
 use settings::{DiffViewStyle, Settings, update_settings_file};
 use std::{any::TypeId, sync::Arc};
-use zed_actions::workspace::{CopyPath, CopyRelativePath};
+use zed_actions::{
+    OpenSettingsAt, outline::ToggleOutline, workspace::CopyPath, workspace::CopyRelativePath,
+};
 
 use ui::{
     BASE_REM_SIZE_IN_PX, IconButtonShape, PlatformStyle, TextSize, Tooltip, prelude::*,
@@ -110,46 +112,39 @@ impl Render for BufferSearchBar {
                 .as_ref()
                 .and_then(|weak| weak.upgrade())
                 .map(|splittable_editor| {
-                    let is_split = splittable_editor.read(cx).is_split();
+                    let editor_ref = splittable_editor.read(cx);
+                    let diff_view_style = editor_ref.diff_view_style();
+
+                    let is_split_set = diff_view_style == DiffViewStyle::Split;
+                    let is_split_active = editor_ref.is_split();
+                    let min_columns =
+                        EditorSettings::get_global(cx).minimum_split_diff_width as u32;
+
+                    let split_icon = if is_split_set && !is_split_active {
+                        IconName::DiffSplitAuto
+                    } else {
+                        IconName::DiffSplit
+                    };
+
                     h_flex()
                         .gap_1()
                         .child(
                             IconButton::new("diff-unified", IconName::DiffUnified)
-                                .shape(IconButtonShape::Square)
-                                .toggle_state(!is_split)
-                                .tooltip(Tooltip::element(move |_, cx| {
-                                    v_flex()
-                                        .child("Unified")
-                                        .child(
-                                            h_flex()
-                                                .gap_0p5()
-                                                .text_ui_sm(cx)
-                                                .text_color(Color::Muted.color(cx))
-                                                .children(render_modifiers(
-                                                    &gpui::Modifiers::secondary_key(),
-                                                    PlatformStyle::platform(),
-                                                    None,
-                                                    Some(TextSize::Small.rems(cx).into()),
-                                                    false,
-                                                ))
-                                                .child("click to set as default"),
-                                        )
-                                        .into_any()
-                                }))
+                                .icon_size(IconSize::Small)
+                                .toggle_state(diff_view_style == DiffViewStyle::Unified)
+                                .tooltip(Tooltip::text("Unified"))
                                 .on_click({
                                     let splittable_editor = splittable_editor.downgrade();
                                     move |_, window, cx| {
-                                        if window.modifiers().secondary() {
-                                            update_settings_file(
-                                                <dyn Fs>::global(cx),
-                                                cx,
-                                                |settings, _| {
-                                                    settings.editor.diff_view_style =
-                                                        Some(DiffViewStyle::Unified);
-                                                },
-                                            );
-                                        }
-                                        if is_split {
+                                        update_settings_file(
+                                            <dyn Fs>::global(cx),
+                                            cx,
+                                            |settings, _| {
+                                                settings.editor.diff_view_style =
+                                                    Some(DiffViewStyle::Unified);
+                                            },
+                                        );
+                                        if diff_view_style == DiffViewStyle::Split {
                                             splittable_editor
                                                 .update(cx, |editor, cx| {
                                                     editor.toggle_split(
@@ -164,12 +159,19 @@ impl Render for BufferSearchBar {
                                 }),
                         )
                         .child(
-                            IconButton::new("diff-split", IconName::DiffSplit)
-                                .shape(IconButtonShape::Square)
-                                .toggle_state(is_split)
+                            IconButton::new("diff-split", split_icon)
+                                .toggle_state(diff_view_style == DiffViewStyle::Split)
+                                .icon_size(IconSize::Small)
                                 .tooltip(Tooltip::element(move |_, cx| {
+                                    let message = if is_split_set && !is_split_active {
+                                        format!("Split when wider than {} columns", min_columns)
+                                            .into()
+                                    } else {
+                                        SharedString::from("Split")
+                                    };
+
                                     v_flex()
-                                        .child("Split")
+                                        .child(message)
                                         .child(
                                             h_flex()
                                                 .gap_0p5()
@@ -182,7 +184,7 @@ impl Render for BufferSearchBar {
                                                     Some(TextSize::Small.rems(cx).into()),
                                                     false,
                                                 ))
-                                                .child("click to set as default"),
+                                                .child("click to change min width"),
                                         )
                                         .into_any()
                                 }))
@@ -190,6 +192,14 @@ impl Render for BufferSearchBar {
                                     let splittable_editor = splittable_editor.downgrade();
                                     move |_, window, cx| {
                                         if window.modifiers().secondary() {
+                                            window.dispatch_action(
+                                                OpenSettingsAt {
+                                                    path: "minimum_split_diff_width".to_string(),
+                                                }
+                                                .boxed_clone(),
+                                                cx,
+                                            );
+                                        } else {
                                             update_settings_file(
                                                 <dyn Fs>::global(cx),
                                                 cx,
@@ -198,17 +208,17 @@ impl Render for BufferSearchBar {
                                                         Some(DiffViewStyle::Split);
                                                 },
                                             );
-                                        }
-                                        if !is_split {
-                                            splittable_editor
-                                                .update(cx, |editor, cx| {
-                                                    editor.toggle_split(
-                                                        &ToggleSplitDiff,
-                                                        window,
-                                                        cx,
-                                                    );
-                                                })
-                                                .ok();
+                                            if diff_view_style == DiffViewStyle::Unified {
+                                                splittable_editor
+                                                    .update(cx, |editor, cx| {
+                                                        editor.toggle_split(
+                                                            &ToggleSplitDiff,
+                                                            window,
+                                                            cx,
+                                                        );
+                                                    })
+                                                    .ok();
+                                            }
                                         }
                                     }
                                 }),
@@ -236,7 +246,7 @@ impl Render for BufferSearchBar {
 
             let collapse_expand_icon_button = |id| {
                 IconButton::new(id, icon)
-                    .shape(IconButtonShape::Square)
+                    .icon_size(IconSize::Small)
                     .tooltip(move |_, cx| {
                         Tooltip::for_action_in(
                             tooltip_label,
@@ -574,6 +584,11 @@ impl Render for BufferSearchBar {
             .on_action(cx.listener(Self::dismiss))
             .on_action(cx.listener(Self::select_next_match))
             .on_action(cx.listener(Self::select_prev_match))
+            .on_action(cx.listener(|this, _: &ToggleOutline, window, cx| {
+                if let Some(active_searchable_item) = &mut this.active_searchable_item {
+                    active_searchable_item.relay_action(Box::new(ToggleOutline), window, cx);
+                }
+            }))
             .on_action(cx.listener(|this, _: &CopyPath, window, cx| {
                 if let Some(active_searchable_item) = &mut this.active_searchable_item {
                     active_searchable_item.relay_action(Box::new(CopyPath), window, cx);
@@ -909,7 +924,6 @@ impl BufferSearchBar {
 
     pub fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
         self.dismissed = true;
-        self.cancel_pending_search();
         cx.emit(Event::Dismissed);
         self.query_error = None;
         self.sync_select_next_case_sensitivity(cx);
@@ -1017,7 +1031,7 @@ impl BufferSearchBar {
             self.default_options = configured_options;
         }
 
-        // This isn't a normal setting; it's only applicable to backward search navigation.
+        // This isn't a normal setting; it's only applicable to vim search.
         self.search_options.remove(SearchOptions::BACKWARDS);
 
         self.dismissed = false;
@@ -1401,9 +1415,7 @@ impl BufferSearchBar {
                 cx.spawn_in(window, async move |this, cx| {
                     if search.await.is_ok() {
                         this.update_in(cx, |this, window, cx| {
-                            if !this.dismissed {
-                                this.activate_current_match(window, cx);
-                            }
+                            this.activate_current_match(window, cx);
                             #[cfg(target_os = "macos")]
                             this.update_find_pasteboard(cx);
                         })?;
@@ -1522,7 +1534,9 @@ impl BufferSearchBar {
     ) -> oneshot::Receiver<()> {
         let (done_tx, done_rx) = oneshot::channel();
         let query = self.query(cx);
-        self.cancel_pending_search();
+        self.pending_search.take();
+        #[cfg(target_os = "macos")]
+        self.pending_external_query.take();
 
         if let Some(active_searchable_item) = self.active_searchable_item.as_ref() {
             self.query_error = None;
@@ -1631,12 +1645,6 @@ impl BufferSearchBar {
             }
         }
         done_rx
-    }
-
-    fn cancel_pending_search(&mut self) {
-        self.pending_search.take();
-        #[cfg(target_os = "macos")]
-        self.pending_external_query.take();
     }
 
     fn reverse_direction_if_backwards(&self, direction: Direction) -> Direction {
@@ -3548,7 +3556,16 @@ mod tests {
 
         // Manually unfold one buffer (simulating a chevron click)
         let first_buffer_id = editor.read_with(cx, |editor, cx| {
-            editor.buffer().read(cx).excerpt_buffer_ids()[0]
+            editor
+                .buffer()
+                .read(cx)
+                .snapshot(cx)
+                .excerpts()
+                .nth(0)
+                .unwrap()
+                .context
+                .start
+                .buffer_id
         });
         editor.update_in(cx, |editor, _window, cx| {
             editor.unfold_buffer(first_buffer_id, cx);
@@ -3562,7 +3579,16 @@ mod tests {
 
         // Manually unfold the second buffer too
         let second_buffer_id = editor.read_with(cx, |editor, cx| {
-            editor.buffer().read(cx).excerpt_buffer_ids()[1]
+            editor
+                .buffer()
+                .read(cx)
+                .snapshot(cx)
+                .excerpts()
+                .nth(1)
+                .unwrap()
+                .context
+                .start
+                .buffer_id
         });
         editor.update_in(cx, |editor, _window, cx| {
             editor.unfold_buffer(second_buffer_id, cx);

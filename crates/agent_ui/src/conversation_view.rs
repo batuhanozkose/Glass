@@ -85,8 +85,11 @@ use crate::{
     AuthorizeToolCall, ClearMessageQueue, CycleFavoriteModels, CycleModeSelector,
     CycleThinkingEffort, EditFirstQueuedMessage, ExpandMessageEditor, Follow, KeepAll, NewThread,
     OpenAddContextMenu, OpenAgentDiff, OpenHistory, RejectAll, RejectOnce,
-    RemoveFirstQueuedMessage, SendImmediately, SendNextQueuedMessage, ToggleFastMode,
-    ToggleProfileSelector, ToggleThinkingEffortMenu, ToggleThinkingMode, UndoLastReject,
+    RemoveFirstQueuedMessage, ScrollOutputLineDown, ScrollOutputLineUp, ScrollOutputPageDown,
+    ScrollOutputPageUp, ScrollOutputToBottom, ScrollOutputToNextMessage,
+    ScrollOutputToPreviousMessage, ScrollOutputToTop, SendImmediately, SendNextQueuedMessage,
+    ToggleFastMode, ToggleProfileSelector, ToggleThinkingEffortMenu, ToggleThinkingMode,
+    UndoLastReject,
 };
 
 const STOPWATCH_THRESHOLD: Duration = Duration::from_secs(30);
@@ -840,6 +843,8 @@ impl ConversationView {
 
         if let Some(scroll_position) = thread.read(cx).ui_scroll_position() {
             list_state.scroll_to(scroll_position);
+        } else {
+            list_state.set_follow_tail(true);
         }
 
         AgentDiff::set_active_thread(&self.workspace, thread.clone(), window, cx);
@@ -1238,15 +1243,15 @@ impl ConversationView {
                 if let Some(active) = self.thread_view(&thread_id) {
                     let entry_view_state = active.read(cx).entry_view_state.clone();
                     let list_state = active.read(cx).list_state.clone();
-                    entry_view_state.update(cx, |view_state, cx| {
-                        view_state.sync_entry(index, thread, window, cx);
-                        list_state.splice_focusable(
-                            index..index,
-                            [view_state
-                                .entry(index)
-                                .and_then(|entry| entry.focus_handle(cx))],
-                        );
-                    });
+                    notify_entry_changed(
+                        &entry_view_state,
+                        &list_state,
+                        index..index,
+                        index,
+                        thread,
+                        window,
+                        cx,
+                    );
                     active.update(cx, |active, cx| {
                         active.sync_editor_mode_for_empty_state(cx);
                     });
@@ -1255,9 +1260,16 @@ impl ConversationView {
             AcpThreadEvent::EntryUpdated(index) => {
                 if let Some(active) = self.thread_view(&thread_id) {
                     let entry_view_state = active.read(cx).entry_view_state.clone();
-                    entry_view_state.update(cx, |view_state, cx| {
-                        view_state.sync_entry(*index, thread, window, cx)
-                    });
+                    let list_state = active.read(cx).list_state.clone();
+                    notify_entry_changed(
+                        &entry_view_state,
+                        &list_state,
+                        *index..*index + 1,
+                        *index,
+                        thread,
+                        window,
+                        cx,
+                    );
                     active.update(cx, |active, cx| {
                         active.auto_expand_streaming_thought(cx);
                     });
@@ -1293,10 +1305,17 @@ impl ConversationView {
             }
             AcpThreadEvent::Stopped(stop_reason) => {
                 if let Some(active) = self.thread_view(&thread_id) {
+                    let is_generating =
+                        matches!(thread.read(cx).status(), ThreadStatus::Generating);
                     active.update(cx, |active, cx| {
-                        active.thread_retry_status.take();
-                        active.clear_auto_expand_tracking();
-                        active.list_state.set_follow_tail(false);
+                        if !is_generating {
+                            active.thread_retry_status.take();
+                            active.clear_auto_expand_tracking();
+                            if active.list_state.is_following_tail() {
+                                active.list_state.scroll_to_end();
+                                active.list_state.set_follow_tail(false);
+                            }
+                        }
                         active.sync_generating_indicator(cx);
                     });
                 }
@@ -1365,9 +1384,16 @@ impl ConversationView {
             }
             AcpThreadEvent::Error => {
                 if let Some(active) = self.thread_view(&thread_id) {
+                    let is_generating =
+                        matches!(thread.read(cx).status(), ThreadStatus::Generating);
                     active.update(cx, |active, cx| {
-                        active.thread_retry_status.take();
-                        active.list_state.set_follow_tail(false);
+                        if !is_generating {
+                            active.thread_retry_status.take();
+                            if active.list_state.is_following_tail() {
+                                active.list_state.scroll_to_end();
+                                active.list_state.set_follow_tail(false);
+                            }
+                        }
                         active.sync_generating_indicator(cx);
                     });
                 }
@@ -2338,7 +2364,7 @@ impl ConversationView {
                     .is_some_and(|workspace| AgentPanel::is_visible(&workspace, cx))
             };
         #[cfg(feature = "audio")]
-        if settings.play_sound_when_agent_done && !_visible {
+        if settings.play_sound_when_agent_done.should_play(_visible) {
             Audio::play_sound(Sound::AgentDone, cx);
         }
     }
@@ -2433,11 +2459,7 @@ impl ConversationView {
                                     .update(cx, |multi_workspace, window, cx| {
                                         window.activate_window();
                                         if let Some(workspace) = workspace_handle.upgrade() {
-                                            multi_workspace.activate_in_window(
-                                                workspace.clone(),
-                                                window,
-                                                cx,
-                                            );
+                                            multi_workspace.activate(workspace.clone(), cx);
                                             workspace.update(cx, |workspace, cx| {
                                                 workspace.focus_panel::<AgentPanel>(window, cx);
                                             });
@@ -2528,22 +2550,6 @@ impl ConversationView {
         }
     }
 
-    /// Inserts terminal text as a crease into the message editor.
-    pub(crate) fn insert_terminal_text(
-        &self,
-        text: String,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if let Some(active_thread) = self.active_thread() {
-            active_thread.update(cx, |thread, cx| {
-                thread.message_editor.update(cx, |editor, cx| {
-                    editor.insert_terminal_crease(text, window, cx);
-                })
-            });
-        }
-    }
-
     fn current_model_name(&self, cx: &App) -> SharedString {
         // For native agent (Zed Agent), use the specific model name (e.g., "Claude 3.5 Sonnet")
         // For ACP agents, use the agent name (e.g., "Claude Agent", "Gemini CLI")
@@ -2600,6 +2606,32 @@ impl ConversationView {
             store.update(cx, |store, cx| store.delete(session_id.clone(), cx));
         }
     }
+}
+
+/// Syncs an entry's view state with the latest thread data and splices
+/// the list item so the list knows to re-measure it on the next paint.
+///
+/// Used by both `NewEntry` (splice range `index..index` to insert) and
+/// `EntryUpdated` (splice range `index..index+1` to replace), which is
+/// why the caller provides the splice range.
+fn notify_entry_changed(
+    entry_view_state: &Entity<EntryViewState>,
+    list_state: &ListState,
+    splice_range: std::ops::Range<usize>,
+    index: usize,
+    thread: &Entity<AcpThread>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    entry_view_state.update(cx, |view_state, cx| {
+        view_state.sync_entry(index, thread, window, cx);
+        list_state.splice_focusable(
+            splice_range,
+            [view_state
+                .entry(index)
+                .and_then(|entry| entry.focus_handle(cx))],
+        );
+    });
 }
 
 fn loading_contents_spinner(size: IconSize) -> AnyElement {
@@ -2665,6 +2697,7 @@ impl Render for ConversationView {
         v_flex()
             .track_focus(&self.focus_handle)
             .size_full()
+            .bg(cx.theme().colors().panel_background)
             .child(match &self.server_state {
                 ServerState::Loading { .. } => v_flex()
                     .flex_1()
@@ -2754,7 +2787,6 @@ pub(crate) mod tests {
     use action_log::ActionLog;
     use agent::{AgentTool, EditFileTool, FetchTool, TerminalTool, ToolPermissionContext};
     use agent_client_protocol::SessionId;
-    use assistant_text_thread::TextThreadStore;
     use editor::MultiBufferOffset;
     use fs::FakeFs;
     use gpui::{EventEmitter, TestAppContext, VisualTestContext};
@@ -3312,10 +3344,7 @@ pub(crate) mod tests {
         let cx = &mut VisualTestContext::from_window(multi_workspace_handle.into(), cx);
 
         workspace1.update_in(cx, |workspace, window, cx| {
-            let text_thread_store =
-                cx.new(|cx| TextThreadStore::fake(workspace.project().clone(), cx));
-            let panel =
-                cx.new(|cx| crate::AgentPanel::new(workspace, text_thread_store, None, window, cx));
+            let panel = cx.new(|cx| crate::AgentPanel::new(workspace, None, window, cx));
             workspace.add_panel(panel, window, cx);
 
             // Open the dock and activate the agent panel so it's visible
@@ -4868,6 +4897,63 @@ pub(crate) mod tests {
             assert_eq!(
                 user_message_editor.read(cx).text(cx),
                 "Edited message content"
+            );
+        });
+    }
+
+    #[gpui::test]
+    async fn test_stale_stop_does_not_disable_follow_tail_during_regenerate(
+        cx: &mut TestAppContext,
+    ) {
+        init_test(cx);
+
+        let connection = StubAgentConnection::new();
+
+        let (conversation_view, cx) =
+            setup_conversation_view(StubAgentServer::new(connection.clone()), cx).await;
+        add_to_workspace(conversation_view.clone(), cx);
+
+        let message_editor = message_editor(&conversation_view, cx);
+        message_editor.update_in(cx, |editor, window, cx| {
+            editor.set_text("Original message to edit", window, cx);
+        });
+        active_thread(&conversation_view, cx)
+            .update_in(cx, |view, window, cx| view.send(window, cx));
+
+        cx.run_until_parked();
+
+        let user_message_editor = conversation_view.read_with(cx, |view, cx| {
+            view.active_thread()
+                .map(|active| &active.read(cx).entry_view_state)
+                .as_ref()
+                .unwrap()
+                .read(cx)
+                .entry(0)
+                .unwrap()
+                .message_editor()
+                .unwrap()
+                .clone()
+        });
+
+        cx.focus(&user_message_editor);
+        user_message_editor.update_in(cx, |editor, window, cx| {
+            editor.set_text("Edited message content", window, cx);
+        });
+
+        user_message_editor.update_in(cx, |_editor, window, cx| {
+            window.dispatch_action(Box::new(Chat), cx);
+        });
+
+        cx.run_until_parked();
+
+        conversation_view.read_with(cx, |view, cx| {
+            let active = view.active_thread().unwrap();
+            let active = active.read(cx);
+
+            assert_eq!(active.thread.read(cx).status(), ThreadStatus::Generating);
+            assert!(
+                active.list_state.is_following_tail(),
+                "stale stop events from the cancelled turn must not disable follow-tail for the new turn"
             );
         });
     }

@@ -348,7 +348,7 @@ pub fn create_label_for_command(command_name: &str, arguments: &[&str], cx: &App
     label.push_str(" ", None);
     label.push_str(
         &arguments.join(" "),
-        cx.theme().syntax().highlight_id("comment").map(HighlightId),
+        cx.theme().syntax().highlight_id("comment").map(HighlightId::new),
     );
     label.build()
 }

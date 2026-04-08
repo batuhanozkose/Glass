@@ -1188,28 +1188,6 @@ impl Project {
                 )
             });
 
-            let task_store = cx.new(|cx| {
-                TaskStore::local(
-                    buffer_store.downgrade(),
-                    worktree_store.clone(),
-                    toolchain_store.read(cx).as_language_toolchain_store(),
-                    environment.clone(),
-                    cx,
-                )
-            });
-
-            let settings_observer = cx.new(|cx| {
-                SettingsObserver::new_local(
-                    fs.clone(),
-                    worktree_store.clone(),
-                    task_store.clone(),
-                    flags.watch_global_configs,
-                    cx,
-                )
-            });
-            cx.subscribe(&settings_observer, Self::on_settings_observer_event)
-                .detach();
-
             let lsp_store = cx.new(|cx| {
                 LspStore::new_local(
                     buffer_store.clone(),
@@ -1238,6 +1216,29 @@ impl Project {
                     cx,
                 )
             });
+
+            let task_store = cx.new(|cx| {
+                TaskStore::local(
+                    buffer_store.downgrade(),
+                    worktree_store.clone(),
+                    toolchain_store.read(cx).as_language_toolchain_store(),
+                    environment.clone(),
+                    git_store.clone(),
+                    cx,
+                )
+            });
+
+            let settings_observer = cx.new(|cx| {
+                SettingsObserver::new_local(
+                    fs.clone(),
+                    worktree_store.clone(),
+                    task_store.clone(),
+                    flags.watch_global_configs,
+                    cx,
+                )
+            });
+            cx.subscribe(&settings_observer, Self::on_settings_observer_event)
+                .detach();
 
             let agent_server_store = cx.new(|cx| {
                 AgentServerStore::local(
@@ -1372,29 +1373,6 @@ impl Project {
                 )
             });
 
-            let task_store = cx.new(|cx| {
-                TaskStore::remote(
-                    buffer_store.downgrade(),
-                    worktree_store.clone(),
-                    toolchain_store.read(cx).as_language_toolchain_store(),
-                    remote.read(cx).proto_client(),
-                    REMOTE_SERVER_PROJECT_ID,
-                    cx,
-                )
-            });
-
-            let settings_observer = cx.new(|cx| {
-                SettingsObserver::new_remote(
-                    fs.clone(),
-                    worktree_store.clone(),
-                    task_store.clone(),
-                    Some(remote_proto.clone()),
-                    cx,
-                )
-            });
-            cx.subscribe(&settings_observer, Self::on_settings_observer_event)
-                .detach();
-
             let context_server_store = cx.new(|cx| {
                 ContextServerStore::remote(
                     rpc::proto::REMOTE_SERVER_PROJECT_ID,
@@ -1458,6 +1436,30 @@ impl Project {
                     cx,
                 )
             });
+
+            let task_store = cx.new(|cx| {
+                TaskStore::remote(
+                    buffer_store.downgrade(),
+                    worktree_store.clone(),
+                    toolchain_store.read(cx).as_language_toolchain_store(),
+                    remote.read(cx).proto_client(),
+                    REMOTE_SERVER_PROJECT_ID,
+                    git_store.clone(),
+                    cx,
+                )
+            });
+
+            let settings_observer = cx.new(|cx| {
+                SettingsObserver::new_remote(
+                    fs.clone(),
+                    worktree_store.clone(),
+                    task_store.clone(),
+                    Some(remote_proto.clone()),
+                    cx,
+                )
+            });
+            cx.subscribe(&settings_observer, Self::on_settings_observer_event)
+                .detach();
 
             let agent_server_store = cx.new(|_| {
                 AgentServerStore::remote(

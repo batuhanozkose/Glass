@@ -8,7 +8,8 @@ use crate::{
     workspace_settings::{AutosaveSetting, WorkspaceSettings},
 };
 use anyhow::Result;
-use client::Client;
+use client::{Client, proto};
+use futures::{StreamExt, channel::mpsc};
 use gpui::{
     Action, AnyElement, AnyEntity, AnyView, App, AppContext, Context, Entity, EntityId,
     EventEmitter, FocusHandle, Focusable, Font, Pixels, Point, Render, SharedString, Task,
@@ -24,12 +25,16 @@ pub use settings::{
 use smallvec::SmallVec;
 use std::{
     any::{Any, TypeId},
+    cell::RefCell,
     path::Path,
+    rc::Rc,
     sync::Arc,
     time::Duration,
 };
 use ui::{Color, Icon, IntoElement, Label, LabelCommon};
 use util::ResultExt;
+
+pub const LEADER_UPDATE_THROTTLE: Duration = Duration::from_millis(200);
 
 #[derive(Clone, Copy, Debug)]
 pub struct SaveOptions {
@@ -157,7 +162,7 @@ pub enum ItemBufferKind {
     None,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum WorkspaceItemKind {
     Browser,
     Terminal,
@@ -223,10 +228,6 @@ pub trait Item: Focusable + EventEmitter<Self::Event> + Render + Sized {
     }
 
     fn telemetry_event_text(&self) -> Option<&'static str> {
-        None
-    }
-
-    fn workspace_item_kind(&self) -> Option<WorkspaceItemKind> {
         None
     }
 
@@ -384,6 +385,10 @@ pub trait Item: Focusable + EventEmitter<Self::Event> + Render + Sized {
     ) -> Vec<(SharedString, Box<dyn Action>)> {
         Vec::new()
     }
+
+    fn workspace_item_kind(&self, _cx: &App) -> Option<WorkspaceItemKind> {
+        None
+    }
 }
 
 pub trait SerializableItem: Item {
@@ -471,7 +476,6 @@ pub trait ItemHandle: 'static + Send {
     fn tab_tooltip_text(&self, cx: &App) -> Option<SharedString>;
     fn tab_tooltip_content(&self, cx: &App) -> Option<TabTooltipContent>;
     fn telemetry_event_text(&self, cx: &App) -> Option<&'static str>;
-    fn workspace_item_kind(&self, cx: &App) -> Option<WorkspaceItemKind>;
     fn dragged_tab_content(
         &self,
         params: TabContentParams,
@@ -567,6 +571,7 @@ pub trait ItemHandle: 'static + Send {
         window: &mut Window,
         cx: &mut App,
     ) -> Vec<(SharedString, Box<dyn Action>)>;
+    fn workspace_item_kind(&self, cx: &App) -> Option<WorkspaceItemKind>;
     fn can_autosave(&self, cx: &App) -> bool {
         let is_deleted = self.project_entry_ids(cx).is_empty();
         self.is_dirty(cx) && !self.has_conflict(cx) && self.can_save(cx) && !is_deleted
@@ -608,10 +613,6 @@ impl<T: Item> ItemHandle for Entity<T> {
 
     fn telemetry_event_text(&self, cx: &App) -> Option<&'static str> {
         self.read(cx).telemetry_event_text()
-    }
-
-    fn workspace_item_kind(&self, cx: &App) -> Option<WorkspaceItemKind> {
-        self.read(cx).workspace_item_kind()
     }
 
     fn tab_content(&self, params: TabContentParams, window: &Window, cx: &App) -> AnyElement {
@@ -776,6 +777,45 @@ impl<T: Item> ItemHandle for Entity<T> {
 
         if old_item_pane.is_none() {
             let mut pending_autosave = DelayedDebouncedEditAction::new();
+            let (pending_update_tx, mut pending_update_rx) = mpsc::unbounded();
+            let pending_update = Rc::new(RefCell::new(None));
+
+            let mut send_follower_updates = None;
+            if let Some(item) = self.to_followable_item_handle(cx) {
+                let is_project_item = item.is_project_item(window, cx);
+                let item = item.downgrade();
+
+                send_follower_updates = Some(cx.spawn_in(window, {
+                    let pending_update = pending_update.clone();
+                    async move |workspace, cx| {
+                        while let Some(mut leader_id) = pending_update_rx.next().await {
+                            while let Ok(Some(id)) = pending_update_rx.try_next() {
+                                leader_id = id;
+                            }
+
+                            workspace.update_in(cx, |workspace, window, cx| {
+                                let Some(item) = item.upgrade() else { return };
+                                workspace.update_followers(
+                                    is_project_item,
+                                    proto::update_followers::Variant::UpdateView(
+                                        proto::UpdateView {
+                                            id: item
+                                                .remote_id(workspace.client(), window, cx)
+                                                .and_then(|id| id.to_proto()),
+                                            variant: pending_update.borrow_mut().take(),
+                                            leader_id,
+                                        },
+                                    ),
+                                    window,
+                                    cx,
+                                );
+                            })?;
+                            cx.background_executor().timer(LEADER_UPDATE_THROTTLE).await;
+                        }
+                        anyhow::Ok(())
+                    }
+                }));
+            }
 
             let mut event_subscription = Some(cx.subscribe_in(
                 self,
@@ -798,6 +838,30 @@ impl<T: Item> ItemHandle for Entity<T> {
                             && let Some(FollowEvent::Unfollow) = item.to_follow_event(event)
                         {
                             workspace.unfollow(leader_id, window, cx);
+                        }
+
+                        if item.item_focus_handle(cx).contains_focused(window, cx) {
+                            match leader_id {
+                                Some(CollaboratorId::Agent) => {}
+                                Some(CollaboratorId::PeerId(leader_peer_id)) => {
+                                    item.add_event_to_update_proto(
+                                        event,
+                                        &mut pending_update.borrow_mut(),
+                                        window,
+                                        cx,
+                                    );
+                                    pending_update_tx.unbounded_send(Some(leader_peer_id)).ok();
+                                }
+                                None => {
+                                    item.add_event_to_update_proto(
+                                        event,
+                                        &mut pending_update.borrow_mut(),
+                                        window,
+                                        cx,
+                                    );
+                                    pending_update_tx.unbounded_send(None).ok();
+                                }
+                            }
                         }
                     }
 
@@ -890,11 +954,28 @@ impl<T: Item> ItemHandle for Entity<T> {
                     if let Some(item) = weak_item.upgrade()
                         && item.workspace_settings(cx).autosave == AutosaveSetting::OnFocusChange
                     {
+                        // Only trigger autosave if focus has truly left the item.
+                        // If focus is still within the item's hierarchy (e.g., moved to a context menu),
+                        // don't trigger autosave to avoid unwanted formatting and cursor jumps.
                         let focus_handle = item.item_focus_handle(cx);
-                        if focus_handle.contains_focused(window, cx)
-                            || workspace.has_active_modal(window, cx)
-                        {
+                        if focus_handle.contains_focused(window, cx) {
                             return;
+                        }
+
+                        let vim_mode = false;
+                        let helix_mode = false;
+
+                        if vim_mode || helix_mode {
+                            // We use the command palette for executing commands in Vim and Helix modes (e.g., `:w`), so
+                            // in those cases we don't want to trigger auto-save if the focus has just been transferred
+                            // to the command palette.
+                            //
+                            // This isn't totally perfect, as you could still switch files indirectly via the command
+                            // palette (such as by opening up the tab switcher from it and then switching tabs that
+                            // way).
+                            if workspace.is_active_modal_command_palette(cx) {
+                                return;
+                            }
                         }
 
                         Pane::autosave_item(&item, workspace.project.clone(), window, cx)
@@ -909,6 +990,7 @@ impl<T: Item> ItemHandle for Entity<T> {
             cx.observe_release_in(self, window, move |workspace, _, _, _| {
                 workspace.panes_by_item.remove(&item_id);
                 event_subscription.take();
+                send_follower_updates.take();
             })
             .detach();
         }
@@ -1087,6 +1169,10 @@ impl<T: Item> ItemHandle for Entity<T> {
             this.tab_extra_context_menu_actions(window, cx)
         })
     }
+
+    fn workspace_item_kind(&self, cx: &App) -> Option<WorkspaceItemKind> {
+        self.read(cx).workspace_item_kind(cx)
+    }
 }
 
 impl From<Box<dyn ItemHandle>> for AnyView {
@@ -1170,7 +1256,29 @@ pub enum Dedup {
 
 pub trait FollowableItem: Item {
     fn remote_id(&self) -> Option<ViewId>;
+    fn to_state_proto(&self, window: &mut Window, cx: &mut App) -> Option<proto::view::Variant>;
+    fn from_state_proto(
+        project: Entity<Workspace>,
+        id: ViewId,
+        state: &mut Option<proto::view::Variant>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<Task<Result<Entity<Self>>>>;
     fn to_follow_event(event: &Self::Event) -> Option<FollowEvent>;
+    fn add_event_to_update_proto(
+        &self,
+        event: &Self::Event,
+        update: &mut Option<proto::update_view::Variant>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> bool;
+    fn apply_update_proto(
+        &mut self,
+        project: &Entity<Project>,
+        message: proto::update_view::Variant,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<()>>;
     fn is_project_item(&self, window: &Window, cx: &App) -> bool;
     fn set_leader_id(
         &mut self,
@@ -1197,7 +1305,22 @@ pub trait FollowableItemHandle: ItemHandle {
         window: &mut Window,
         cx: &mut App,
     );
+    fn to_state_proto(&self, window: &mut Window, cx: &mut App) -> Option<proto::view::Variant>;
+    fn add_event_to_update_proto(
+        &self,
+        event: &dyn Any,
+        update: &mut Option<proto::update_view::Variant>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> bool;
     fn to_follow_event(&self, event: &dyn Any) -> Option<FollowEvent>;
+    fn apply_update_proto(
+        &self,
+        project: &Entity<Project>,
+        message: proto::update_view::Variant,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Task<Result<()>>;
     fn is_project_item(&self, window: &mut Window, cx: &mut App) -> bool;
     fn dedup(
         &self,
@@ -1226,8 +1349,40 @@ impl<T: FollowableItem> FollowableItemHandle for Entity<T> {
         self.update(cx, |this, cx| this.set_leader_id(leader_id, window, cx))
     }
 
+    fn to_state_proto(&self, window: &mut Window, cx: &mut App) -> Option<proto::view::Variant> {
+        self.update(cx, |this, cx| this.to_state_proto(window, cx))
+    }
+
+    fn add_event_to_update_proto(
+        &self,
+        event: &dyn Any,
+        update: &mut Option<proto::update_view::Variant>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> bool {
+        if let Some(event) = event.downcast_ref() {
+            self.update(cx, |this, cx| {
+                this.add_event_to_update_proto(event, update, window, cx)
+            })
+        } else {
+            false
+        }
+    }
+
     fn to_follow_event(&self, event: &dyn Any) -> Option<FollowEvent> {
         T::to_follow_event(event.downcast_ref()?)
+    }
+
+    fn apply_update_proto(
+        &self,
+        project: &Entity<Project>,
+        message: proto::update_view::Variant,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Task<Result<()>> {
+        self.update(cx, |this, cx| {
+            this.apply_update_proto(project, message, window, cx)
+        })
     }
 
     fn is_project_item(&self, window: &mut Window, cx: &mut App) -> bool {

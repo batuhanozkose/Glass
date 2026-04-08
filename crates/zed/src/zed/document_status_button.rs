@@ -47,11 +47,12 @@ impl DocumentStatusButton {
             let position = snapshot
                 .buffer_snapshot()
                 .point_to_buffer_point(head)
-                .map(|(_, point, _)| format!("{}:{}", point.row + 1, point.column + 1))?;
+                .map(|(_, point)| format!("{}:{}", point.row + 1, point.column + 1))?;
 
-            let (language, encoding, line_ending) =
-                if let Some((_, buffer, _)) = editor.active_excerpt(cx) {
-                    let buffer = buffer.read(cx);
+            let (language, encoding, line_ending) = if let Some(buffer) =
+                editor.buffer().read(cx).as_singleton()
+            {
+                let buffer = buffer.read(cx);
                     let language = buffer
                         .language()
                         .map(|language| language.name().to_string())
@@ -79,11 +80,10 @@ impl DocumentStatusButton {
                             None
                         }
                     };
-
-                    (language, encoding, line_ending)
-                } else {
-                    ("Plain Text".to_string(), None, None)
-                };
+                (language, encoding, line_ending)
+            } else {
+                ("Plain Text".to_string(), None, None)
+            };
 
             Some(DocumentStatus {
                 label: format!("{language}  {position}").into(),

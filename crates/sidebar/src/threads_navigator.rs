@@ -4103,7 +4103,7 @@ impl ThreadsNavigator {
                 agent_registry_store.downgrade(),
                 workspace,
                 multi_workspace,
-                !cfg!(target_os = "macos"),
+                true,
                 window,
                 cx,
             )

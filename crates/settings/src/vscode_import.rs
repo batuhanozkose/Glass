@@ -190,7 +190,9 @@ impl VsCodeSettings {
                 semantic_token_rules: self.semantic_token_rules(),
                 ..GlobalLspSettingsContent::default()
             }),
+            helix_mode: None,
             image_viewer: None,
+            journal: None,
             language_models: None,
             line_indicator_format: None,
             log: None,
@@ -206,6 +208,7 @@ impl VsCodeSettings {
             repl: None,
             server_url: None,
             session: None,
+            status_bar: None,
             tab_bar: self.tab_bar_settings_content(),
             tabs: self.item_settings_content(),
             telemetry: self.telemetry_settings_content(),
@@ -506,7 +509,6 @@ impl VsCodeSettings {
             context_servers: self.context_servers(),
             context_server_timeout: None,
             load_direnv: None,
-            slash_commands: None,
             git_hosting_providers: None,
             disable_ai: None,
         }

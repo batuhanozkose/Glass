@@ -314,13 +314,11 @@ pub fn task_contexts(
         })
         .unwrap_or_default();
 
-    let latest_selection = active_editor.as_ref().map(|active_editor| {
-        active_editor
-            .read(cx)
-            .selections
-            .newest_anchor()
-            .head()
-            .text_anchor
+    let latest_selection = active_editor.as_ref().and_then(|active_editor| {
+        let snapshot = active_editor.read(cx).buffer().read(cx).snapshot(cx);
+        snapshot
+            .anchor_to_buffer_anchor(active_editor.read(cx).selections.newest_anchor().head())
+            .map(|(anchor, _)| anchor)
     });
 
     let mut worktree_abs_paths = workspace
@@ -429,7 +427,9 @@ mod tests {
         )
         .await;
         let project = Project::test(fs, [path!("/dir").as_ref()], cx).await;
-        let worktree_store = project.read_with(cx, |project, _| project.worktree_store());
+        let (worktree_store, git_store) = project.read_with(cx, |project, _| {
+            (project.worktree_store(), project.git_store().clone())
+        });
         let rust_language = Arc::new(
             Language::new(
                 LanguageConfig {
@@ -446,6 +446,7 @@ mod tests {
             .unwrap()
             .with_context_provider(Some(Arc::new(BasicContextProvider::new(
                 worktree_store.clone(),
+                git_store.clone(),
             )))),
         );
 
@@ -469,6 +470,7 @@ mod tests {
             .unwrap()
             .with_context_provider(Some(Arc::new(BasicContextProvider::new(
                 worktree_store.clone(),
+                git_store.clone(),
             )))),
         );
 

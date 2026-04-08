@@ -109,7 +109,7 @@ use {
     image::RgbaImage,
     project::{AgentId, Project},
     project_panel::ProjectPanel,
-    settings::{NotifyWhenAgentWaiting, Settings as _},
+    settings::{NotifyWhenAgentWaiting, PlaySoundWhenAgentDone, Settings as _},
     settings_ui::SettingsWindow,
     std::{
         any::Any,
@@ -149,7 +149,10 @@ use constants::*;
 fn run_visual_tests(project_path: PathBuf, update_baseline: bool) -> Result<()> {
     // Create the visual test context with deterministic task scheduling
     // Use real Assets so that SVG icons render properly
-    let mut cx = VisualTestAppContext::with_asset_source(Arc::new(Assets));
+    let mut cx = VisualTestAppContext::with_asset_source(
+        gpui_platform::current_platform(false),
+        Arc::new(Assets),
+    );
 
     // Load embedded fonts (IBM Plex Sans, Lilex, etc.) so UI renders with correct fonts
     cx.update(|cx| {
@@ -180,8 +183,10 @@ fn run_visual_tests(project_path: PathBuf, update_baseline: bool) -> Result<()> 
         release_channel::init(semver::Version::new(0, 0, 0), cx);
         command_palette::init(cx);
         editor::init(cx);
+        call::init(app_state.client.clone(), app_state.user_store.clone(), cx);
         title_bar::init(cx);
         project_panel::init(cx);
+        outline_panel::init(cx);
         terminal_view::init(cx);
         image_viewer::init(cx);
         search::init(cx);
@@ -196,7 +201,12 @@ fn run_visual_tests(project_path: PathBuf, update_baseline: bool) -> Result<()> 
         });
         prompt_store::init(cx);
         let prompt_builder = prompt_store::PromptBuilder::load(app_state.fs.clone(), false, cx);
-        language_model::init(app_state.user_store.clone(), app_state.client.clone(), cx);
+        language_model::init(cx);
+        client::RefreshLlmTokenListener::register(
+            app_state.client.clone(),
+            app_state.user_store.clone(),
+            cx,
+        );
         language_models::init(app_state.user_store.clone(), app_state.client.clone(), cx);
         git_ui::init(cx);
         project::AgentRegistryStore::init_global(
@@ -206,7 +216,6 @@ fn run_visual_tests(project_path: PathBuf, update_baseline: bool) -> Result<()> 
         );
         agent_ui::init(
             app_state.fs.clone(),
-            app_state.client.clone(),
             prompt_builder,
             app_state.languages.clone(),
             true,
@@ -227,7 +236,7 @@ fn run_visual_tests(project_path: PathBuf, update_baseline: bool) -> Result<()> 
         agent_settings::AgentSettings::override_global(
             agent_settings::AgentSettings {
                 notify_when_agent_waiting: NotifyWhenAgentWaiting::Never,
-                play_sound_when_agent_done: false,
+                play_sound_when_agent_done: PlaySoundWhenAgentDone::Never,
                 ..agent_settings::AgentSettings::get_global(cx).clone()
             },
             cx,
@@ -437,19 +446,19 @@ fn run_visual_tests(project_path: PathBuf, update_baseline: bool) -> Result<()> 
         }
     }
 
-    // Run Test 3: Project navigation visual tests
-    println!("\n--- Test 3: project_navigation ---");
-    match run_project_navigation_visual_tests(app_state.clone(), &mut cx, update_baseline) {
+    // Run Test 3: Multi-workspace sidebar visual tests
+    println!("\n--- Test 3: multi_workspace_sidebar ---");
+    match run_multi_workspace_sidebar_visual_tests(app_state.clone(), &mut cx, update_baseline) {
         Ok(TestResult::Passed) => {
-            println!("✓ project_navigation: PASSED");
+            println!("✓ multi_workspace_sidebar: PASSED");
             passed += 1;
         }
         Ok(TestResult::BaselineUpdated(_)) => {
-            println!("✓ project_navigation: Baselines updated");
+            println!("✓ multi_workspace_sidebar: Baselines updated");
             updated += 1;
         }
         Err(e) => {
-            eprintln!("✗ project_navigation: FAILED - {}", e);
+            eprintln!("✗ multi_workspace_sidebar: FAILED - {}", e);
             failed += 1;
         }
     }
@@ -2129,16 +2138,10 @@ fn run_agent_thread_view_test(
         })
         .context("Failed to get workspace handle")?;
 
-    let prompt_builder =
-        cx.update(|cx| prompt_store::PromptBuilder::load(app_state.fs.clone(), false, cx));
     cx.background_executor.allow_parking();
     let panel = cx
         .foreground_executor
-        .block_test(AgentPanel::load(
-            weak_workspace,
-            prompt_builder,
-            async_window_cx,
-        ))
+        .block_test(AgentPanel::load(weak_workspace, async_window_cx))
         .context("Failed to load AgentPanel")?;
     cx.background_executor.forbid_parking();
 
@@ -2509,7 +2512,7 @@ fn run_tool_permissions_visual_tests(
 }
 
 #[cfg(target_os = "macos")]
-fn run_project_navigation_visual_tests(
+fn run_multi_workspace_sidebar_visual_tests(
     app_state: Arc<AppState>,
     cx: &mut VisualTestAppContext,
     update_baseline: bool,
@@ -2524,15 +2527,10 @@ fn run_project_navigation_visual_tests(
     std::fs::create_dir_all(&workspace1_dir)?;
     std::fs::create_dir_all(&workspace2_dir)?;
 
-    // Create directories for recent projects (they must exist on disk for display)
-    let recent1_dir = canonical_temp.join("tiny-project");
-    let recent2_dir = canonical_temp.join("font-kit");
-    let recent3_dir = canonical_temp.join("ideas");
-    let recent4_dir = canonical_temp.join("tmp");
-    std::fs::create_dir_all(&recent1_dir)?;
-    std::fs::create_dir_all(&recent2_dir)?;
-    std::fs::create_dir_all(&recent3_dir)?;
-    std::fs::create_dir_all(&recent4_dir)?;
+    // Enable the agent-v2 feature flag so multi-workspace is active
+    cx.update(|cx| {
+        cx.update_flags(true, vec!["agent-v2".to_string()]);
+    });
 
     // Create both projects upfront so we can build both workspaces during
     // window creation, before the MultiWorkspace entity exists.
@@ -2595,7 +2593,7 @@ fn run_project_navigation_visual_tests(
                     });
                     cx.new(|cx| {
                         let mut multi_workspace = MultiWorkspace::new(workspace1, window, cx);
-                        multi_workspace.activate_in_window(workspace2, window, cx);
+                        multi_workspace.activate(workspace2, window, cx);
                         multi_workspace
                     })
                 },
@@ -2647,23 +2645,20 @@ fn run_project_navigation_visual_tests(
     multi_workspace_window
         .update(cx, |multi_workspace, window, cx| {
             let workspace = multi_workspace.workspaces()[0].clone();
-            multi_workspace.activate_in_window(workspace, window, cx);
+            multi_workspace.activate(workspace, window, cx);
         })
         .context("Failed to activate workspace 1")?;
 
     cx.run_until_parked();
 
-    // Create the sidebar and register it on the MultiWorkspace
-    let threads_navigator = multi_workspace_window
-        .update(cx, |_multi_workspace, window, cx| {
-            let multi_workspace_handle = cx.entity();
-            cx.new(|cx| sidebar::ThreadsNavigator::new(multi_workspace_handle, window, cx))
+    // Create the sidebar outside the MultiWorkspace update to avoid a
+    // re-entrant read panic (Sidebar::new reads the MultiWorkspace).
+    let sidebar = cx
+        .update_window(multi_workspace_window.into(), |root_view, window, cx| {
+            let multi_workspace_handle: Entity<MultiWorkspace> = root_view.downcast().unwrap();
+            cx.new(|cx| sidebar::Sidebar::new(multi_workspace_handle, window, cx))
         })
-        .context("Failed to create threads navigator")?;
-    let sidebar = threads_navigator
-        .read_with(cx, |navigator, _| navigator.project_surface())
-        .flatten()
-        .context("Failed to resolve project navigation surface")?;
+        .context("Failed to create sidebar")?;
 
     multi_workspace_window
         .update(cx, |multi_workspace, _window, cx| {
@@ -2770,7 +2765,7 @@ fn run_project_navigation_visual_tests(
 
     // Capture: sidebar open with active workspaces and recent projects
     let test_result = run_visual_test(
-        "project_navigation_open",
+        "multi_workspace_sidebar_open",
         multi_workspace_window.into(),
         cx,
         update_baseline,
@@ -3189,17 +3184,14 @@ edition = "2021"
 
     cx.run_until_parked();
 
-    // Create and register project navigation
-    let threads_navigator = workspace_window
-        .update(cx, |_multi_workspace, window, cx| {
-            let multi_workspace_handle = cx.entity();
-            cx.new(|cx| sidebar::ThreadsNavigator::new(multi_workspace_handle, window, cx))
+    // Create the sidebar outside the MultiWorkspace update to avoid a
+    // re-entrant read panic (Sidebar::new reads the MultiWorkspace).
+    let sidebar = cx
+        .update_window(workspace_window.into(), |root_view, window, cx| {
+            let multi_workspace_handle: Entity<MultiWorkspace> = root_view.downcast().unwrap();
+            cx.new(|cx| sidebar::Sidebar::new(multi_workspace_handle, window, cx))
         })
-        .context("Failed to create threads navigator")?;
-    let sidebar = threads_navigator
-        .read_with(cx, |navigator, _| navigator.project_surface())
-        .flatten()
-        .context("Failed to resolve project navigation surface")?;
+        .context("Failed to create sidebar")?;
 
     workspace_window
         .update(cx, |multi_workspace, _window, cx| {
@@ -3304,52 +3296,40 @@ edition = "2021"
         })
         .context("Failed to get workspace handle for agent panel")?;
 
-    let prompt_builder =
-        cx.update(|cx| prompt_store::PromptBuilder::load(app_state.fs.clone(), false, cx));
-
     // Register an observer so that workspaces created by the worktree creation
     // flow get AgentPanel and ProjectPanel loaded automatically. Without this,
     // `workspace.panel::<AgentPanel>(cx)` returns None in the new workspace and
     // the creation flow's `focus_panel::<AgentPanel>` call is a no-op.
-    let _workspace_observer = cx.update({
-        let prompt_builder = prompt_builder.clone();
-        |cx| {
-            cx.observe_new(move |workspace: &mut Workspace, window, cx| {
-                let Some(window) = window else { return };
-                let prompt_builder = prompt_builder.clone();
-                let panels_task = cx.spawn_in(window, async move |workspace_handle, cx| {
-                    let project_panel = ProjectPanel::load(workspace_handle.clone(), cx.clone());
-                    let agent_panel =
-                        AgentPanel::load(workspace_handle.clone(), prompt_builder, cx.clone());
-                    if let Ok(panel) = project_panel.await {
-                        workspace_handle
-                            .update_in(cx, |workspace, window, cx| {
-                                workspace.add_panel(panel, window, cx);
-                            })
-                            .log_err();
-                    }
-                    if let Ok(panel) = agent_panel.await {
-                        workspace_handle
-                            .update_in(cx, |workspace, window, cx| {
-                                workspace.add_panel(panel, window, cx);
-                            })
-                            .log_err();
-                    }
-                    anyhow::Ok(())
-                });
-                workspace.set_panels_task(panels_task);
-            })
-        }
+    let _workspace_observer = cx.update(|cx| {
+        cx.observe_new(move |workspace: &mut Workspace, window, cx| {
+            let Some(window) = window else { return };
+            let panels_task = cx.spawn_in(window, async move |workspace_handle, cx| {
+                let project_panel = ProjectPanel::load(workspace_handle.clone(), cx.clone());
+                let agent_panel = AgentPanel::load(workspace_handle.clone(), cx.clone());
+                if let Ok(panel) = project_panel.await {
+                    workspace_handle
+                        .update_in(cx, |workspace, window, cx| {
+                            workspace.add_panel(panel, window, cx);
+                        })
+                        .log_err();
+                }
+                if let Ok(panel) = agent_panel.await {
+                    workspace_handle
+                        .update_in(cx, |workspace, window, cx| {
+                            workspace.add_panel(panel, window, cx);
+                        })
+                        .log_err();
+                }
+                anyhow::Ok(())
+            });
+            workspace.set_panels_task(panels_task);
+        })
     });
 
     cx.background_executor.allow_parking();
     let panel = cx
         .foreground_executor
-        .block_test(AgentPanel::load(
-            weak_workspace,
-            prompt_builder,
-            async_window_cx,
-        ))
+        .block_test(AgentPanel::load(weak_workspace, async_window_cx))
         .context("Failed to load AgentPanel")?;
     cx.background_executor.forbid_parking();
 

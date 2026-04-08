@@ -90,7 +90,7 @@ impl TextThreadStore {
         let languages = project.read(cx).languages().clone();
         cx.spawn(async move |cx| {
             const CONTEXT_WATCH_DURATION: Duration = Duration::from_millis(100);
-            let (mut events, _) = fs.watch(text_threads_dir(), CONTEXT_WATCH_DURATION).await;
+            let (mut events, _) = fs.watch(&text_threads_dir(), CONTEXT_WATCH_DURATION).await;
 
             let this = cx.new(|cx: &mut Context<Self>| {
                 let mut this = Self {
@@ -802,9 +802,9 @@ impl TextThreadStore {
             if *ZED_STATELESS {
                 return Ok(());
             }
-            fs.create_dir(text_threads_dir()).await?;
+            fs.create_dir(&text_threads_dir()).await?;
 
-            let mut paths = fs.read_dir(text_threads_dir()).await?;
+            let mut paths = fs.read_dir(&text_threads_dir()).await?;
             let mut contexts = Vec::<SavedTextThreadMetadata>::new();
             while let Some(path) = paths.next().await {
                 let path = path?;
