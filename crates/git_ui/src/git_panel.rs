@@ -2154,6 +2154,7 @@ impl GitPanel {
                 CommitOptions {
                     amend: false,
                     signoff: self.signoff_enabled,
+                    allow_empty: false,
                 },
                 window,
                 cx,
@@ -2194,6 +2195,7 @@ impl GitPanel {
                         CommitOptions {
                             amend: true,
                             signoff: self.signoff_enabled,
+                            allow_empty: false,
                         },
                         window,
                         cx,
@@ -4387,7 +4389,11 @@ impl GitPanel {
                         git_panel
                             .update(cx, |git_panel, cx| {
                                 git_panel.commit_changes(
-                                    CommitOptions { amend, signoff },
+                                    CommitOptions {
+                                        amend,
+                                        signoff,
+                                        allow_empty: false,
+                                    },
                                     window,
                                     cx,
                                 );

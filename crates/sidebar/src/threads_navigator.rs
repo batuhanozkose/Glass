@@ -423,27 +423,7 @@ fn build_project_navigation_context_menu(
             multi_workspace.read(cx).workspaces().len()
         });
         let menu = if workspace_count > 1 {
-            let workspace_for_move = workspace.clone();
-            let multi_workspace_for_move = multi_workspace.clone();
-            menu.entry(
-                "Move to New Window",
-                Some(Box::new(
-                    zed_actions::agents_sidebar::MoveWorkspaceToNewWindow,
-                )),
-                move |window, cx| {
-                    if let Some(multi_workspace) = multi_workspace_for_move.upgrade() {
-                        multi_workspace.update(cx, |multi_workspace, cx| {
-                            if let Some(index) = multi_workspace
-                                .workspaces()
-                                .iter()
-                                .position(|candidate| *candidate == workspace_for_move)
-                            {
-                                multi_workspace.move_workspace_to_new_window(index, window, cx);
-                            }
-                        });
-                    }
-                },
-            )
+            menu
         } else {
             menu
         };
@@ -696,7 +676,7 @@ impl GitSidebarSurface {
                                     workspace.as_ref().map(|workspace| {
                                         SidebarRecentProjects::popover(
                                             workspace.clone(),
-                                            sibling_workspace_ids.clone(),
+                                            Vec::new(),
                                             focus_handle.clone(),
                                             window,
                                             cx,
@@ -2931,6 +2911,7 @@ impl ThreadsNavigator {
                         .unwrap_or_else(|| DEFAULT_THREAD_TITLE.into()),
                     updated_at: session_info.updated_at.unwrap_or_else(Utc::now),
                     created_at: session_info.created_at,
+                    main_worktree_paths: session_info.work_dirs.clone().unwrap_or_default(),
                     folder_paths: session_info.work_dirs.clone().unwrap_or_default(),
                     archived: false,
                 }],
@@ -3305,6 +3286,7 @@ impl ThreadsNavigator {
                                 name: worktree.name.clone(),
                                 full_path: worktree.full_path.clone(),
                                 highlight_positions: worktree.highlight_positions.clone(),
+                                kind: ui::WorktreeKind::Linked,
                             })
                             .collect(),
                         diff_stats: thread.diff_stats,
@@ -3592,6 +3574,7 @@ impl ThreadsNavigator {
                         name: wt.name.clone(),
                         full_path: wt.full_path.clone(),
                         highlight_positions: wt.highlight_positions.clone(),
+                        kind: ui::WorktreeKind::Linked,
                     })
                     .collect(),
             )
@@ -3749,7 +3732,7 @@ impl ThreadsNavigator {
                 workspace.as_ref().map(|ws| {
                     SidebarRecentProjects::popover(
                         ws.clone(),
-                        sibling_workspace_ids.clone(),
+                        Vec::new(),
                         focus_handle.clone(),
                         window,
                         cx,
@@ -4098,12 +4081,9 @@ impl ThreadsNavigator {
 
         let archive_view = cx.new(|cx| {
             ThreadsArchiveView::new(
+                workspace,
                 agent_connection_store.downgrade(),
                 agent_server_store.downgrade(),
-                agent_registry_store.downgrade(),
-                workspace,
-                multi_workspace,
-                true,
                 window,
                 cx,
             )

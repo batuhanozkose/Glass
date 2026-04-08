@@ -2,7 +2,6 @@ use agent_settings::AgentSettings;
 use anyhow::Result;
 #[cfg(target_os = "macos")]
 use gpui::native_sidebar;
-use feature_flags::{AgentV2FeatureFlag, FeatureFlagAppExt};
 use gpui::PathPromptOptions;
 use gpui::{
     AnyView, App, Context, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
@@ -26,7 +25,7 @@ use ui::{ContextMenu, right_click_menu};
 use util::ResultExt;
 use workspace_modes::{ModeId, ModeViewRegistry, RegisteredModeView};
 use util::path_list::PathList;
-use zed_actions::agents_sidebar::{MoveWorkspaceToNewWindow, ToggleThreadSwitcher};
+use zed_actions::agents_sidebar::ToggleThreadSwitcher;
 
 #[cfg(not(target_os = "macos"))]
 pub const SIDEBAR_RESIZE_HANDLE_SIZE: Pixels = px(6.0);
@@ -1364,16 +1363,6 @@ impl MultiWorkspace {
         });
     }
 
-    fn move_active_workspace_to_new_window(
-        &mut self,
-        _: &MoveWorkspaceToNewWindow,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let index = self.active_workspace_index;
-        self.move_workspace_to_new_window(index, window, cx);
-    }
-
     pub fn open_project(
         &mut self,
         paths: Vec<PathBuf>,
@@ -1520,7 +1509,6 @@ impl Render for MultiWorkspace {
                     ))
                     .on_action(cx.listener(Self::next_workspace))
                     .on_action(cx.listener(Self::previous_workspace))
-                    .on_action(cx.listener(Self::move_active_workspace_to_new_window))
                     .on_action(cx.listener(
                         |this: &mut Self, action: &ToggleThreadSwitcher, window, cx| {
                             if let Some(sidebar) = &this.sidebar {

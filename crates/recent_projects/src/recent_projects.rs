@@ -1390,6 +1390,7 @@ impl PickerDelegate for RecentProjectsDelegate {
                     prefix,
                     match_label: HighlightedMatch::join(match_labels.into_iter().flatten(), ", "),
                     paths,
+                    active: false,
                 };
 
                 let icon = icon_for_remote_connection(match location {
@@ -1485,6 +1486,7 @@ impl PickerDelegate for RecentProjectsDelegate {
                     prefix,
                     match_label: HighlightedMatch::join(match_labels.into_iter().flatten(), ", "),
                     paths,
+                    active: false,
                 };
 
                 let focus_handle = self.focus_handle.clone();
@@ -1493,7 +1495,7 @@ impl PickerDelegate for RecentProjectsDelegate {
                     .gap_px()
                     .when(is_local, |this| {
                         this.child(
-                            IconButton::new("add_to_workspace", IconName::FolderPlus)
+                            IconButton::new("add_to_workspace", IconName::FolderOpenAdd)
                                 .icon_size(IconSize::Small)
                                 .tooltip(Tooltip::text("Add Project to this Workspace"))
                                 .on_click({

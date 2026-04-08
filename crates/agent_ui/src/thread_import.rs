@@ -499,6 +499,7 @@ fn collect_importable_threads(
                     .unwrap_or_else(|| crate::DEFAULT_THREAD_TITLE.into()),
                 updated_at: session.updated_at.unwrap_or_else(|| Utc::now()),
                 created_at: session.created_at,
+                main_worktree_paths: folder_paths.clone(),
                 folder_paths,
                 archived: true,
             });
