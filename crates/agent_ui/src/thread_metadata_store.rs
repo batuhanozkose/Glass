@@ -177,6 +177,19 @@ pub fn classify_project_worktrees(
     (git_repos, non_git_paths)
 }
 
+impl From<&ThreadMetadata> for acp_thread::AgentSessionInfo {
+    fn from(meta: &ThreadMetadata) -> Self {
+        Self {
+            session_id: meta.session_id.clone(),
+            work_dirs: Some(meta.folder_paths.clone()),
+            title: Some(meta.title.clone()),
+            updated_at: Some(meta.updated_at),
+            created_at: meta.created_at,
+            meta: None,
+        }
+    }
+}
+
 impl ThreadMetadata {
     pub fn from_thread(
         is_archived: bool,

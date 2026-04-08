@@ -41,8 +41,8 @@ use ui::{
 use util::ResultExt as _;
 use util::path_list::PathList;
 use workspace::{
-    AddFolderToProject, MultiWorkspace, MultiWorkspaceEvent, Open, Sidebar as WorkspaceSidebar,
-    Workspace, WorkspaceId, WorkspaceSidebarSection,
+    AddFolderToProject, MultiWorkspace, MultiWorkspaceEvent, Open, OpenMode,
+    Sidebar as WorkspaceSidebar, Workspace, WorkspaceId, WorkspaceSidebarSection,
 };
 
 use zed_actions::OpenRecent;
@@ -69,6 +69,14 @@ gpui::actions!(
     ]
 );
 
+gpui::actions!(
+    dev,
+    [
+        /// Dumps workspace state into a read-only buffer.
+        DumpWorkspaceInfo,
+    ]
+);
+
 const DEFAULT_WIDTH: Pixels = px(300.0);
 const MIN_WIDTH: Pixels = px(200.0);
 const MAX_WIDTH: Pixels = px(800.0);
@@ -90,6 +98,86 @@ struct ActiveThreadInfo {
     is_background: bool,
     is_title_generating: bool,
     diff_stats: DiffStats,
+}
+
+pub fn dump_workspace_info(
+    workspace: &mut Workspace,
+    _: &DumpWorkspaceInfo,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) {
+    use std::fmt::Write;
+
+    let mut output = String::new();
+    writeln!(output, "Workspace DB ID: {:?}", workspace.database_id()).ok();
+
+    let project = workspace.project().clone();
+    let project_ref = project.read(cx);
+    let repositories: Vec<_> = project_ref
+        .repositories(cx)
+        .values()
+        .map(|repo| repo.read(cx).snapshot())
+        .collect();
+
+    writeln!(output, "Worktrees:").ok();
+    for worktree in project_ref.worktrees(cx) {
+        let worktree = worktree.read(cx);
+        let abs_path = worktree.abs_path();
+        let repo_info = repositories
+            .iter()
+            .find(|snapshot| abs_path.starts_with(&*snapshot.work_directory_abs_path));
+
+        write!(output, "  - {}", abs_path.display()).ok();
+        if !worktree.is_visible() {
+            write!(output, " (hidden)").ok();
+        }
+        if let Some(branch) = repo_info.and_then(|snapshot| snapshot.branch.as_ref()) {
+            write!(output, " [branch: {}]", branch.ref_name).ok();
+        }
+        writeln!(output).ok();
+    }
+
+    if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
+        if let Some(thread) = panel.read(cx).active_agent_thread(cx) {
+            let thread = thread.read(cx);
+            let title = thread.title().unwrap_or_else(|| "(untitled)".into());
+            writeln!(output, "Active thread: {title} ({})", thread.session_id()).ok();
+        } else {
+            writeln!(output, "Active thread: (none)").ok();
+        }
+    } else {
+        writeln!(output, "Agent panel: not loaded").ok();
+    }
+
+    cx.spawn_in(window, async move |_this, cx| {
+        let buffer = project
+            .update(cx, |project, cx| project.create_buffer(None, false, cx))
+            .await?;
+
+        buffer.update(cx, |buffer, cx| {
+            buffer.set_text(output, cx);
+        });
+
+        let buffer = cx.new(|cx| editor::MultiBuffer::singleton(buffer, cx).with_title("Workspace Info".into()));
+
+        _this.update_in(cx, |workspace, window, cx| {
+            workspace.add_item_to_active_pane(
+                Box::new(cx.new(|cx| {
+                    let mut editor =
+                        editor::Editor::for_multibuffer(buffer, Some(project.clone()), window, cx);
+                    editor.set_read_only(true);
+                    editor.set_should_serialize(false, cx);
+                    editor.set_breadcrumb_header("Workspace Info".into());
+                    editor
+                })),
+                None,
+                true,
+                window,
+                cx,
+            );
+        })
+    })
+    .detach_and_log_err(cx);
 }
 
 impl From<&ActiveThreadInfo> for acp_thread::AgentSessionInfo {
@@ -320,7 +408,7 @@ fn build_project_navigation_context_menu(
             move |window, cx| {
                 if let Some(multi_workspace) = multi_workspace_for_add.upgrade() {
                     multi_workspace.update(cx, |multi_workspace, cx| {
-                        multi_workspace.activate(workspace_for_add.clone(), cx);
+                        multi_workspace.activate_in_window(workspace_for_add.clone(), window, cx);
                     });
                 }
                 workspace_for_add.update(cx, |workspace, cx| {
@@ -2517,7 +2605,7 @@ impl ThreadsNavigator {
         self.record_thread_access(&session_info.session_id);
 
         multi_workspace.update(cx, |multi_workspace, cx| {
-            multi_workspace.activate(workspace.clone(), cx);
+            multi_workspace.activate_in_window(workspace.clone(), window, cx);
         });
 
         Self::load_agent_thread_in_workspace(workspace, agent, session_info, true, window, cx);
@@ -2538,7 +2626,7 @@ impl ThreadsNavigator {
         let activated = target_window
             .update(cx, |multi_workspace, window, cx| {
                 window.activate_window();
-                multi_workspace.activate(workspace.clone(), cx);
+                multi_workspace.activate_in_window(workspace.clone(), window, cx);
                 Self::load_agent_thread_in_workspace(
                     &workspace,
                     agent,
@@ -2609,7 +2697,8 @@ impl ThreadsNavigator {
         let paths: Vec<std::path::PathBuf> =
             path_list.paths().iter().map(|p| p.to_path_buf()).collect();
 
-        let open_task = multi_workspace.update(cx, |mw, cx| mw.open_project(paths, window, cx));
+        let open_task =
+            multi_workspace.update(cx, |mw, cx| mw.open_project(paths, OpenMode::Activate, window, cx));
 
         cx.spawn_in(window, async move |this, cx| {
             let workspace = open_task.await?;
@@ -3140,7 +3229,7 @@ impl ThreadsNavigator {
                 } => {
                     if let Some(mw) = weak_multi_workspace.upgrade() {
                         mw.update(cx, |mw, cx| {
-                            mw.activate(workspace.clone(), cx);
+                            mw.activate_in_window(workspace.clone(), window, cx);
                         });
                     }
                     this.focused_thread = Some(session_info.session_id.clone());
@@ -3163,7 +3252,7 @@ impl ThreadsNavigator {
                 } => {
                     if let Some(mw) = weak_multi_workspace.upgrade() {
                         mw.update(cx, |mw, cx| {
-                            mw.activate(workspace.clone(), cx);
+                            mw.activate_in_window(workspace.clone(), window, cx);
                         });
                     }
                     this.record_thread_access(&session_info.session_id);
@@ -3186,7 +3275,7 @@ impl ThreadsNavigator {
                     if let Some(mw) = weak_multi_workspace.upgrade() {
                         if let Some(original_ws) = &original_workspace {
                             mw.update(cx, |mw, cx| {
-                                mw.activate(original_ws.clone(), cx);
+                                mw.activate_in_window(original_ws.clone(), window, cx);
                             });
                         }
                     }
@@ -3242,7 +3331,7 @@ impl ThreadsNavigator {
         if let Some((agent, session_info, workspace)) = initial_preview {
             if let Some(mw) = self.multi_workspace.upgrade() {
                 mw.update(cx, |mw, cx| {
-                    mw.activate(workspace.clone(), cx);
+                    mw.activate_in_window(workspace.clone(), window, cx);
                 });
             }
             self.focused_thread = Some(session_info.session_id.clone());
@@ -3584,7 +3673,7 @@ impl ThreadsNavigator {
         self.focused_thread = None;
 
         multi_workspace.update(cx, |multi_workspace, cx| {
-            multi_workspace.activate(workspace.clone(), cx);
+            multi_workspace.activate_in_window(workspace.clone(), window, cx);
         });
 
         workspace.update(cx, |workspace, cx| {

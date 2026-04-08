@@ -293,25 +293,23 @@ impl ScrollManager {
     pub fn native_anchor(&self, snapshot: &DisplaySnapshot, cx: &App) -> ScrollAnchor {
         let shared = self.anchor.read(cx);
 
-        let mut result = if let Some(display_map_id) = shared.display_map_id
+        let mut result = shared.scroll_anchor;
+        if let Some(display_map_id) = shared.display_map_id
             && display_map_id != snapshot.display_map_id
+            && let Some(companion_snapshot) = snapshot.companion_snapshot()
+            && companion_snapshot.display_map_id == display_map_id
         {
-            let companion_snapshot = snapshot.companion_snapshot().unwrap();
-            assert_eq!(companion_snapshot.display_map_id, display_map_id);
             let mut display_point = shared
                 .scroll_anchor
                 .anchor
                 .to_display_point(companion_snapshot);
             *display_point.column_mut() = 0;
             let buffer_point = snapshot.display_point_to_point(display_point, Bias::Left);
-            let anchor = snapshot.buffer_snapshot().anchor_before(buffer_point);
-            ScrollAnchor {
-                anchor,
+            result = ScrollAnchor {
+                anchor: snapshot.buffer_snapshot().anchor_before(buffer_point),
                 offset: shared.scroll_anchor.offset,
-            }
-        } else {
-            shared.scroll_anchor
-        };
+            };
+        }
 
         if let Some(max_x) = self.scroll_max_x {
             result.offset.x = result.offset.x.min(max_x);

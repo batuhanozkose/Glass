@@ -121,13 +121,7 @@ pub fn with_parser<F, R>(func: F) -> R
 where
     F: FnOnce(&mut Parser) -> R,
 {
-    let mut parser = PARSERS.lock().pop().unwrap_or_else(|| {
-        let mut parser = Parser::new();
-        parser
-            .set_wasm_store(WasmStore::new(&WASM_ENGINE).unwrap())
-            .unwrap();
-        parser
-    });
+    let mut parser = PARSERS.lock().pop().unwrap_or_else(Parser::new);
     parser.set_included_ranges(&[]).unwrap();
     let result = func(&mut parser);
     PARSERS.lock().push(parser);

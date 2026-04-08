@@ -1176,7 +1176,7 @@ fn register_actions(
                             None,
                             None,
                             None,
-                            true,
+                            workspace::OpenMode::NewWindow,
                             cx,
                         );
                         cx.spawn(async move |cx| {
@@ -1228,7 +1228,7 @@ fn register_actions(
                         let task = cx.update(|_window, cx| {
                             open_new(
                                 workspace::OpenOptions {
-                                    replace_window: Some(window_handle),
+                                    requesting_window: Some(window_handle),
                                     ..Default::default()
                                 },
                                 app_state,
@@ -1309,6 +1309,8 @@ fn register_actions(
             }
         });
     }
+
+    workspace.register_action(sidebar::dump_workspace_info);
 }
 
 fn initialize_pane(
@@ -1484,7 +1486,7 @@ fn quit(_: &Quit, cx: &mut App) {
             for workspace in workspaces {
                 if let Some(should_close) = window
                     .update(cx, |multi_workspace, window, cx| {
-                        multi_workspace.activate(workspace.clone(), cx);
+                        multi_workspace.activate_in_window(workspace.clone(), window, cx);
                         window.activate_window();
                         workspace.update(cx, |workspace, cx| {
                             workspace.prepare_to_close(CloseIntent::Quit, window, cx)
@@ -2546,7 +2548,7 @@ mod tests {
                 &[PathBuf::from(path!("/root/e"))],
                 app_state,
                 workspace::OpenOptions {
-                    replace_window: Some(window),
+                    requesting_window: Some(window),
                     ..Default::default()
                 },
                 cx,
@@ -5131,6 +5133,7 @@ mod tests {
                 app_state.client.clone(),
                 prompt_builder.clone(),
                 app_state.languages.clone(),
+                true,
                 false,
                 cx,
             );
@@ -5439,11 +5442,11 @@ mod tests {
             .unwrap();
 
         window
-            .update(cx, |multi_workspace, _, cx| {
-                multi_workspace.activate(workspace2.clone(), cx);
-                multi_workspace.activate(workspace3.clone(), cx);
+            .update(cx, |multi_workspace, window, cx| {
+                multi_workspace.activate_in_window(workspace2.clone(), window, cx);
+                multi_workspace.activate_in_window(workspace3.clone(), window, cx);
                 // Switch back to workspace1 for test setup
-                multi_workspace.activate(workspace1, cx);
+                multi_workspace.activate_in_window(workspace1, window, cx);
                 assert_eq!(multi_workspace.active_workspace_index(), 0);
             })
             .unwrap();
@@ -5621,9 +5624,9 @@ mod tests {
             .unwrap();
 
         window1
-            .update(cx, |multi_workspace, _, cx| {
-                multi_workspace.activate(workspace1_2.clone(), cx);
-                multi_workspace.activate(workspace1_1.clone(), cx);
+            .update(cx, |multi_workspace, window, cx| {
+                multi_workspace.activate_in_window(workspace1_2.clone(), window, cx);
+                multi_workspace.activate_in_window(workspace1_1.clone(), window, cx);
             })
             .unwrap();
 
@@ -5854,7 +5857,7 @@ mod tests {
     async fn test_multi_workspace_session_restore(cx: &mut TestAppContext) {
         use collections::HashMap;
         use session::Session;
-        use workspace::{Workspace, WorkspaceId};
+        use workspace::{OpenMode, Workspace, WorkspaceId};
 
         let app_state = init_test(cx);
 
@@ -5884,7 +5887,7 @@ mod tests {
                     None,
                     None,
                     None,
-                    true,
+                    OpenMode::Activate,
                     cx,
                 )
             })
@@ -5893,7 +5896,7 @@ mod tests {
 
         window_a
             .update(cx, |multi_workspace, window, cx| {
-                multi_workspace.open_project(vec![dir2.into()], window, cx)
+                multi_workspace.open_project(vec![dir2.into()], OpenMode::Activate, window, cx)
             })
             .unwrap()
             .await
@@ -5910,7 +5913,7 @@ mod tests {
                     None,
                     None,
                     None,
-                    true,
+                    OpenMode::Activate,
                     cx,
                 )
             })
@@ -5923,7 +5926,8 @@ mod tests {
         // still be active rather than whichever workspace happened to restore last.
         window_a
             .update(cx, |multi_workspace, window, cx| {
-                multi_workspace.activate_index(0, window, cx);
+                let workspace = multi_workspace.workspaces()[0].clone();
+                multi_workspace.activate_in_window(workspace, window, cx);
             })
             .unwrap();
 

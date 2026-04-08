@@ -974,9 +974,14 @@ impl LanguageRegistry {
                     log::trace!("start loading grammar {name:?}");
                     let this = self.clone();
                     let wasm_path = wasm_path.clone();
+                    let thread_name_suffix = name.clone();
+                    let grammar_name = name.clone();
                     *grammar = AvailableGrammar::Loading(wasm_path.clone(), vec![tx]);
-                    self.executor
-                        .spawn(async move {
+                    let thread_name = format!("grammar-load-{thread_name_suffix}");
+                    let spawn_result = std::thread::Builder::new()
+                        .name(thread_name)
+                        .stack_size(8 * 1024 * 1024)
+                        .spawn(move || {
                             let grammar_result = maybe!({
                                 let wasm_bytes = std::fs::read(&wasm_path)?;
                                 let grammar_name = wasm_path
@@ -984,7 +989,9 @@ impl LanguageRegistry {
                                     .and_then(OsStr::to_str)
                                     .context("invalid grammar filename")?;
                                 anyhow::Ok(with_parser(|parser| {
-                                    let mut store = parser.take_wasm_store().unwrap();
+                                    let mut store = parser
+                                        .take_wasm_store()
+                                        .unwrap_or_else(|| tree_sitter::WasmStore::new(&crate::WASM_ENGINE).unwrap());
                                     let grammar = store.load_language(grammar_name, &wasm_bytes);
                                     parser.set_wasm_store(store).unwrap();
                                     grammar
@@ -993,19 +1000,34 @@ impl LanguageRegistry {
                             .map_err(Arc::new);
 
                             let value = match &grammar_result {
-                                Ok(grammar) => AvailableGrammar::Loaded(wasm_path, grammar.clone()),
+                                Ok(grammar) => {
+                                    AvailableGrammar::Loaded(wasm_path, grammar.clone())
+                                }
                                 Err(error) => AvailableGrammar::LoadFailed(error.clone()),
                             };
 
-                            log::trace!("finish loading grammar {name:?}");
-                            let old_value = this.state.write().grammars.insert(name, value);
+                            log::trace!("finish loading grammar {grammar_name:?}");
+                            let old_value = this.state.write().grammars.insert(grammar_name, value);
                             if let Some(AvailableGrammar::Loading(_, txs)) = old_value {
                                 for tx in txs {
                                     tx.send(grammar_result.clone()).ok();
                                 }
                             }
-                        })
-                        .detach();
+                        });
+
+                    if let Err(error) = spawn_result {
+                        let error = Arc::new(anyhow!("failed to spawn grammar loader thread: {error}"));
+                        let old_value = self
+                            .state
+                            .write()
+                            .grammars
+                            .insert(name, AvailableGrammar::LoadFailed(error.clone()));
+                        if let Some(AvailableGrammar::Loading(_, txs)) = old_value {
+                            for tx in txs {
+                                tx.send(Err(error.clone())).ok();
+                            }
+                        }
+                    }
                 }
             }
         } else {

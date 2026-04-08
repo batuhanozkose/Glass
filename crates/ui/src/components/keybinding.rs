@@ -8,7 +8,6 @@ use gpui::{
     Window, relative,
 };
 use itertools::Itertools;
-use settings::KeybindSource;
 
 #[derive(Debug)]
 enum Source {
@@ -89,7 +88,7 @@ impl KeyBinding {
         }
     }
 
-    pub fn from_keystrokes(keystrokes: Rc<[KeybindingKeystroke]>, _source: KeybindSource) -> Self {
+    pub fn from_keystrokes(keystrokes: Rc<[KeybindingKeystroke]>, _vim_mode: bool) -> Self {
         Self {
             source: Source::Keystrokes { keystrokes },
             size: None,

@@ -29,6 +29,7 @@ use gpui::{
     WeakEntity, Window, actions, anchored, deferred, div, hsla, linear_color_stop, linear_gradient,
     point, px, size, transparent_white, uniform_list,
 };
+use crate::project_panel_settings::ProjectPanelScrollbarProxy;
 use language::DiagnosticSeverity;
 use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrevious};
 use project::{
@@ -7085,7 +7086,8 @@ impl Render for ProjectPanel {
                 .when(!self.embedded, |this| {
                     this.custom_scrollbars(
                         {
-                            let mut scrollbars = Scrollbars::for_settings::<ProjectPanelSettings>()
+                            let mut scrollbars =
+                                Scrollbars::for_settings::<ProjectPanelScrollbarProxy>()
                                 .tracked_scroll_handle(&self.scroll_handle);
                             if horizontal_scroll {
                                 scrollbars = scrollbars.with_track_along(
@@ -7171,7 +7173,7 @@ impl Render for ProjectPanel {
                                     .workspace
                                     .update(cx, |workspace, cx| {
                                         workspace.open_workspace_for_paths(
-                                            true,
+                                            workspace::OpenMode::Replace,
                                             external_paths.paths().to_owned(),
                                             window,
                                             cx,

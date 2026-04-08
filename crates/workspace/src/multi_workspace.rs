@@ -25,8 +25,8 @@ use gpui::{MouseButton, deferred};
 pub const SIDEBAR_RESIZE_HANDLE_SIZE: Pixels = px(6.0);
 
 use crate::{
-    CloseIntent, CloseWindow, DockPosition, Event as WorkspaceEvent, Item, ModalView, Panel,
-    Workspace, WorkspaceId, WorkspaceSidebarHost, client_side_decorations,
+    CloseIntent, CloseWindow, DockPosition, Event as WorkspaceEvent, Item, ModalView, OpenMode,
+    Panel, Workspace, WorkspaceId, WorkspaceSidebarHost, client_side_decorations,
 };
 
 actions!(
@@ -409,7 +409,8 @@ impl MultiWorkspace {
     fn subscribe_to_workspace(workspace: &Entity<Workspace>, cx: &mut Context<Self>) {
         cx.subscribe(workspace, |this, workspace, event, cx| {
             if let WorkspaceEvent::Activate = event {
-                this.activate(workspace, cx);
+                this.set_active_workspace(workspace.clone(), cx);
+                this.serialize(cx);
             }
         })
         .detach();
@@ -461,6 +462,36 @@ impl MultiWorkspace {
         }
     }
 
+    pub fn activate_in_window(
+        &mut self,
+        workspace: Entity<Workspace>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !multi_workspace_enabled(cx) {
+            self.workspaces[0] = workspace;
+            self.active_workspace_index = 0;
+            cx.emit(MultiWorkspaceEvent::ActiveWorkspaceChanged);
+            self.focus_active_workspace(window, cx);
+            cx.notify();
+            return;
+        }
+        let new_index = self.add_workspace(workspace.clone(), cx);
+        let changed = self.active_workspace_index != new_index;
+        self.active_workspace_index = new_index;
+        self.workspace().update(cx, |workspace, cx| {
+            workspace.invalidate_window_caches(window, cx);
+            cx.notify();
+        });
+        self.sync_workspace_sidebar_host(cx);
+        self.focus_active_workspace(window, cx);
+        if changed {
+            cx.emit(MultiWorkspaceEvent::ActiveWorkspaceChanged);
+            self.serialize(cx);
+        }
+        cx.notify();
+    }
+
     fn set_active_workspace(
         &mut self,
         workspace: Entity<Workspace>,
@@ -495,6 +526,39 @@ impl MultiWorkspace {
             cx.notify();
             self.workspaces.len() - 1
         }
+    }
+
+    pub fn replace(
+        &mut self,
+        workspace: Entity<Workspace>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(index) = self.workspaces.iter().position(|w| *w == workspace) {
+            self.activate_index(index, window, cx);
+            return;
+        }
+
+        for (mode_id, mode_view) in &self.shared_mode_views {
+            workspace.update(cx, |workspace, cx| {
+                workspace.set_shared_mode_view(*mode_id, mode_view.clone(), cx);
+            });
+        }
+        Self::subscribe_to_workspace(&workspace, cx);
+
+        let removed_id = self.workspaces[self.active_workspace_index].entity_id();
+        self.workspaces[self.active_workspace_index] = workspace.clone();
+        cx.emit(MultiWorkspaceEvent::WorkspaceRemoved(removed_id));
+        cx.emit(MultiWorkspaceEvent::WorkspaceAdded(workspace));
+        self.workspace().update(cx, |workspace, cx| {
+            workspace.invalidate_window_caches(window, cx);
+            cx.notify();
+        });
+        self.sync_workspace_sidebar_host(cx);
+        self.serialize(cx);
+        self.focus_active_workspace(window, cx);
+        cx.emit(MultiWorkspaceEvent::ActiveWorkspaceChanged);
+        cx.notify();
     }
 
     pub fn activate_index(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
@@ -704,7 +768,7 @@ impl MultiWorkspace {
         cx: &mut Context<Self>,
     ) -> Entity<Workspace> {
         let workspace = cx.new(|cx| Workspace::test_new(project, window, cx));
-        self.activate(workspace.clone(), cx);
+        self.activate_in_window(workspace.clone(), window, cx);
         workspace
     }
 
@@ -817,6 +881,16 @@ impl MultiWorkspace {
         Some(removed_workspace)
     }
 
+    pub fn remove(
+        &mut self,
+        workspace: &Entity<Workspace>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<Entity<Workspace>> {
+        let index = self.workspaces.iter().position(|existing| existing == workspace)?;
+        self.remove_workspace(index, window, cx)
+    }
+
     pub fn move_workspace_to_new_window(
         &mut self,
         index: usize,
@@ -861,14 +935,41 @@ impl MultiWorkspace {
     pub fn open_project(
         &mut self,
         paths: Vec<PathBuf>,
+        open_mode: OpenMode,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Workspace>>> {
         let workspace = self.workspace().clone();
 
-        workspace.update(cx, |workspace, cx| {
-            workspace.open_workspace_for_paths(true, paths, window, cx)
-        })
+        let needs_close_prompt = open_mode == OpenMode::Replace || !self.multi_workspace_enabled(cx);
+        let open_mode = if self.multi_workspace_enabled(cx) {
+            open_mode
+        } else {
+            OpenMode::Replace
+        };
+
+        if needs_close_prompt {
+            cx.spawn_in(window, async move |_this, cx| {
+                let should_continue = workspace
+                    .update_in(cx, |workspace, window, cx| {
+                        workspace.prepare_to_close(crate::CloseIntent::ReplaceWindow, window, cx)
+                    })?
+                    .await?;
+                if should_continue {
+                    workspace
+                        .update_in(cx, |workspace, window, cx| {
+                            workspace.open_workspace_for_paths(open_mode, paths, window, cx)
+                        })?
+                        .await
+                } else {
+                    Ok(workspace)
+                }
+            })
+        } else {
+            workspace.update(cx, |workspace, cx| {
+                workspace.open_workspace_for_paths(open_mode, paths, window, cx)
+            })
+        }
     }
 }
 

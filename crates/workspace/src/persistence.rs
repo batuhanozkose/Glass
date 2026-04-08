@@ -2534,7 +2534,7 @@ mod tests {
         let workspace2 = multi_workspace.update_in(cx, |mw, window, cx| {
             let workspace = cx.new(|cx| crate::Workspace::test_new(project2.clone(), window, cx));
             workspace.update(cx, |ws, _cx| ws.set_random_database_id());
-            mw.activate(workspace.clone(), cx);
+            mw.activate_in_window(workspace.clone(), window, cx);
             workspace
         });
 
@@ -2552,7 +2552,8 @@ mod tests {
 
         // --- Remove the second workspace (index 1) ---
         multi_workspace.update_in(cx, |mw, window, cx| {
-            mw.remove_workspace(1, window, cx);
+            let ws = mw.workspaces()[1].clone();
+            mw.remove(&ws, window, cx);
         });
 
         cx.run_until_parked();
@@ -4296,7 +4297,7 @@ mod tests {
             workspace.update(cx, |ws: &mut crate::Workspace, _cx| {
                 ws.set_database_id(workspace2_db_id)
             });
-            mw.activate(workspace.clone(), cx);
+            mw.activate_in_window(workspace.clone(), window, cx);
         });
 
         // Save a full workspace row to the DB directly.
@@ -4325,7 +4326,8 @@ mod tests {
 
         // Remove workspace at index 1 (the second workspace).
         multi_workspace.update_in(cx, |mw, window, cx| {
-            mw.remove_workspace(1, window, cx);
+            let ws = mw.workspaces()[1].clone();
+            mw.remove(&ws, window, cx);
         });
 
         cx.run_until_parked();
@@ -4394,7 +4396,7 @@ mod tests {
             workspace.update(cx, |ws: &mut crate::Workspace, _cx| {
                 ws.set_database_id(ws2_id)
             });
-            mw.activate(workspace.clone(), cx);
+            mw.activate_in_window(workspace.clone(), window, cx);
         });
 
         let session_id = "test-zombie-session";
@@ -4436,7 +4438,8 @@ mod tests {
 
         // Remove workspace2 (index 1).
         multi_workspace.update_in(cx, |mw, window, cx| {
-            mw.remove_workspace(1, window, cx);
+            let ws = mw.workspaces()[1].clone();
+            mw.remove(&ws, window, cx);
         });
 
         cx.run_until_parked();
@@ -4494,7 +4497,7 @@ mod tests {
             workspace.update(cx, |ws: &mut crate::Workspace, _cx| {
                 ws.set_database_id(workspace2_db_id)
             });
-            mw.activate(workspace.clone(), cx);
+            mw.activate_in_window(workspace.clone(), window, cx);
         });
 
         // Save a full workspace row to the DB directly and let it settle.
@@ -4519,7 +4522,8 @@ mod tests {
 
         // Remove workspace2 — this pushes a task to pending_removal_tasks.
         multi_workspace.update_in(cx, |mw, window, cx| {
-            mw.remove_workspace(1, window, cx);
+            let ws = mw.workspaces()[1].clone();
+            mw.remove(&ws, window, cx);
         });
 
         // Simulate the quit handler pattern: collect flush tasks + pending

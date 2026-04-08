@@ -530,22 +530,6 @@ impl MessageEditor {
             }
         }));
 
-        if let Some(language_registry) = language_registry {
-            let editor = editor.clone();
-            cx.spawn(async move |_, cx| {
-                let markdown = language_registry.language_for_name("Markdown").await?;
-                editor.update(cx, |editor, cx| {
-                    if let Some(buffer) = editor.buffer().read(cx).as_singleton() {
-                        buffer.update(cx, |buffer, cx| {
-                            buffer.set_language(Some(markdown), cx);
-                        });
-                    }
-                });
-                anyhow::Ok(())
-            })
-            .detach_and_log_err(cx);
-        }
-
         Self {
             editor,
             mention_set,

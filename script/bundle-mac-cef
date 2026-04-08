@@ -191,6 +191,8 @@ cat > "$APP_PATH/Contents/Info.plist" << 'PLIST'
     <string>Glass needs camera access for video features</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Glass needs microphone access for audio features</string>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Glass needs Bluetooth access for browser features that interact with nearby devices</string>
     <key>CFBundleURLTypes</key>
     <array>
         <dict>

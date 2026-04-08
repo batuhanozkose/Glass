@@ -36,7 +36,6 @@ impl Diff {
                     .log_err();
 
                 buffer.update(cx, |buffer, cx| buffer.set_language(language.clone(), cx));
-                buffer.update(cx, |buffer, _| buffer.parsing_idle()).await;
 
                 let diff = build_buffer_diff(
                     old_text.unwrap_or("".into()).into(),
@@ -297,10 +296,7 @@ impl PendingDiff {
 
         let buffer_diff = cx.spawn({
             let buffer = buffer.clone();
-            async move |_this, cx| {
-                buffer.update(cx, |buffer, _| buffer.parsing_idle()).await;
-                build_buffer_diff(base_text, &buffer, language_registry, cx).await
-            }
+            async move |_this, cx| build_buffer_diff(base_text, &buffer, language_registry, cx).await
         });
 
         let update_diff = cx.spawn(async move |this, cx| {
