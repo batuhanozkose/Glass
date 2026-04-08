@@ -1,3 +1,4 @@
+use agent_settings::AgentSettings;
 use anyhow::Result;
 #[cfg(target_os = "macos")]
 use gpui::native_sidebar;
@@ -12,11 +13,15 @@ use gpui::{MouseButton, deferred, px};
 #[cfg(test)]
 use project::DisableAiSettings;
 use project::Project;
+use settings::Settings;
+use settings::SidebarDockPosition;
+pub use settings::SidebarSide;
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
 use theme::ActiveTheme;
 use ui::prelude::*;
+use ui::{ContextMenu, right_click_menu};
 use util::ResultExt;
 use workspace_modes::{ModeId, ModeViewRegistry, RegisteredModeView};
 use zed_actions::agents_sidebar::{MoveWorkspaceToNewWindow, ToggleThreadSwitcher};
@@ -44,6 +49,12 @@ actions!(
         CloseProjectNavigation,
         /// Moves focus to or from project navigation without closing it.
         FocusProjectNavigation,
+        /// Toggles the workspace sidebar.
+        ToggleWorkspaceSidebar,
+        /// Closes the workspace sidebar.
+        CloseWorkspaceSidebar,
+        /// Moves focus to or from the workspace sidebar without closing it.
+        FocusWorkspaceSidebar,
         /// Switches to the next workspace.
         NextWorkspace,
         /// Switches to the previous workspace.
@@ -51,16 +62,63 @@ actions!(
     ]
 );
 
+#[derive(Default)]
+pub struct SidebarRenderState {
+    pub open: bool,
+    pub side: SidebarSide,
+}
+
+pub fn sidebar_side_context_menu(
+    id: impl Into<ElementId>,
+    cx: &App,
+) -> ui::RightClickMenu<ContextMenu> {
+    let current_position = AgentSettings::get_global(cx).sidebar_side;
+    right_click_menu(id).menu(move |window, cx| {
+        let fs = <dyn fs::Fs>::global(cx);
+        ContextMenu::build(window, cx, move |mut menu, _, _cx| {
+            let positions: [(SidebarDockPosition, &str); 2] = [
+                (SidebarDockPosition::Left, "Left"),
+                (SidebarDockPosition::Right, "Right"),
+            ];
+            for (position, label) in positions {
+                let fs = fs.clone();
+                menu = menu.toggleable_entry(
+                    label,
+                    position == current_position,
+                    IconPosition::Start,
+                    None,
+                    move |_window, cx| {
+                        settings::update_settings_file(fs.clone(), cx, move |settings, _cx| {
+                            settings
+                                .agent
+                                .get_or_insert_default()
+                                .set_sidebar_side(position);
+                        });
+                    },
+                );
+            }
+            menu
+        })
+    })
+}
+
 pub enum MultiWorkspaceEvent {
     ActiveWorkspaceChanged,
     WorkspaceAdded(Entity<Workspace>),
     WorkspaceRemoved(EntityId),
 }
 
-pub trait Sidebar: Focusable + Render + Sized {
+pub enum SidebarEvent {
+    SerializeNeeded,
+}
+
+pub trait Sidebar: Focusable + Render + EventEmitter<SidebarEvent> + Sized {
     fn width(&self, cx: &App) -> Pixels;
     fn set_width(&mut self, width: Option<Pixels>, cx: &mut Context<Self>);
     fn has_notifications(&self, cx: &App) -> bool;
+    fn side(&self, _cx: &App) -> SidebarSide {
+        SidebarSide::Left
+    }
 
     fn is_threads_list_view_active(&self) -> bool {
         true
@@ -73,6 +131,20 @@ pub trait Sidebar: Focusable + Render + Sized {
     fn toggle_thread_switcher(
         &mut self,
         _select_last: bool,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
+    }
+
+    /// Return an opaque JSON blob of sidebar-specific state to persist.
+    fn serialized_state(&self, _cx: &App) -> Option<String> {
+        None
+    }
+
+    /// Restore sidebar state from a previously-serialized blob.
+    fn restore_serialized_state(
+        &mut self,
+        _state: &str,
         _window: &mut Window,
         _cx: &mut Context<Self>,
     ) {
@@ -93,6 +165,9 @@ pub trait SidebarHandle: 'static + Send + Sync {
     fn toggle_thread_switcher(&self, select_last: bool, window: &mut Window, cx: &mut App);
 
     fn is_threads_list_view_active(&self, cx: &App) -> bool;
+    fn side(&self, cx: &App) -> SidebarSide;
+    fn serialized_state(&self, cx: &App) -> Option<String>;
+    fn restore_serialized_state(&self, state: &str, window: &mut Window, cx: &mut App);
 }
 
 #[derive(Clone)]
@@ -157,6 +232,20 @@ impl<T: Sidebar> SidebarHandle for Entity<T> {
 
     fn is_threads_list_view_active(&self, cx: &App) -> bool {
         self.read(cx).is_threads_list_view_active()
+    }
+
+    fn side(&self, cx: &App) -> SidebarSide {
+        self.read(cx).side(cx)
+    }
+
+    fn serialized_state(&self, cx: &App) -> Option<String> {
+        self.read(cx).serialized_state(cx)
+    }
+
+    fn restore_serialized_state(&self, state: &str, window: &mut Window, cx: &mut App) {
+        self.update(cx, |this, cx| {
+            this.restore_serialized_state(state, window, cx)
+        })
     }
 }
 
@@ -255,12 +344,35 @@ impl MultiWorkspace {
         &self.workspace_sidebar_host
     }
 
-    pub fn register_sidebar<T: Sidebar>(&mut self, sidebar: Entity<T>, _cx: &mut Context<Self>) {
+    pub fn register_sidebar<T: Sidebar>(&mut self, sidebar: Entity<T>, cx: &mut Context<Self>) {
+        self._subscriptions
+            .push(cx.observe(&sidebar, |_this, _, cx| {
+                cx.notify();
+            }));
+        self._subscriptions
+            .push(cx.subscribe(&sidebar, |this, _, event, cx| match event {
+                SidebarEvent::SerializeNeeded => {
+                    this.serialize(cx);
+                }
+            }));
         self.sidebar = Some(Box::new(sidebar));
     }
 
     pub fn sidebar(&self) -> Option<&dyn SidebarHandle> {
         self.sidebar.as_deref()
+    }
+
+    pub fn sidebar_side(&self, cx: &App) -> SidebarSide {
+        self.sidebar
+            .as_ref()
+            .map_or(SidebarSide::Left, |sidebar| sidebar.side(cx))
+    }
+
+    pub fn sidebar_render_state(&self, cx: &App) -> SidebarRenderState {
+        SidebarRenderState {
+            open: self.sidebar_open() && self.multi_workspace_enabled(cx),
+            side: self.sidebar_side(cx),
+        }
     }
 
     pub fn sidebar_has_notifications(&self, cx: &App) -> bool {
@@ -407,6 +519,17 @@ impl MultiWorkspace {
     }
 
     fn subscribe_to_workspace(workspace: &Entity<Workspace>, cx: &mut Context<Self>) {
+        cx.observe(workspace, |this, workspace, cx| {
+            #[cfg(target_os = "macos")]
+            {
+                if *this.workspace() == workspace {
+                    this.sync_workspace_sidebar_host(cx);
+                }
+            }
+            cx.notify();
+        })
+        .detach();
+
         cx.subscribe(workspace, |this, workspace, event, cx| {
             if let WorkspaceEvent::Activate = event {
                 this.set_active_workspace(workspace.clone(), cx);
@@ -614,14 +737,22 @@ impl MultiWorkspace {
         self.activate_previous_workspace(window, cx);
     }
 
-    fn serialize(&mut self, cx: &mut App) {
-        let window_id = self.window_id;
-        let state = crate::persistence::model::MultiWorkspaceState {
-            active_workspace_id: self.workspace().read(cx).database_id(),
-            sidebar_open: self.sidebar_open,
-        };
-        let kvp = db::kvp::KeyValueStore::global(cx);
-        self._serialize_task = Some(cx.background_spawn(async move {
+    pub(crate) fn serialize(&mut self, cx: &mut Context<Self>) {
+        self._serialize_task = Some(cx.spawn(async move |this, cx| {
+            let Some((window_id, state)) = this
+                .read_with(cx, |this, cx| {
+                    let state = crate::persistence::model::MultiWorkspaceState {
+                        active_workspace_id: this.workspace().read(cx).database_id(),
+                        sidebar_open: this.sidebar_open,
+                        sidebar_state: this.sidebar.as_ref().and_then(|s| s.serialized_state(cx)),
+                    };
+                    (this.window_id, state)
+                })
+                .ok()
+            else {
+                return;
+            };
+            let kvp = cx.update(|cx| db::kvp::KeyValueStore::global(cx));
             crate::persistence::write_multi_workspace_state(&kvp, window_id, state).await;
         }));
     }
@@ -1010,9 +1141,15 @@ impl Render for MultiWorkspace {
                                     if let Some(sidebar) = this.sidebar.as_mut() {
                                         sidebar.set_width(None, cx);
                                     }
+                                    this.serialize(cx);
                                 })
                                 .ok();
                                 cx.stop_propagation();
+                            } else {
+                                weak.update(cx, |this, cx| {
+                                    this.serialize(cx);
+                                })
+                                .ok();
                             }
                         })
                         .occlude(),
@@ -1060,12 +1197,27 @@ impl Render for MultiWorkspace {
                         },
                     ))
                     .on_action(cx.listener(
+                        |this: &mut Self, _: &ToggleWorkspaceSidebar, window, cx| {
+                            this.toggle_sidebar(window, cx);
+                        },
+                    ))
+                    .on_action(cx.listener(
                         |this: &mut Self, _: &CloseProjectNavigation, window, cx| {
                             this.close_sidebar_action(window, cx);
                         },
                     ))
                     .on_action(cx.listener(
+                        |this: &mut Self, _: &CloseWorkspaceSidebar, window, cx| {
+                            this.close_sidebar_action(window, cx);
+                        },
+                    ))
+                    .on_action(cx.listener(
                         |this: &mut Self, _: &FocusProjectNavigation, window, cx| {
+                            this.focus_sidebar(window, cx);
+                        },
+                    ))
+                    .on_action(cx.listener(
+                        |this: &mut Self, _: &FocusWorkspaceSidebar, window, cx| {
                             this.focus_sidebar(window, cx);
                         },
                     ))

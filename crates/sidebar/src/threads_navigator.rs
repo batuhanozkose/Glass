@@ -42,7 +42,7 @@ use util::ResultExt as _;
 use util::path_list::PathList;
 use workspace::{
     AddFolderToProject, MultiWorkspace, MultiWorkspaceEvent, Open, OpenMode,
-    Sidebar as WorkspaceSidebar, Workspace, WorkspaceId, WorkspaceSidebarSection,
+    Sidebar as WorkspaceSidebar, SidebarEvent, Workspace, WorkspaceId,
 };
 
 use zed_actions::OpenRecent;
@@ -158,7 +158,9 @@ pub fn dump_workspace_info(
             buffer.set_text(output, cx);
         });
 
-        let buffer = cx.new(|cx| editor::MultiBuffer::singleton(buffer, cx).with_title("Workspace Info".into()));
+        let buffer = cx.new(|cx| {
+            editor::MultiBuffer::singleton(buffer, cx).with_title("Workspace Info".into())
+        });
 
         _this.update_in(cx, |workspace, window, cx| {
             workspace.add_item_to_active_pane(
@@ -488,6 +490,8 @@ impl Focusable for ProjectSidebarSurface {
     }
 }
 
+impl gpui::EventEmitter<SidebarEvent> for ProjectSidebarSurface {}
+
 impl WorkspaceSidebar for ProjectSidebarSurface {
     fn width(&self, _cx: &App) -> Pixels {
         self.width
@@ -526,11 +530,16 @@ impl Render for ProjectSidebarSurface {
 
 pub struct GitSidebarSurface {
     multi_workspace: WeakEntity<MultiWorkspace>,
+    threads_navigator: WeakEntity<ThreadsNavigator>,
     _subscriptions: Vec<gpui::Subscription>,
 }
 
 impl GitSidebarSurface {
-    fn new(multi_workspace: Entity<MultiWorkspace>, cx: &mut Context<Self>) -> Self {
+    fn new(
+        multi_workspace: Entity<MultiWorkspace>,
+        threads_navigator: Entity<ThreadsNavigator>,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let subscription = cx.subscribe(
             &multi_workspace,
             |_this, _multi_workspace, _event: &MultiWorkspaceEvent, cx| {
@@ -540,6 +549,7 @@ impl GitSidebarSurface {
 
         Self {
             multi_workspace: multi_workspace.downgrade(),
+            threads_navigator: threads_navigator.downgrade(),
             _subscriptions: vec![subscription],
         }
     }
@@ -553,29 +563,201 @@ impl GitSidebarSurface {
         let workspace = self.active_workspace(cx)?;
         workspace.read(cx).panel::<GitPanel>(cx)
     }
+
+    fn render_sidebar_header(&self, window: &Window, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let threads_navigator = self.threads_navigator.upgrade()?;
+        let navigator = threads_navigator.read(cx);
+        let no_open_projects = !navigator.contents.has_open_projects;
+        if no_open_projects {
+            return None;
+        }
+
+        let has_query = navigator.has_filter_query(cx);
+        let archive_visible = matches!(navigator.view, SidebarView::Archive(..));
+        let show_focus_keybinding = navigator.selection.is_some()
+            && !navigator.filter_editor.focus_handle(cx).is_focused(window);
+        let filter_editor = navigator.filter_editor.clone();
+        let recent_projects_popover_handle = navigator.recent_projects_popover_handle.clone();
+        let multi_workspace = navigator.multi_workspace.upgrade();
+
+        let workspace = multi_workspace
+            .as_ref()
+            .map(|multi_workspace| multi_workspace.read(cx).workspace().downgrade());
+
+        let focus_handle = workspace
+            .as_ref()
+            .and_then(|workspace| workspace.upgrade())
+            .map(|workspace| workspace.read(cx).focus_handle(cx))
+            .unwrap_or_else(|| cx.focus_handle());
+
+        let sibling_workspace_ids: HashSet<WorkspaceId> = multi_workspace
+            .as_ref()
+            .map(|multi_workspace| {
+                multi_workspace
+                    .read(cx)
+                    .workspaces()
+                    .iter()
+                    .filter_map(|workspace| workspace.read(cx).database_id())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let header_height = platform_title_bar_height(window);
+        let threads_navigator_for_clear = threads_navigator.clone();
+        let threads_navigator_for_git = threads_navigator.clone();
+        let threads_navigator_for_archive = threads_navigator.clone();
+
+        Some(
+            h_flex()
+                .h(header_height)
+                .mt_px()
+                .pb_px()
+                .pl_1p5()
+                .pr_1p5()
+                .gap_1()
+                .when(show_focus_keybinding, |this| {
+                    this.child(KeyBinding::for_action(&FocusSidebarFilter, cx))
+                })
+                .child(
+                    div().min_w_0().flex_1().child(
+                        h_flex()
+                            .min_w_0()
+                            .w_full()
+                            .px_1p5()
+                            .py_0p5()
+                            .gap_1()
+                            .items_center()
+                            .rounded(px(999.0))
+                            .bg(cx
+                                .theme()
+                                .colors()
+                                .element_background
+                                .blend(cx.theme().colors().panel_background.opacity(0.35)))
+                            .border_1()
+                            .border_color(cx.theme().colors().border_variant.opacity(0.6))
+                            .child(
+                                Icon::new(IconName::MagnifyingGlass)
+                                    .size(IconSize::Small)
+                                    .color(Color::Muted),
+                            )
+                            .child(div().min_w_0().flex_1().child(filter_editor)),
+                    ),
+                )
+                .child(
+                    h_flex()
+                        .gap_1()
+                        .when(has_query, |this| {
+                            this.child(
+                                IconButton::new("clear_filter", IconName::Close)
+                                    .icon_size(IconSize::Small)
+                                    .tooltip(Tooltip::text("Clear Search"))
+                                    .on_click(move |_, window, cx| {
+                                        threads_navigator_for_clear.update(cx, |navigator, cx| {
+                                            navigator.reset_filter_editor_text(window, cx);
+                                            navigator.update_entries(cx);
+                                        });
+                                    }),
+                            )
+                        })
+                        .child(
+                            IconButton::new("git", IconName::GitBranchAlt)
+                                .icon_size(IconSize::Small)
+                                .toggle_state(true)
+                                .selected_style(ButtonStyle::Tinted(TintColor::Accent))
+                                .tooltip(Tooltip::text("Toggle Git Panel"))
+                                .on_click(move |_, window, cx| {
+                                    threads_navigator_for_git.update(cx, |navigator, cx| {
+                                        navigator.toggle_git_panel(window, cx);
+                                    });
+                                }),
+                        )
+                        .child(
+                            IconButton::new("archive", IconName::Archive)
+                                .icon_size(IconSize::Small)
+                                .toggle_state(archive_visible)
+                                .tooltip(move |_, cx| {
+                                    Tooltip::for_action(
+                                        "Toggle Archived Threads",
+                                        &ToggleArchive,
+                                        cx,
+                                    )
+                                })
+                                .on_click(move |_, window, cx| {
+                                    threads_navigator_for_archive.update(cx, |navigator, cx| {
+                                        navigator.toggle_archive(&ToggleArchive, window, cx);
+                                    });
+                                }),
+                        )
+                        .child(
+                            PopoverMenu::new("sidebar-recent-projects-menu")
+                                .window_overlay()
+                                .with_handle(recent_projects_popover_handle)
+                                .menu(move |window, cx| {
+                                    workspace.as_ref().map(|workspace| {
+                                        SidebarRecentProjects::popover(
+                                            workspace.clone(),
+                                            sibling_workspace_ids.clone(),
+                                            focus_handle.clone(),
+                                            window,
+                                            cx,
+                                        )
+                                    })
+                                })
+                                .trigger_with_tooltip(
+                                    IconButton::new("open-project", IconName::OpenFolder)
+                                        .icon_size(IconSize::Small)
+                                        .selected_style(ButtonStyle::Tinted(TintColor::Accent)),
+                                    |_window, cx| {
+                                        Tooltip::for_action(
+                                            "Add Project",
+                                            &OpenRecent {
+                                                create_new_window: false,
+                                            },
+                                            cx,
+                                        )
+                                    },
+                                )
+                                .offset(gpui::Point {
+                                    x: px(-2.0),
+                                    y: px(-2.0),
+                                })
+                                .anchor(gpui::Corner::BottomRight),
+                        ),
+                )
+                .into_any_element(),
+        )
+    }
 }
 
 impl Render for GitSidebarSurface {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if let Some(git_panel) = self.active_git_panel(cx) {
-            return div()
+            return v_flex()
                 .size_full()
                 .overflow_hidden()
                 .bg(cx.theme().colors().panel_background)
-                .child(git_panel)
+                .children(self.render_sidebar_header(window, cx))
+                .child(div().flex_1().min_h_0().overflow_hidden().child(git_panel))
                 .into_any_element();
         }
 
         v_flex()
             .size_full()
-            .justify_center()
-            .p_4()
-            .gap_2()
-            .child(Label::new("Git").size(LabelSize::Large))
+            .overflow_hidden()
+            .bg(cx.theme().colors().panel_background)
+            .children(self.render_sidebar_header(window, cx))
             .child(
-                Label::new("Open the Git panel to view changes and history.")
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
+                v_flex()
+                    .flex_1()
+                    .justify_center()
+                    .p_4()
+                    .gap_2()
+                    .child(Label::new("Git").size(LabelSize::Large))
+                    .child(
+                        Label::new("Open the Git panel to view changes and history.")
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    ),
             )
             .into_any_element()
     }
@@ -675,10 +857,13 @@ pub struct ThreadsNavigator {
     thread_switcher: Option<Entity<ThreadSwitcher>>,
     _thread_switcher_subscriptions: Vec<gpui::Subscription>,
     view: SidebarView,
+    git_panel_visible: bool,
     recent_projects_popover_handle: PopoverMenuHandle<SidebarRecentProjects>,
     _subscriptions: Vec<gpui::Subscription>,
     _draft_observation: Option<gpui::Subscription>,
 }
+
+impl gpui::EventEmitter<SidebarEvent> for ThreadsNavigator {}
 
 impl ThreadsNavigator {
     pub fn project_surface(&self) -> Option<Entity<ProjectSidebarSurface>> {
@@ -759,7 +944,9 @@ impl ThreadsNavigator {
         let threads_navigator = cx.entity();
         let project_surface =
             cx.new(|cx| ProjectSidebarSurface::new(threads_navigator.clone(), cx));
-        let git_surface = cx.new(|cx| GitSidebarSurface::new(multi_workspace.clone(), cx));
+        let git_surface = cx.new(|cx| {
+            GitSidebarSurface::new(multi_workspace.clone(), threads_navigator.clone(), cx)
+        });
 
         cx.subscribe_in(
             &multi_workspace,
@@ -843,6 +1030,7 @@ impl ThreadsNavigator {
             thread_switcher: None,
             _thread_switcher_subscriptions: Vec::new(),
             view: SidebarView::default(),
+            git_panel_visible: false,
             recent_projects_popover_handle: PopoverMenuHandle::default(),
             _subscriptions: Vec::new(),
             _draft_observation: None,
@@ -1050,17 +1238,11 @@ impl ThreadsNavigator {
 
     // Failure modes:
     // - The sidebar may outlive the active workspace, so project-local controls must no-op.
-    // - The Git panel is only guaranteed to exist after the workspace activates the Git section.
+    // - The Git panel may still be loading when the local Git view is activated.
     // - Archive state should survive a temporary Git detour so a second Git click restores context.
     fn active_workspace(&self, cx: &App) -> Option<Entity<Workspace>> {
         let multi_workspace = self.multi_workspace.upgrade()?;
         Some(multi_workspace.read(cx).workspace().clone())
-    }
-
-    fn active_sidebar_section(&self, cx: &App) -> WorkspaceSidebarSection {
-        self.active_workspace(cx)
-            .map(|workspace| workspace.read(cx).active_sidebar_section())
-            .unwrap_or(WorkspaceSidebarSection::Project)
     }
 
     fn active_git_panel(&self, cx: &App) -> Option<Entity<GitPanel>> {
@@ -1068,22 +1250,9 @@ impl ThreadsNavigator {
         workspace.read(cx).panel::<GitPanel>(cx)
     }
 
-    fn toggle_git_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(workspace) = self.active_workspace(cx) else {
-            return;
-        };
-
-        let next_section = match workspace.read(cx).active_sidebar_section() {
-            WorkspaceSidebarSection::Git => WorkspaceSidebarSection::Project,
-            _ => WorkspaceSidebarSection::Git,
-        };
-
-        workspace.update(cx, |workspace, cx| {
-            if next_section == WorkspaceSidebarSection::Git {
-                workspace.open_panel::<GitPanel>(window, cx);
-            }
-            workspace.select_sidebar_section(next_section, window, cx);
-        });
+    fn toggle_git_panel(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        self.git_panel_visible = !self.git_panel_visible;
+        cx.notify();
     }
 
     fn active_draft_text(&self, cx: &App) -> Option<SharedString> {
@@ -2337,6 +2506,15 @@ impl ThreadsNavigator {
             return;
         }
 
+        if self.git_panel_visible {
+            if let Some(git_panel) = self.active_git_panel(cx) {
+                git_panel.focus_handle(cx).focus(window, cx);
+            } else {
+                self.filter_editor.focus_handle(cx).focus(window, cx);
+            }
+            return;
+        }
+
         if let SidebarView::Archive(archive) = &self.view {
             let has_selection = archive.read(cx).has_selection();
             if !has_selection {
@@ -2364,7 +2542,9 @@ impl ThreadsNavigator {
         cx: &mut Context<Self>,
     ) {
         self.selection = None;
-        if let SidebarView::Archive(archive) = &self.view {
+        if self.git_panel_visible {
+            self.filter_editor.focus_handle(cx).focus(window, cx);
+        } else if let SidebarView::Archive(archive) = &self.view {
             archive.update(cx, |view, cx| {
                 view.clear_selection();
                 view.focus_filter_editor(window, cx);
@@ -2697,8 +2877,9 @@ impl ThreadsNavigator {
         let paths: Vec<std::path::PathBuf> =
             path_list.paths().iter().map(|p| p.to_path_buf()).collect();
 
-        let open_task =
-            multi_workspace.update(cx, |mw, cx| mw.open_project(paths, OpenMode::Activate, window, cx));
+        let open_task = multi_workspace.update(cx, |mw, cx| {
+            mw.open_project(paths, OpenMode::Activate, window, cx)
+        });
 
         cx.spawn_in(window, async move |this, cx| {
             let workspace = open_task.await?;
@@ -2740,8 +2921,8 @@ impl ThreadsNavigator {
     ) {
         // Eagerly save thread metadata so that the sidebar is updated immediately
         ThreadMetadataStore::global(cx).update(cx, |store, cx| {
-            store.save(
-                ThreadMetadata {
+            store.save_all(
+                vec![ThreadMetadata {
                     session_id: session_info.session_id.clone(),
                     agent_id: agent.id(),
                     title: session_info
@@ -2752,7 +2933,7 @@ impl ThreadsNavigator {
                     created_at: session_info.created_at,
                     folder_paths: session_info.work_dirs.clone().unwrap_or_default(),
                     archived: false,
-                },
+                }],
                 cx,
             )
         });
@@ -3116,8 +3297,16 @@ impl ThreadsNavigator {
                         agent: thread.agent.clone(),
                         session_info: thread.session_info.clone(),
                         workspace,
-                        worktree_name: thread.worktrees.first().map(|wt| wt.name.clone()),
-
+                        project_name: None,
+                        worktrees: thread
+                            .worktrees
+                            .iter()
+                            .map(|worktree| ThreadItemWorktreeInfo {
+                                name: worktree.name.clone(),
+                                full_path: worktree.full_path.clone(),
+                                highlight_positions: worktree.highlight_positions.clone(),
+                            })
+                            .collect(),
                         diff_stats: thread.diff_stats,
                         is_title_generating: thread.is_title_generating,
                         notified,
@@ -3799,7 +3988,7 @@ impl ThreadsNavigator {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let has_query = self.has_filter_query(cx);
-        let git_panel_visible = self.active_sidebar_section(cx) == WorkspaceSidebarSection::Git;
+        let git_panel_visible = self.git_panel_visible;
         let traffic_lights = false;
         let header_height = platform_title_bar_height(window);
 
@@ -3849,7 +4038,10 @@ impl ThreadsNavigator {
                         .child(
                             IconButton::new("archive", IconName::Archive)
                                 .icon_size(IconSize::Small)
-                                .toggle_state(matches!(self.view, SidebarView::Archive(..)))
+                                .toggle_state(
+                                    !self.git_panel_visible
+                                        && matches!(self.view, SidebarView::Archive(..)),
+                                )
                                 .tooltip(move |_, cx| {
                                     Tooltip::for_action(
                                         "Toggle Archived Threads",
@@ -3867,6 +4059,12 @@ impl ThreadsNavigator {
     }
 
     fn toggle_archive(&mut self, _: &ToggleArchive, window: &mut Window, cx: &mut Context<Self>) {
+        if self.git_panel_visible {
+            self.git_panel_visible = false;
+            self.show_archive(window, cx);
+            return;
+        }
+
         match &self.view {
             SidebarView::ThreadList => self.show_archive(window, cx),
             SidebarView::Archive(_) => self.show_thread_list(window, cx),
@@ -3905,6 +4103,7 @@ impl ThreadsNavigator {
                 agent_registry_store.downgrade(),
                 workspace,
                 multi_workspace,
+                !cfg!(target_os = "macos"),
                 window,
                 cx,
             )
@@ -3966,7 +4165,7 @@ impl WorkspaceSidebar for ThreadsNavigator {
     }
 
     fn is_threads_list_view_active(&self) -> bool {
-        matches!(self.view, SidebarView::ThreadList)
+        !self.git_panel_visible && matches!(self.view, SidebarView::ThreadList)
     }
 
     fn prepare_for_focus(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
@@ -3995,7 +4194,6 @@ impl Render for ThreadsNavigator {
         let _titlebar_height = ui::utils::platform_title_bar_height(window);
         let ui_font = theme_settings::setup_ui_font(window, cx);
         let sticky_header = self.render_sticky_header(window, cx);
-        let active_sidebar_section = self.active_sidebar_section(cx);
         let color = cx.theme().colors();
         let no_open_projects = !self.contents.has_open_projects;
         let no_search_results = self.contents.entries.is_empty();
@@ -4003,10 +4201,10 @@ impl Render for ThreadsNavigator {
         let hosted_in_native_sidebar = true;
         #[cfg(not(target_os = "macos"))]
         let hosted_in_native_sidebar = false;
-        let git_panel =
-            (!hosted_in_native_sidebar && active_sidebar_section == WorkspaceSidebarSection::Git)
-                .then(|| self.active_git_panel(cx))
-                .flatten();
+        let git_panel = self
+            .git_panel_visible
+            .then(|| self.active_git_panel(cx))
+            .flatten();
 
         v_flex()
             .id("workspace-sidebar")
@@ -4041,10 +4239,28 @@ impl Render for ThreadsNavigator {
                 this.border_r_1().border_color(color.border)
             })
             .map(|this| {
-                if let Some(git_panel) = git_panel {
+                if self.git_panel_visible {
+                    let body = if let Some(git_panel) = git_panel {
+                        div().flex_1().min_h_0().overflow_hidden().child(git_panel)
+                    } else {
+                        div().flex_1().min_h_0().overflow_hidden().child(
+                            v_flex()
+                                .size_full()
+                                .justify_center()
+                                .p_4()
+                                .gap_2()
+                                .child(Label::new("Git").size(LabelSize::Large))
+                                .child(
+                                    Label::new("Loading Git view…")
+                                        .size(LabelSize::Small)
+                                        .color(Color::Muted),
+                                ),
+                        )
+                    };
+
                     return this
                         .child(self.render_sidebar_header(no_open_projects, window, cx))
-                        .child(div().flex_1().min_h_0().overflow_hidden().child(git_panel));
+                        .child(body);
                 }
 
                 match &self.view {
@@ -4075,7 +4291,21 @@ impl Render for ThreadsNavigator {
                                 )
                             }
                         }),
-                    SidebarView::Archive(archive_view) => this.child(archive_view.clone()),
+                    SidebarView::Archive(archive_view) => {
+                        let this = if hosted_in_native_sidebar {
+                            this.child(self.render_sidebar_header(no_open_projects, window, cx))
+                        } else {
+                            this
+                        };
+
+                        this.child(
+                            div()
+                                .flex_1()
+                                .min_h_0()
+                                .overflow_hidden()
+                                .child(archive_view.clone()),
+                        )
+                    }
                 }
             })
     }
@@ -5363,8 +5593,18 @@ mod tests {
         workspace.read_with(cx, |workspace, _cx| {
             assert_eq!(
                 workspace.active_sidebar_section(),
-                WorkspaceSidebarSection::Git,
-                "first Git click should show the Git section"
+                WorkspaceSidebarSection::Project,
+                "Git toggle should stay inside the Project sidebar section"
+            );
+        });
+        sidebar.read_with(cx, |sidebar, _cx| {
+            assert!(
+                sidebar.git_panel_visible,
+                "first Git click should enable the local Git view"
+            );
+            assert!(
+                matches!(sidebar.view, SidebarView::Archive(_)),
+                "the underlying project-local view should be preserved while Git is visible"
             );
         });
 
@@ -5377,13 +5617,50 @@ mod tests {
             assert_eq!(
                 workspace.active_sidebar_section(),
                 WorkspaceSidebarSection::Project,
-                "second Git click should return to the Project section"
+                "second Git click should still leave the workspace in the Project section"
             );
         });
         sidebar.read_with(cx, |sidebar, _cx| {
             assert!(
+                !sidebar.git_panel_visible,
+                "second Git click should disable the local Git view"
+            );
+            assert!(
                 matches!(sidebar.view, SidebarView::Archive(_)),
                 "returning from Git should restore the previous project-local view"
+            );
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    #[gpui::test]
+    async fn test_git_sidebar_surface_keeps_header_without_git_panel(cx: &mut TestAppContext) {
+        let project = init_test_project_with_agent_panel("/my-project", cx).await;
+        let (multi_workspace, cx) =
+            cx.add_window_view(|window, cx| MultiWorkspace::test_new(project.clone(), window, cx));
+        let (sidebar, _panel) = setup_sidebar_with_agent_panel(&multi_workspace, &project, cx);
+        let workspace = multi_workspace.read_with(cx, |mw, _cx| mw.workspace().clone());
+
+        workspace.update_in(cx, |workspace, window, cx| {
+            workspace.select_sidebar_section(WorkspaceSidebarSection::Git, window, cx);
+        });
+        cx.run_until_parked();
+
+        let git_surface = sidebar.read_with(cx, |sidebar, _cx| {
+            sidebar
+                .git_surface
+                .upgrade()
+                .expect("git sidebar surface should exist")
+        });
+
+        git_surface.update_in(cx, |git_surface, window, cx| {
+            assert!(
+                git_surface.active_git_panel(cx).is_none(),
+                "test should exercise the native Git fallback without a loaded GitPanel"
+            );
+            assert!(
+                git_surface.render_sidebar_header(window, cx).is_some(),
+                "Git fallback should keep the header controls visible"
             );
         });
     }

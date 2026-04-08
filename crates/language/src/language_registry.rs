@@ -989,9 +989,9 @@ impl LanguageRegistry {
                                     .and_then(OsStr::to_str)
                                     .context("invalid grammar filename")?;
                                 anyhow::Ok(with_parser(|parser| {
-                                    let mut store = parser
-                                        .take_wasm_store()
-                                        .unwrap_or_else(|| tree_sitter::WasmStore::new(&crate::WASM_ENGINE).unwrap());
+                                    let mut store = parser.take_wasm_store().unwrap_or_else(|| {
+                                        tree_sitter::WasmStore::new(&crate::WASM_ENGINE).unwrap()
+                                    });
                                     let grammar = store.load_language(grammar_name, &wasm_bytes);
                                     parser.set_wasm_store(store).unwrap();
                                     grammar
@@ -1000,9 +1000,7 @@ impl LanguageRegistry {
                             .map_err(Arc::new);
 
                             let value = match &grammar_result {
-                                Ok(grammar) => {
-                                    AvailableGrammar::Loaded(wasm_path, grammar.clone())
-                                }
+                                Ok(grammar) => AvailableGrammar::Loaded(wasm_path, grammar.clone()),
                                 Err(error) => AvailableGrammar::LoadFailed(error.clone()),
                             };
 
@@ -1016,7 +1014,8 @@ impl LanguageRegistry {
                         });
 
                     if let Err(error) = spawn_result {
-                        let error = Arc::new(anyhow!("failed to spawn grammar loader thread: {error}"));
+                        let error =
+                            Arc::new(anyhow!("failed to spawn grammar loader thread: {error}"));
                         let old_value = self
                             .state
                             .write()

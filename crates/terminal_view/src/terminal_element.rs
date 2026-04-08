@@ -25,9 +25,9 @@ use terminal::{
     },
     terminal_settings::TerminalSettings,
 };
+use theme::active_component_radius;
 use theme::{ActiveTheme, Theme};
 use theme_settings::ThemeSettings;
-use theme::active_component_radius;
 use ui::utils::ensure_minimum_contrast;
 use ui::{ParentElement, Tooltip};
 use util::ResultExt;

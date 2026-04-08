@@ -4087,6 +4087,7 @@ mod tests {
             MultiWorkspaceState {
                 active_workspace_id: Some(WorkspaceId(2)),
                 sidebar_open: true,
+                sidebar_state: None,
             },
         )
         .await;
@@ -4097,6 +4098,7 @@ mod tests {
             MultiWorkspaceState {
                 active_workspace_id: Some(WorkspaceId(3)),
                 sidebar_open: false,
+                sidebar_state: None,
             },
         )
         .await;

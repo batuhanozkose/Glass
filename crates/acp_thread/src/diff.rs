@@ -296,7 +296,9 @@ impl PendingDiff {
 
         let buffer_diff = cx.spawn({
             let buffer = buffer.clone();
-            async move |_this, cx| build_buffer_diff(base_text, &buffer, language_registry, cx).await
+            async move |_this, cx| {
+                build_buffer_diff(base_text, &buffer, language_registry, cx).await
+            }
         });
 
         let update_diff = cx.spawn(async move |this, cx| {

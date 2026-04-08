@@ -43,14 +43,17 @@ pub struct ThreadItem {
     selected: bool,
     focused: bool,
     hovered: bool,
+    rounded: bool,
     added: Option<usize>,
     removed: Option<usize>,
     project_paths: Option<Arc<[PathBuf]>>,
+    project_name: Option<SharedString>,
     worktrees: Vec<ThreadItemWorktreeInfo>,
     on_click: Option<Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
     on_hover: Box<dyn Fn(&bool, &mut Window, &mut App) + 'static>,
     action_slot: Option<AnyElement>,
     tooltip: Option<Box<dyn Fn(&mut Window, &mut App) -> AnyView + 'static>>,
+    base_bg: Option<Hsla>,
 }
 
 impl ThreadItem {
@@ -71,14 +74,17 @@ impl ThreadItem {
             selected: false,
             focused: false,
             hovered: false,
+            rounded: false,
             added: None,
             removed: None,
             project_paths: None,
+            project_name: None,
             worktrees: Vec::new(),
             on_click: None,
             on_hover: Box::new(|_, _, _| {}),
             action_slot: None,
             tooltip: None,
+            base_bg: None,
         }
     }
 
@@ -157,6 +163,11 @@ impl ThreadItem {
         self
     }
 
+    pub fn project_name(mut self, name: impl Into<SharedString>) -> Self {
+        self.project_name = Some(name.into());
+        self
+    }
+
     pub fn worktrees(mut self, worktrees: Vec<ThreadItemWorktreeInfo>) -> Self {
         self.worktrees = worktrees;
         self
@@ -164,6 +175,11 @@ impl ThreadItem {
 
     pub fn hovered(mut self, hovered: bool) -> Self {
         self.hovered = hovered;
+        self
+    }
+
+    pub fn rounded(mut self, rounded: bool) -> Self {
+        self.rounded = rounded;
         self
     }
 
@@ -189,15 +205,21 @@ impl ThreadItem {
         self.tooltip = Some(Box::new(tooltip));
         self
     }
+
+    pub fn base_bg(mut self, color: Hsla) -> Self {
+        self.base_bg = Some(color);
+        self
+    }
 }
 
 impl RenderOnce for ThreadItem {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let color = cx.theme().colors();
         let row_radius = cx.theme().component_radius().tab.unwrap_or(px(8.0));
-        let base_bg = color
+        let sidebar_base_bg = color
             .title_bar_background
             .blend(color.panel_background.opacity(0.2));
+        let base_bg = self.base_bg.unwrap_or(sidebar_base_bg);
         let selected_background = color.text.opacity(0.14);
         let hover_background = color.text.opacity(0.09);
         let reserved_action_slot_width = px(20.0);
@@ -339,6 +361,7 @@ impl RenderOnce for ThreadItem {
             }
         });
 
+        let has_project_name = self.project_name.is_some();
         let has_project_paths = project_paths.is_some();
         let has_worktree = !self.worktrees.is_empty();
         let has_timestamp = !self.timestamp.is_empty();
@@ -393,105 +416,128 @@ impl RenderOnce for ThreadItem {
                         )
                     }),
             )
-            .when(has_worktree || has_diff_stats || has_timestamp, |this| {
-                let worktree_tooltip: SharedString = self
-                    .worktrees
-                    .iter()
-                    .map(|wt| wt.full_path.as_ref())
-                    .collect::<Vec<_>>()
-                    .join("\n")
-                    .into();
-                let worktree_tooltip_title = if self.worktrees.len() > 1 {
-                    "Thread Running in Local Git Worktrees"
-                } else {
-                    "Thread Running in a Local Git Worktree"
-                };
-
-                // Deduplicate chips by name — e.g. two paths both named
-                // "olivetti" produce a single chip. Highlight positions
-                // come from the first occurrence.
-                let mut seen_names: Vec<SharedString> = Vec::new();
-                let mut worktree_chips: Vec<AnyElement> = Vec::new();
-                for wt in self.worktrees {
-                    if seen_names.contains(&wt.name) {
-                        continue;
-                    }
-                    let chip_index = seen_names.len();
-                    seen_names.push(wt.name.clone());
-                    let label = if wt.highlight_positions.is_empty() {
-                        Label::new(wt.name)
-                            .size(LabelSize::XSmall)
-                            .line_height_style(LineHeightStyle::UiLabel)
-                            .color(Color::Muted)
-                            .into_any_element()
+            .when(
+                has_project_name
+                    || has_project_paths
+                    || has_worktree
+                    || has_diff_stats
+                    || has_timestamp,
+                |this| {
+                    // Collect all full paths for the shared tooltip.
+                    let worktree_tooltip: SharedString = self
+                        .worktrees
+                        .iter()
+                        .map(|wt| wt.full_path.as_ref())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                        .into();
+                    let worktree_tooltip_title = if self.worktrees.len() > 1 {
+                        "Thread Running in Local Git Worktrees"
                     } else {
-                        HighlightedLabel::new(wt.name, wt.highlight_positions)
-                            .size(LabelSize::XSmall)
-                            .line_height_style(LineHeightStyle::UiLabel)
-                            .color(Color::Muted)
-                            .into_any_element()
+                        "Thread Running in a Local Git Worktree"
                     };
-                    let tooltip_title = worktree_tooltip_title;
-                    let tooltip_meta = worktree_tooltip.clone();
-                    worktree_chips.push(
-                        h_flex()
-                            .id(format!("{}-worktree-{chip_index}", self.id.clone()))
-                            .gap_0p5()
-                            .child(
-                                Icon::new(IconName::GitWorktree)
-                                    .size(IconSize::XSmall)
-                                    .color(Color::Muted),
-                            )
-                            .child(label)
-                            .tooltip(move |_, cx| {
-                                Tooltip::with_meta(tooltip_title, None, tooltip_meta.clone(), cx)
-                            })
-                            .into_any_element(),
-                    );
-                }
 
-                this.child(
-                    h_flex()
-                        .min_w_0()
-                        .gap_1p5()
-                        .child(icon_container()) // Icon Spacing
-                        .when_some(project_paths, |this, paths| {
-                            this.child(
-                                Label::new(paths)
-                                    .size(LabelSize::Small)
-                                    .color(Color::Muted)
-                                    .into_any_element(),
+                    // Deduplicate chips by name — e.g. two paths both named
+                    // "olivetti" produce a single chip. Highlight positions
+                    // come from the first occurrence.
+                    let mut seen_names: Vec<SharedString> = Vec::new();
+                    let mut worktree_chips: Vec<AnyElement> = Vec::new();
+
+                    for wt in self.worktrees {
+                        if seen_names.contains(&wt.name) {
+                            continue;
+                        }
+
+                        let chip_index = seen_names.len();
+                        seen_names.push(wt.name.clone());
+
+                        let label = if wt.highlight_positions.is_empty() {
+                            Label::new(wt.name)
+                                .size(LabelSize::Small)
+                                .color(Color::Muted)
+                                .into_any_element()
+                        } else {
+                            HighlightedLabel::new(wt.name, wt.highlight_positions)
+                                .size(LabelSize::Small)
+                                .color(Color::Muted)
+                                .into_any_element()
+                        };
+                        let tooltip_title = worktree_tooltip_title;
+                        let tooltip_meta = worktree_tooltip.clone();
+
+                        worktree_chips.push(
+                            h_flex()
+                                .id(format!("{}-worktree-{chip_index}", self.id.clone()))
+                                .gap_0p5()
+                                .child(
+                                    Icon::new(IconName::GitWorktree)
+                                        .size(IconSize::XSmall)
+                                        .color(Color::Muted),
+                                )
+                                .child(label)
+                                .tooltip(move |_, cx| {
+                                    Tooltip::with_meta(
+                                        tooltip_title,
+                                        None,
+                                        tooltip_meta.clone(),
+                                        cx,
+                                    )
+                                })
+                                .into_any_element(),
+                        );
+                    }
+                    this.child(
+                        h_flex()
+                            .min_w_0()
+                            .gap_1p5()
+                            .child(icon_container()) // Icon Spacing
+                            .when_some(self.project_name, |this, name| {
+                                this.child(
+                                    Label::new(name).size(LabelSize::Small).color(Color::Muted),
+                                )
+                            })
+                            .when(
+                                has_project_name && (has_project_paths || has_worktree),
+                                |this| this.child(dot_separator()),
                             )
-                        })
-                        .when(has_project_paths && has_worktree, |this| {
-                            this.child(dot_separator())
-                        })
-                        .children(worktree_chips)
-                        .when(
-                            (has_project_paths || has_worktree)
-                                && (has_diff_stats || has_timestamp),
-                            |this| this.child(dot_separator()),
-                        )
-                        .when(has_diff_stats, |this| {
-                            this.child(
-                                DiffStat::new(diff_stat_id, added_count, removed_count)
-                                    .label_size(LabelSize::XSmall)
-                                    .tooltip("Unreviewed changes"),
+                            .when_some(project_paths, |this, paths| {
+                                this.child(
+                                    Label::new(paths)
+                                        .size(LabelSize::Small)
+                                        .color(Color::Muted)
+                                        .into_any_element(),
+                                )
+                            })
+                            .when(has_project_paths && has_worktree, |this| {
+                                this.child(dot_separator())
+                            })
+                            .children(worktree_chips)
+                            .when(
+                                (has_project_name || has_project_paths || has_worktree)
+                                    && (has_diff_stats || has_timestamp),
+                                |this| this.child(dot_separator()),
                             )
-                        })
-                        .when(has_diff_stats && has_timestamp, |this| {
-                            this.child(dot_separator())
-                        })
-                        .when(has_timestamp, |this| {
-                            this.child(
-                                Label::new(timestamp.clone())
-                                    .size(LabelSize::XSmall)
-                                    .line_height_style(LineHeightStyle::UiLabel)
-                                    .color(Color::Muted),
-                            )
-                        }),
-                )
-            })
+                            .when(has_diff_stats, |this| {
+                                this.child(
+                                    DiffStat::new(diff_stat_id, added_count, removed_count)
+                                        .label_size(LabelSize::XSmall)
+                                        .tooltip("Unreviewed changes"),
+                                )
+                            })
+                            .when(has_diff_stats && has_timestamp, |this| {
+                                this.child(dot_separator())
+                            })
+                            .when(has_timestamp, |this| {
+                                this.child(
+                                    Label::new(timestamp.clone())
+                                        .size(LabelSize::XSmall)
+                                        .line_height_style(LineHeightStyle::UiLabel)
+                                        .color(Color::Muted),
+                                )
+                            }),
+                    )
+                },
+            )
             .when_some(self.on_click, |this, on_click| this.on_click(on_click))
     }
 }

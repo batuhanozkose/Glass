@@ -2,6 +2,7 @@ pub mod project_panel_settings;
 mod undo;
 mod utils;
 
+use crate::project_panel_settings::ProjectPanelScrollbarProxy;
 use anyhow::{Context as _, Result};
 use client::{ErrorCode, ErrorExt};
 use collections::{BTreeSet, HashMap, hash_map};
@@ -29,7 +30,6 @@ use gpui::{
     WeakEntity, Window, actions, anchored, deferred, div, hsla, linear_color_stop, linear_gradient,
     point, px, size, transparent_white, uniform_list,
 };
-use crate::project_panel_settings::ProjectPanelScrollbarProxy;
 use language::DiagnosticSeverity;
 use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrevious};
 use project::{
@@ -62,8 +62,8 @@ use toast::{StatusToast, ToastIcon};
 use ui::{
     Color, ContextMenu, ContextMenuEntry, DecoratedIcon, Divider, Icon, IconDecoration,
     IconDecorationKind, IndentGuideColors, IndentGuideLayout, Indicator, KeyBinding, Label,
-    LabelSize, ScrollAxes, ScrollableHandle, Scrollbars, StickyCandidate, Tooltip,
-    WithScrollbar, prelude::*, v_flex,
+    LabelSize, ScrollAxes, ScrollableHandle, Scrollbars, StickyCandidate, Tooltip, WithScrollbar,
+    prelude::*, v_flex,
 };
 use util::{
     ResultExt, TakeUntilExt, TryFutureExt, maybe,
@@ -5726,8 +5726,10 @@ impl ProjectPanel {
                 }),
             )
             .child({
-                let end_slot =
-                    if canonical_path.is_some() || diagnostic_count.is_some() || git_indicator.is_some() {
+                let end_slot = if canonical_path.is_some()
+                    || diagnostic_count.is_some()
+                    || git_indicator.is_some()
+                {
                     let symlink_element = canonical_path.map(|path| {
                         div()
                             .id("symlink_icon")
@@ -6939,7 +6941,8 @@ impl Render for ProjectPanel {
                                             let base_handle = &state.base_handle;
                                             let current_offset = base_handle.offset();
                                             let max_offset = base_handle.max_offset();
-                                            let delta = event.delta.pixel_delta(window.line_height());
+                                            let delta =
+                                                event.delta.pixel_delta(window.line_height());
                                             let new_offset = (current_offset + delta)
                                                 .clamp(&max_offset.neg(), &Point::default());
 
@@ -6950,56 +6953,60 @@ impl Render for ProjectPanel {
                                         }
                                     })
                                     .when(
-                                        self.drag_target_entry.as_ref().is_some_and(
-                                            |entry| match entry {
+                                        self.drag_target_entry.as_ref().is_some_and(|entry| {
+                                            match entry {
                                                 DragTarget::Background => true,
                                                 DragTarget::Entry {
                                                     highlight_entry_id, ..
                                                 } => self.state.last_worktree_root_id.is_some_and(
                                                     |root_id| *highlight_entry_id == root_id,
                                                 ),
-                                            },
-                                        ),
+                                            }
+                                        }),
                                         |div| div.bg(cx.theme().colors().drop_target_background),
                                     )
                                     .on_drag_move::<ExternalPaths>(cx.listener(
                                         move |this, event: &DragMoveEvent<ExternalPaths>, _, _| {
-                                            let Some(_last_root_id) = this.state.last_worktree_root_id
+                                            let Some(_last_root_id) =
+                                                this.state.last_worktree_root_id
                                             else {
                                                 return;
                                             };
                                             if event.bounds.contains(&event.event.position) {
-                                                this.drag_target_entry = Some(DragTarget::Background);
-                                            } else if this
-                                                .drag_target_entry
-                                                .as_ref()
-                                                .is_some_and(|e| matches!(e, DragTarget::Background))
-                                            {
+                                                this.drag_target_entry =
+                                                    Some(DragTarget::Background);
+                                            } else if this.drag_target_entry.as_ref().is_some_and(
+                                                |e| matches!(e, DragTarget::Background),
+                                            ) {
                                                 this.drag_target_entry = None;
                                             }
                                         },
                                     ))
                                     .on_drag_move::<DraggedSelection>(cx.listener(
-                                        move |this, event: &DragMoveEvent<DraggedSelection>, _, cx| {
-                                            let Some(last_root_id) = this.state.last_worktree_root_id
+                                        move |this,
+                                              event: &DragMoveEvent<DraggedSelection>,
+                                              _,
+                                              cx| {
+                                            let Some(last_root_id) =
+                                                this.state.last_worktree_root_id
                                             else {
                                                 return;
                                             };
                                             if event.bounds.contains(&event.event.position) {
                                                 let drag_state = event.drag(cx);
-                                                if this.should_highlight_background_for_selection_drag(
-                                                    &drag_state,
-                                                    last_root_id,
-                                                    cx,
-                                                ) {
+                                                if this
+                                                    .should_highlight_background_for_selection_drag(
+                                                        &drag_state,
+                                                        last_root_id,
+                                                        cx,
+                                                    )
+                                                {
                                                     this.drag_target_entry =
                                                         Some(DragTarget::Background);
                                                 }
-                                            } else if this
-                                                .drag_target_entry
-                                                .as_ref()
-                                                .is_some_and(|e| matches!(e, DragTarget::Background))
-                                            {
+                                            } else if this.drag_target_entry.as_ref().is_some_and(
+                                                |e| matches!(e, DragTarget::Background),
+                                            ) {
                                                 this.drag_target_entry = None;
                                             }
                                         },
@@ -7008,7 +7015,8 @@ impl Render for ProjectPanel {
                                         move |this, external_paths: &ExternalPaths, window, cx| {
                                             this.drag_target_entry = None;
                                             this.hover_scroll_task.take();
-                                            if let Some(entry_id) = this.state.last_worktree_root_id {
+                                            if let Some(entry_id) = this.state.last_worktree_root_id
+                                            {
                                                 this.drop_external_files(
                                                     external_paths.paths(),
                                                     entry_id,
@@ -7023,8 +7031,11 @@ impl Render for ProjectPanel {
                                         move |this, selections: &DraggedSelection, window, cx| {
                                             this.drag_target_entry = None;
                                             this.hover_scroll_task.take();
-                                            if let Some(entry_id) = this.state.last_worktree_root_id {
-                                                this.drag_onto(selections, entry_id, false, window, cx);
+                                            if let Some(entry_id) = this.state.last_worktree_root_id
+                                            {
+                                                this.drag_onto(
+                                                    selections, entry_id, false, window, cx,
+                                                );
                                             }
                                             cx.stop_propagation();
                                         },
@@ -7040,16 +7051,20 @@ impl Render for ProjectPanel {
                                     }))
                                     .on_mouse_down(
                                         MouseButton::Right,
-                                        cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                                            if let Some(entry_id) = this.state.last_worktree_root_id {
-                                                this.deploy_context_menu(
-                                                    event.position,
-                                                    entry_id,
-                                                    window,
-                                                    cx,
-                                                );
-                                            }
-                                        }),
+                                        cx.listener(
+                                            move |this, event: &MouseDownEvent, window, cx| {
+                                                if let Some(entry_id) =
+                                                    this.state.last_worktree_root_id
+                                                {
+                                                    this.deploy_context_menu(
+                                                        event.position,
+                                                        entry_id,
+                                                        window,
+                                                        cx,
+                                                    );
+                                                }
+                                            },
+                                        ),
                                     )
                                     .when(!is_read_only, |el| {
                                         el.on_click(cx.listener(
@@ -7088,7 +7103,7 @@ impl Render for ProjectPanel {
                         {
                             let mut scrollbars =
                                 Scrollbars::for_settings::<ProjectPanelScrollbarProxy>()
-                                .tracked_scroll_handle(&self.scroll_handle);
+                                    .tracked_scroll_handle(&self.scroll_handle);
                             if horizontal_scroll {
                                 scrollbars = scrollbars.with_track_along(
                                     ScrollAxes::Horizontal,

@@ -13,6 +13,7 @@ path = "src/platform_title_bar.rs"
 doctest = false
 
 [dependencies]
+agent_settings.workspace = true
 gpui.workspace = true
 project.workspace = true
 settings.workspace = true

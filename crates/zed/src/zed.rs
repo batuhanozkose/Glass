@@ -4586,7 +4586,10 @@ mod tests {
         assert_key_bindings_for(
             window.into(),
             cx,
-            vec![("backspace", &ActionB), ("{", &ActivatePreviousItem)],
+            vec![
+                ("backspace", &ActionB),
+                ("{", &ActivatePreviousItem::default()),
+            ],
             line!(),
         );
     }

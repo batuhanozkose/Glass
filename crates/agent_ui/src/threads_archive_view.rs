@@ -1,5 +1,5 @@
 use crate::agent_connection_store::AgentConnectionStore;
-use crate::thread_import::ThreadImportModal;
+use crate::thread_import::{AcpThreadImportOnboarding, ThreadImportModal};
 use crate::thread_metadata_store::{ThreadMetadata, ThreadMetadataStore};
 use crate::{Agent, RemoveSelectedThread};
 
@@ -108,6 +108,7 @@ pub struct ThreadsArchiveView {
     items: Vec<ArchiveListItem>,
     selection: Option<usize>,
     hovered_index: Option<usize>,
+    preserve_selection_on_next_update: bool,
     filter_editor: Entity<Editor>,
     _subscriptions: Vec<gpui::Subscription>,
     _refresh_history_task: Task<()>,
@@ -116,6 +117,7 @@ pub struct ThreadsArchiveView {
     agent_registry_store: WeakEntity<AgentRegistryStore>,
     workspace: WeakEntity<Workspace>,
     multi_workspace: WeakEntity<MultiWorkspace>,
+    show_header: bool,
 }
 
 impl ThreadsArchiveView {
@@ -125,6 +127,7 @@ impl ThreadsArchiveView {
         agent_registry_store: WeakEntity<AgentRegistryStore>,
         workspace: WeakEntity<Workspace>,
         multi_workspace: WeakEntity<MultiWorkspace>,
+        show_header: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -176,6 +179,7 @@ impl ThreadsArchiveView {
             items: Vec::new(),
             selection: None,
             hovered_index: None,
+            preserve_selection_on_next_update: false,
             filter_editor,
             _subscriptions: vec![
                 filter_editor_subscription,
@@ -187,6 +191,7 @@ impl ThreadsArchiveView {
             agent_server_store,
             workspace,
             multi_workspace,
+            show_header,
         };
 
         this.update_items(cx);
@@ -212,6 +217,7 @@ impl ThreadsArchiveView {
             .archived_entries()
             .sorted_by_cached_key(|t| t.created_at.unwrap_or(t.updated_at))
             .rev()
+            .cloned()
             .collect::<Vec<_>>();
 
         let query = self.filter_editor.read(cx).text(cx).to_lowercase();
@@ -251,10 +257,36 @@ impl ThreadsArchiveView {
             });
         }
 
+        let preserve = self.preserve_selection_on_next_update;
+        self.preserve_selection_on_next_update = false;
+
+        let saved_scroll = if preserve {
+            Some(self.list_state.logical_scroll_top())
+        } else {
+            None
+        };
+
         self.list_state.reset(items.len());
         self.items = items;
-        self.selection = None;
         self.hovered_index = None;
+
+        if let Some(scroll_top) = saved_scroll {
+            self.list_state.scroll_to(scroll_top);
+
+            if let Some(ix) = self.selection {
+                let next = self.find_next_selectable(ix).or_else(|| {
+                    ix.checked_sub(1)
+                        .and_then(|i| self.find_previous_selectable(i))
+                });
+                self.selection = next;
+                if let Some(next) = next {
+                    self.list_state.scroll_to_reveal_item(next);
+                }
+            }
+        } else {
+            self.selection = None;
+        }
+
         cx.notify();
     }
 
@@ -435,64 +467,54 @@ impl ThreadsArchiveView {
                         cx.notify();
                     }))
                     .action_slot(
-                        h_flex()
-                            .gap_2()
-                            .when(is_hovered || is_focused, |this| {
-                                let focus_handle = self.focus_handle.clone();
-                                this.child(
-                                    Button::new("unarchive-thread", "Open")
-                                        .style(ButtonStyle::Filled)
-                                        .label_size(LabelSize::Small)
-                                        .when(is_focused, |this| {
-                                            this.key_binding(
-                                                KeyBinding::for_action_in(
-                                                    &menu::Confirm,
-                                                    &focus_handle,
-                                                    cx,
-                                                )
-                                                .map(|kb| kb.size(rems_from_px(12.))),
-                                            )
-                                        })
-                                        .on_click({
-                                            let thread = thread.clone();
-                                            cx.listener(move |this, _, window, cx| {
-                                                this.unarchive_thread(thread.clone(), window, cx);
-                                            })
-                                        }),
-                                )
+                        IconButton::new("delete-thread", IconName::Trash)
+                            .style(ButtonStyle::Filled)
+                            .icon_size(IconSize::Small)
+                            .icon_color(Color::Muted)
+                            .tooltip({
+                                move |_window, cx| {
+                                    Tooltip::for_action_in(
+                                        "Delete Thread",
+                                        &RemoveSelectedThread,
+                                        &focus_handle,
+                                        cx,
+                                    )
+                                }
                             })
-                            .child(
-                                IconButton::new("delete-thread", IconName::Trash)
-                                    .style(ButtonStyle::Filled)
-                                    .icon_size(IconSize::Small)
-                                    .icon_color(Color::Muted)
-                                    .tooltip({
-                                        move |_window, cx| {
-                                            Tooltip::for_action_in(
-                                                "Delete Thread",
-                                                &RemoveSelectedThread,
-                                                &focus_handle,
-                                                cx,
-                                            )
-                                        }
-                                    })
-                                    .on_click({
-                                        let agent = thread.agent_id.clone();
-                                        let session_id = thread.session_id.clone();
-                                        cx.listener(move |this, _, _, cx| {
-                                            this.delete_thread(
-                                                session_id.clone(),
-                                                agent.clone(),
-                                                cx,
-                                            );
-                                            cx.stop_propagation();
-                                        })
-                                    }),
-                            ),
+                            .on_click({
+                                let agent = thread.agent_id.clone();
+                                let session_id = thread.session_id.clone();
+                                cx.listener(move |this, _, _, cx| {
+                                    this.delete_thread(session_id.clone(), agent.clone(), cx);
+                                    cx.stop_propagation();
+                                })
+                            }),
                     )
+                    .tooltip(move |_, cx| Tooltip::for_action("Restore Thread", &menu::Confirm, cx))
+                    .on_click({
+                        let thread = thread.clone();
+                        cx.listener(move |this, _, window, cx| {
+                            this.unarchive_thread(thread.clone(), window, cx);
+                        })
+                    })
                     .into_any_element()
             }
         }
+    }
+
+    fn remove_selected_thread(
+        &mut self,
+        _: &RemoveSelectedThread,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(ix) = self.selection else { return };
+        let Some(ArchiveListItem::Entry { thread, .. }) = self.items.get(ix) else {
+            return;
+        };
+
+        self.preserve_selection_on_next_update = true;
+        self.delete_thread(thread.session_id.clone(), thread.agent_id.clone(), cx);
     }
 
     fn delete_thread(
@@ -529,6 +551,16 @@ impl ThreadsArchiveView {
             task.await
         })
         .detach_and_log_err(cx);
+    }
+
+    fn should_render_acp_import_onboarding(&self, cx: &App) -> bool {
+        let has_external_agents = self
+            .agent_server_store
+            .upgrade()
+            .map(|store| store.read(cx).has_external_agents())
+            .unwrap_or(false);
+
+        has_external_agents && !AcpThreadImportOnboarding::dismissed(cx)
     }
 
     fn show_thread_import_modal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -720,8 +752,34 @@ impl Render for ThreadsArchiveView {
             .on_action(cx.listener(Self::select_first))
             .on_action(cx.listener(Self::select_last))
             .on_action(cx.listener(Self::confirm))
+            .on_action(cx.listener(Self::remove_selected_thread))
             .size_full()
-            .child(self.render_header(window, cx))
+            .when(self.show_header, |this| {
+                this.child(self.render_header(window, cx))
+            })
             .child(content)
+            .when(!self.should_render_acp_import_onboarding(cx), |this| {
+                this.child(
+                    div()
+                        .w_full()
+                        .p_1p5()
+                        .border_t_1()
+                        .border_color(cx.theme().colors().border)
+                        .child(
+                            Button::new("import-acp", "Import ACP Threads")
+                                .full_width()
+                                .style(ButtonStyle::OutlinedCustom(cx.theme().colors().border))
+                                .label_size(LabelSize::Small)
+                                .start_icon(
+                                    Icon::new(IconName::ArrowDown)
+                                        .size(IconSize::XSmall)
+                                        .color(Color::Muted),
+                                )
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.show_thread_import_modal(window, cx);
+                                })),
+                        ),
+                )
+            })
     }
 }
