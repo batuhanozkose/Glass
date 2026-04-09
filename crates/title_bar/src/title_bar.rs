@@ -254,7 +254,7 @@ impl TitleBar {
                 .and_then(|reg| reg.titlebar_center_view(mode_id).cloned())
         });
 
-        if let Some(center_view) = titlebar_center {
+        if let Some(center_view) = titlebar_center.clone() {
             children.push(
                 div()
                     .flex_1()

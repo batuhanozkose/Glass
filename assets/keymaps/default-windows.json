@@ -851,18 +851,7 @@
     },
   },
   {
-<<<<<<< HEAD
     "context": "!ContextEditor && !AcpThread > Editor && mode == full",
-=======
-    "context": "!Terminal",
-    "use_key_equivalents": true,
-    "bindings": {
-      "ctrl-shift-c": "collab_panel::ToggleFocus",
-    },
-  },
-  {
-    "context": "!AcpThread > Editor && mode == full",
->>>>>>> 0b984b5ade7604e3f1c618c0ef77879de800b868
     "use_key_equivalents": true,
     "bindings": {
       "alt-enter": "editor::OpenExcerpts",

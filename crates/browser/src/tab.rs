@@ -22,6 +22,7 @@ use cef::{
     ImplBrowser, ImplBrowserHost, ImplFrame, ImplRequestContext, KeyEvent, KeyEventType,
     MouseButtonType,
 };
+#[cfg(target_os = "macos")]
 use core_video::pixel_buffer::CVPixelBuffer;
 use gpui::{Context, EventEmitter, Hsla};
 use parking_lot::Mutex;
@@ -662,6 +663,7 @@ impl BrowserTab {
         });
     }
 
+    #[cfg(target_os = "macos")]
     pub fn current_frame(&self) -> Option<CVPixelBuffer> {
         self.render_state.lock().current_frame.clone()
     }
@@ -757,7 +759,10 @@ impl BrowserTab {
                 }
             }
         }
-        self.render_state.lock().current_frame = None;
+        #[cfg(target_os = "macos")]
+        {
+            self.render_state.lock().current_frame = None;
+        }
     }
 
     /// Access the CEF browser handle from the global registry.

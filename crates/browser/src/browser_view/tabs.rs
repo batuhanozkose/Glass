@@ -183,6 +183,7 @@ impl BrowserView {
         } else {
             let viewport = self.last_viewport;
             new_tab.update(cx, |tab, _| {
+                #[cfg(target_os = "macos")]
                 if tab.current_frame().is_none() {
                     if let Some((width, height, scale_key)) = viewport {
                         if width > 0 && height > 0 {

@@ -10,7 +10,7 @@ use gpui::{
 };
 use gpui::{MouseButton, deferred};
 #[cfg(not(target_os = "macos"))]
-use gpui::{MouseButton, deferred, px};
+use gpui::px;
 use project::{DirectoryLister, DisableAiSettings, Project, ProjectGroupKey};
 use settings::Settings;
 use settings::SidebarDockPosition;
@@ -32,9 +32,11 @@ pub const SIDEBAR_RESIZE_HANDLE_SIZE: Pixels = px(6.0);
 
 use crate::{
     CloseIntent, CloseWindow, DockPosition, Event as WorkspaceEvent, Item, ModalView, OpenMode,
-    Panel, Workspace, WorkspaceId, WorkspaceSidebarHost, client_side_decorations,
+    Panel, Workspace, WorkspaceId, client_side_decorations,
     persistence::model::MultiWorkspaceState,
 };
+#[cfg(target_os = "macos")]
+use crate::WorkspaceSidebarHost;
 
 actions!(
     multi_workspace,
@@ -838,6 +840,7 @@ impl MultiWorkspace {
             workspace.invalidate_window_caches(window, cx);
             cx.notify();
         });
+        #[cfg(target_os = "macos")]
         self.sync_workspace_sidebar_host(cx);
         self.focus_active_workspace(window, cx);
         if changed {
@@ -919,6 +922,7 @@ impl MultiWorkspace {
             workspace.invalidate_window_caches(window, cx);
             cx.notify();
         });
+        #[cfg(target_os = "macos")]
         self.sync_workspace_sidebar_host(cx);
         self.serialize(cx);
         self.focus_active_workspace(window, cx);
@@ -939,6 +943,7 @@ impl MultiWorkspace {
             workspace.invalidate_window_caches(window, cx);
             cx.notify();
         });
+        #[cfg(target_os = "macos")]
         self.sync_workspace_sidebar_host(cx);
         self.serialize(cx);
         self.focus_active_workspace(window, cx);

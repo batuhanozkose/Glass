@@ -10,8 +10,11 @@ use cef::{
     AcceleratedPaintInfo, Browser, ImplRenderHandler, PaintElementType, Rect, RenderHandler,
     ScreenInfo, WrapRenderHandler, rc::Rc as _, wrap_render_handler,
 };
+#[cfg(target_os = "macos")]
 use core_foundation::base::TCFType;
+#[cfg(target_os = "macos")]
 use core_video::pixel_buffer::CVPixelBuffer;
+#[cfg(target_os = "macos")]
 #[allow(deprecated)]
 use io_surface::IOSurface;
 use parking_lot::Mutex;
@@ -21,6 +24,7 @@ pub struct RenderState {
     pub width: u32,
     pub height: u32,
     pub scale_factor: f32,
+    #[cfg(target_os = "macos")]
     pub current_frame: Option<CVPixelBuffer>,
 }
 
@@ -30,6 +34,7 @@ impl Default for RenderState {
             width: 800,
             height: 600,
             scale_factor: 1.0,
+            #[cfg(target_os = "macos")]
             current_frame: None,
         }
     }
@@ -112,35 +117,40 @@ wrap_render_handler! {
                 return;
             }
 
-            let Some(info) = info else {
-                log::warn!("[browser::render_handler] on_accelerated_paint() no info");
-                return;
-            };
+            #[cfg(target_os = "macos")]
+            {
+                let Some(info) = info else {
+                    log::warn!("[browser::render_handler] on_accelerated_paint() no info");
+                    return;
+                };
 
-            let io_surface_ptr = info.shared_texture_io_surface;
-            if io_surface_ptr.is_null() {
-                log::warn!("[browser::render_handler] on_accelerated_paint() null IOSurface");
-                return;
-            }
-
-            // Wrap the raw IOSurface pointer. CEF owns the IOSurface and will
-            // recycle it when this callback returns, but CVPixelBuffer::from_io_surface
-            // retains it so we can hold it safely beyond the callback.
-            #[allow(deprecated)]
-            let io_surface: IOSurface = unsafe {
-                TCFType::wrap_under_get_rule(io_surface_ptr as io_surface::IOSurfaceRef)
-            };
-
-            let pixel_buffer = match CVPixelBuffer::from_io_surface(&io_surface, None) {
-                Ok(pb) => pb,
-                Err(err) => {
-                    log::error!("[browser::render_handler] on_accelerated_paint() CVPixelBuffer::from_io_surface failed: {:?}", err);
+                let io_surface_ptr = info.shared_texture_io_surface;
+                if io_surface_ptr.is_null() {
+                    log::warn!("[browser::render_handler] on_accelerated_paint() null IOSurface");
                     return;
                 }
-            };
 
-            self.handler.state.lock().current_frame = Some(pixel_buffer);
-            let _ = self.handler.sender.send(BrowserEvent::FrameReady);
+                #[allow(deprecated)]
+                let io_surface: IOSurface = unsafe {
+                    TCFType::wrap_under_get_rule(io_surface_ptr as io_surface::IOSurfaceRef)
+                };
+
+                let pixel_buffer = match CVPixelBuffer::from_io_surface(&io_surface, None) {
+                    Ok(pb) => pb,
+                    Err(err) => {
+                        log::error!("[browser::render_handler] on_accelerated_paint() CVPixelBuffer::from_io_surface failed: {:?}", err);
+                        return;
+                    }
+                };
+
+                self.handler.state.lock().current_frame = Some(pixel_buffer);
+                let _ = self.handler.sender.send(BrowserEvent::FrameReady);
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = info;
+            }
         }
 
         fn on_paint(

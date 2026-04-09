@@ -9,6 +9,8 @@ use cef::{
     PermissionHandler, RenderHandler, WrapClient, WrapKeyboardHandler, rc::Rc as _, wrap_client,
     wrap_keyboard_handler,
 };
+#[cfg(target_os = "windows")]
+use cef::sys::tagMSG;
 
 use crate::context_menu_handler::{ContextMenuHandlerBuilder, OsrContextMenuHandler};
 use crate::display_handler::{DisplayHandlerBuilder, OsrDisplayHandler};
@@ -33,6 +35,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 pub(crate) static MANUAL_KEY_EVENT: AtomicBool = AtomicBool::new(false);
 
+#[cfg(target_os = "windows")]
+type KeyboardOsEvent<'a> = Option<&'a mut tagMSG>;
+#[cfg(not(target_os = "windows"))]
+type KeyboardOsEvent<'a> = *mut u8;
+
 #[derive(Clone)]
 struct OsrKeyboardHandler;
 
@@ -46,7 +53,7 @@ wrap_keyboard_handler! {
             &self,
             _browser: Option<&mut Browser>,
             _event: Option<&KeyEvent>,
-            _os_event: *mut u8,
+            _os_event: KeyboardOsEvent<'_>,
             _is_keyboard_shortcut: Option<&mut ::std::os::raw::c_int>,
         ) -> ::std::os::raw::c_int {
             let is_manual = MANUAL_KEY_EVENT.load(Ordering::Relaxed);
@@ -77,7 +84,7 @@ wrap_keyboard_handler! {
             &self,
             _browser: Option<&mut Browser>,
             _event: Option<&KeyEvent>,
-            _os_event: *mut u8,
+            _os_event: KeyboardOsEvent<'_>,
             _is_keyboard_shortcut: Option<&mut ::std::os::raw::c_int>,
         ) -> ::std::os::raw::c_int {
             0 // Allow all native key events through.
