@@ -361,7 +361,21 @@ impl SerializedPane {
 
         let mut items = Vec::new();
         for item_handle in futures::future::join_all(item_tasks).await {
-            let item_handle = item_handle.log_err();
+            let item_handle = match item_handle {
+                Ok(item_handle) => Some(item_handle),
+                Err(error)
+                    if error
+                        .to_string()
+                        .contains("No entry in database for item_id") =>
+                {
+                    log::debug!("{error:#}");
+                    None
+                }
+                Err(error) => {
+                    log::error!("{error:#}");
+                    None
+                }
+            };
             items.push(item_handle.clone());
 
             if let Some(item_handle) = item_handle {

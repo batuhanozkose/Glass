@@ -81,8 +81,24 @@ Write-Host "Building companion CLI..."
 Invoke-BuildCommand -Arguments @("build", "--package", "cli", "--bin", "cli")
 
 if ($Run) {
-    Write-Host "Running Glass..."
-    Invoke-BuildCommand -Arguments @("run", "-p", "zed")
+    Write-Host "Building Glass..."
+    Invoke-BuildCommand -Arguments @("build", "-p", "zed")
+
+    $zedBinary = Join-Path $repoRoot "target\debug\zed.exe"
+    if (-not (Test-Path $zedBinary)) {
+        throw "Expected Glass binary not found at '$zedBinary'."
+    }
+
+    $cefRuntimeDirectory = & powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "stage-windows-cef-runtime.ps1")
+    if (-not $cefRuntimeDirectory) {
+        throw "Failed to stage the Windows CEF runtime."
+    }
+    $cefRuntimeDirectory = $cefRuntimeDirectory.Trim()
+    $env:CEF_PATH = $cefRuntimeDirectory
+    Add-ToPathIfPresent -PathEntry $cefRuntimeDirectory
+
+    Write-Host "Launching Glass..."
+    Start-Process -FilePath $zedBinary -WorkingDirectory $repoRoot | Out-Null
 } else {
     Write-Host "Building Glass..."
     Invoke-BuildCommand -Arguments @("build", "-p", "zed")
