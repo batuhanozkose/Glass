@@ -1,6 +1,6 @@
 use gpui::{
     Context, Corner, ElementInputHandler, IntoElement, MouseButton, NativeImageScaling,
-    NativeImageSymbolWeight, ParentElement, Styled, anchored, canvas, deferred, div,
+    NativeImageSymbolWeight, ObjectFit, ParentElement, Styled, anchored, canvas, deferred, div,
     native_icon_button, native_image_view, prelude::*, px,
 };
 #[cfg(target_os = "macos")]

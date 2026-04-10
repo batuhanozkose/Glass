@@ -613,6 +613,14 @@ impl MultiWorkspace {
         self.add_project_group_key(project_group_key);
     }
 
+    pub(crate) fn set_workspace_group_key(
+        &mut self,
+        workspace: &Entity<Workspace>,
+        project_group_key: ProjectGroupKey,
+    ) {
+        self.set_provisional_project_group_key(workspace, project_group_key);
+    }
+
     pub fn project_group_key_for_workspace(
         &self,
         workspace: &Entity<Workspace>,

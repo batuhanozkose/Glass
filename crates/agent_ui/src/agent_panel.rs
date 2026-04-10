@@ -6459,7 +6459,7 @@ mod tests {
                 let metadata = store
                     .entry(session_id)
                     .unwrap_or_else(|| panic!("{label} thread metadata should exist"));
-                metadata.folder_paths.clone()
+                metadata.folder_paths().clone()
             });
             let mut sorted = metadata_paths.ordered_paths().cloned().collect::<Vec<_>>();
             sorted.sort();

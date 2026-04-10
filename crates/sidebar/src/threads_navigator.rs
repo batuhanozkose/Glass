@@ -4,7 +4,7 @@ use acp_thread::ThreadStatus;
 use action_log::DiffStats;
 use agent_client_protocol::{self as acp};
 use agent_ui::thread_metadata_store::{
-    ThreadMetadata, ThreadMetadataStore, workspace_folder_paths,
+    ThreadMetadata, ThreadMetadataStore, ThreadWorktreePaths, workspace_folder_paths,
     workspace_root_repository_snapshots,
 };
 use agent_ui::thread_worktree_archive;
@@ -1453,7 +1453,7 @@ impl ThreadsNavigator {
                         }
                         let (agent, icon, icon_from_external_svg) = resolve_agent(&row);
                         let worktrees =
-                            worktree_info_from_thread_paths(&row.folder_paths, &project_groups);
+                            worktree_info_from_thread_paths(row.folder_paths(), &project_groups);
                         threads.push(ThreadEntry {
                             agent,
                             session_info: acp_thread::AgentSessionInfo {
@@ -1503,7 +1503,7 @@ impl ThreadsNavigator {
                         }
                         let (agent, icon, icon_from_external_svg) = resolve_agent(&row);
                         let worktrees =
-                            worktree_info_from_thread_paths(&row.folder_paths, &project_groups);
+                            worktree_info_from_thread_paths(row.folder_paths(), &project_groups);
                         threads.push(ThreadEntry {
                             agent,
                             session_info: acp_thread::AgentSessionInfo {
@@ -2942,8 +2942,10 @@ impl ThreadsNavigator {
                 .unwrap_or_else(|| DEFAULT_THREAD_TITLE.into()),
             updated_at: session_info.updated_at.unwrap_or_else(Utc::now),
             created_at: session_info.created_at,
-            main_worktree_paths: session_info.work_dirs.clone().unwrap_or_default(),
-            folder_paths: session_info.work_dirs.clone().unwrap_or_default(),
+            worktree_paths: ThreadWorktreePaths::from_folder_paths(
+                &session_info.work_dirs.clone().unwrap_or_default(),
+            ),
+            remote_connection: None,
             archived: false,
         };
 
@@ -2960,13 +2962,13 @@ impl ThreadsNavigator {
             _ => None,
         };
 
-        if metadata.folder_paths.paths().is_empty() {
+        if metadata.folder_paths().paths().is_empty() {
             ThreadMetadataStore::global(cx).update(cx, |store, cx| store.unarchive(&session_id, cx));
 
             if let Some(workspace) = self.find_active_workspace(cx) {
                 self.activate_thread_locally(agent, session_info, &workspace, window, cx);
             } else if let Some((target_window, workspace)) =
-                self.find_open_workspace_for_path_list(&metadata.folder_paths, cx)
+                self.find_open_workspace_for_path_list(metadata.folder_paths(), cx)
             {
                 self.activate_thread_in_other_window(
                     agent,
@@ -2979,7 +2981,7 @@ impl ThreadsNavigator {
                 self.open_workspace_and_activate_thread(
                     agent,
                     session_info,
-                    metadata.folder_paths.clone(),
+                    metadata.folder_paths().clone(),
                     window,
                     cx,
                 );
@@ -2992,7 +2994,7 @@ impl ThreadsNavigator {
         let fetch_archived_worktrees = store
             .read(cx)
             .get_archived_worktrees_for_thread(session_id.0.to_string(), cx);
-        let path_list = metadata.folder_paths.clone();
+        let path_list = metadata.folder_paths().clone();
         let task_session_id = session_id.clone();
         let restore_task = cx.spawn_in(window, async move |this, cx| {
             let result: anyhow::Result<()> = async {
@@ -3096,7 +3098,7 @@ impl ThreadsNavigator {
                         cx.update(|_window, cx| store.read(cx).entry(&session_id).cloned())?;
 
                     if let Some(updated_metadata) = updated_work_dirs {
-                        let new_path_list = updated_metadata.folder_paths.clone();
+                        let new_path_list = updated_metadata.folder_paths().clone();
                         let updated_session_info = acp_thread::AgentSessionInfo {
                             session_id: updated_metadata.session_id.clone(),
                             work_dirs: Some(new_path_list.clone()),
@@ -4278,7 +4280,7 @@ impl ThreadsNavigator {
                 ThreadsArchiveViewEvent::Unarchive { thread } => {
                     let session_info = acp_thread::AgentSessionInfo {
                         session_id: thread.session_id.clone(),
-                        work_dirs: Some(thread.folder_paths.clone()),
+                        work_dirs: Some(thread.folder_paths().clone()),
                         title: Some(thread.title.clone()),
                         updated_at: Some(thread.updated_at),
                         created_at: thread.created_at,
@@ -4653,7 +4655,9 @@ mod tests {
             title,
             updated_at,
             created_at: None,
-            folder_paths: path_list,
+            worktree_paths: ThreadWorktreePaths::from_folder_paths(&path_list),
+            remote_connection: None,
+            archived: false,
         };
         cx.update(|cx| {
             ThreadMetadataStore::global(cx).update(cx, |store, cx| store.save(metadata, cx))

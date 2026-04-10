@@ -408,21 +408,15 @@ fn check_style() -> NamedJob {
 fn check_dependencies() -> NamedJob {
     fn install_cargo_machete() -> Step<Use> {
         named::uses(
-            "clechasseur",
-            "rs-cargo",
-            "8435b10f6e71c2e3d4d3b7573003a8ce4bfc6386", // v2
+            "taiki-e",
+            "install-action",
+            "02cc5f8ca9f2301050c0c099055816a41ee05507",
         )
-        .add_with(("command", "install"))
-        .add_with(("args", "cargo-machete@0.7.0"))
+        .add_with(("tool", "cargo-machete@0.7.0"))
     }
 
-    fn run_cargo_machete() -> Step<Use> {
-        named::uses(
-            "clechasseur",
-            "rs-cargo",
-            "8435b10f6e71c2e3d4d3b7573003a8ce4bfc6386", // v2
-        )
-        .add_with(("command", "machete"))
+    fn run_cargo_machete() -> Step<Run> {
+        named::bash("cargo machete")
     }
 
     fn check_cargo_lock() -> Step<Run> {
@@ -449,6 +443,38 @@ fn check_dependencies() -> NamedJob {
             .add_step(check_cargo_lock())
             .add_step(check_vulnerable_dependencies()),
     ))
+}
+
+fn check_wasm() -> NamedJob {
+    fn install_nightly_wasm_toolchain() -> Step<Run> {
+        named::bash(
+            "rustup toolchain install nightly --component rust-src --target wasm32-unknown-unknown",
+        )
+    }
+
+    fn cargo_check_wasm() -> Step<Run> {
+        named::bash(concat!(
+            "cargo +nightly -Zbuild-std=std,panic_abort ",
+            "check --target wasm32-unknown-unknown -p gpui_platform",
+        ))
+        .add_env((
+            "CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUSTFLAGS",
+            "-C target-feature=+atomics,+bulk-memory,+mutable-globals",
+        ))
+    }
+
+    named::job(
+        release_job(&[])
+            .runs_on(runners::LINUX_LARGE)
+            .add_step(steps::checkout_repo())
+            .add_step(steps::setup_cargo_config(Platform::Linux))
+            .add_step(steps::cache_rust_dependencies_namespace())
+            .add_step(install_nightly_wasm_toolchain())
+            .add_step(steps::setup_sccache(Platform::Linux))
+            .add_step(cargo_check_wasm())
+            .add_step(steps::show_sccache_stats(Platform::Linux))
+            .add_step(steps::cleanup_cargo_config(Platform::Linux)),
+    )
 }
 
 fn check_workspace_binaries() -> NamedJob {

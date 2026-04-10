@@ -5,7 +5,7 @@
 //! IOSurface handle. We wrap it as a CVPixelBuffer for zero-copy rendering
 //! through GPUI's Surface element.
 
-use crate::events::EventSender;
+use crate::events::{BrowserEvent, EventSender};
 use cef::{
     AcceleratedPaintInfo, Browser, ImplRenderHandler, PaintElementType, Rect, RenderHandler,
     ScreenInfo, WrapRenderHandler, rc::Rc as _, wrap_render_handler,
