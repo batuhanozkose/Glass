@@ -1365,6 +1365,18 @@ impl ThreadsNavigator {
         // main git repository. This replaces the manual absorbed-workspace
         // detection that was here before.
         let project_groups = ProjectGroupBuilder::from_multiworkspace(mw, cx);
+        let mut all_paths: Vec<PathBuf> = project_groups
+            .groups()
+            .flat_map(|(group_name, _)| group_name.path_list().paths().iter().cloned())
+            .collect();
+        all_paths.sort();
+        all_paths.dedup();
+        let path_details =
+            util::disambiguate::compute_disambiguation_details(&all_paths, |path, detail| {
+                project::path_suffix(path, detail)
+            });
+        let path_detail_map: HashMap<PathBuf, usize> =
+            all_paths.into_iter().zip(path_details).collect();
 
         let has_open_projects = workspaces
             .iter()
@@ -1392,7 +1404,7 @@ impl ThreadsNavigator {
                 continue;
             }
 
-            let label = group_name.display_name();
+            let label = group_name.display_name(&path_detail_map);
 
             let is_collapsed = self.collapsed_groups.contains(&path_list);
             let should_load_threads = !is_collapsed || !query.is_empty();

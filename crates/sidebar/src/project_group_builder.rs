@@ -29,15 +29,19 @@ pub struct ProjectGroupName {
 }
 
 impl ProjectGroupName {
-    pub fn display_name(&self) -> SharedString {
+    pub fn display_name(
+        &self,
+        path_detail_map: &std::collections::HashMap<PathBuf, usize>,
+    ) -> SharedString {
         let mut names = Vec::with_capacity(self.path_list.paths().len());
         for abs_path in self.path_list.paths() {
-            if let Some(name) = abs_path.file_name() {
-                names.push(name.to_string_lossy().to_string());
+            let detail = path_detail_map.get(abs_path).copied().unwrap_or(0);
+            let suffix = path_suffix(abs_path, detail);
+            if !suffix.is_empty() {
+                names.push(suffix);
             }
         }
         if names.is_empty() {
-            // TODO: Can we do something better in this case?
             "Empty Workspace".into()
         } else {
             names.join(", ").into()
@@ -47,6 +51,20 @@ impl ProjectGroupName {
     pub fn path_list(&self) -> &PathList {
         &self.path_list
     }
+}
+
+fn path_suffix(path: &Path, detail: usize) -> String {
+    let mut components: Vec<_> = path
+        .components()
+        .rev()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(name) => Some(name.to_string_lossy()),
+            _ => None,
+        })
+        .take(detail + 1)
+        .collect();
+    components.reverse();
+    components.join("/")
 }
 
 #[derive(Default)]
