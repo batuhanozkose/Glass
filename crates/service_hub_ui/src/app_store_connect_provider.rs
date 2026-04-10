@@ -17,26 +17,17 @@ use service_hub::{
     ServiceOperationRequest, ServiceProviderDescriptor, ServiceResourceRef, ServiceRunDescriptor,
     ServiceRunState, ServiceWorkflowDescriptor, ServiceWorkflowKind, ServiceWorkflowRequest,
 };
+#[cfg(target_os = "macos")]
+use ui::Severity;
 use ui::{
     AnyElement, Button, ButtonSize, ButtonStyle, Checkbox, Color, ContextMenu, IconButton,
     IconName, Indicator, Label, LabelSize, Modal, ModalFooter, ModalHeader, ToggleState,
     WithScrollbar, h_flex, prelude::*, v_flex,
 };
-#[cfg(target_os = "macos")]
-use ui::Severity;
 use ui_input::InputField;
 use util::command::new_command;
 use workspace::{DismissDecision, ModalView, Workspace};
 
-use crate::{
-    command_runner::{run_json_operation, run_workflow},
-    service_workflow::{
-        ServiceWorkflowFormState, ServiceWorkflowOption, ServiceWorkflowRunSummary,
-        ServiceWorkflowUiAction, ServiceWorkflowUiModel,
-    },
-    services_page::ServicesPage,
-    services_provider::{ServiceWorkspaceAdapter, ServicesPageState},
-};
 #[cfg(target_os = "macos")]
 use crate::{
     app_store_connect_auth::{AscAuthSummary, load_auth_status},
@@ -45,6 +36,15 @@ use crate::{
         ServiceAuthFormState, ServiceAuthStatusSummary, ServiceAuthUiAction, ServiceAuthUiModel,
     },
     services_provider::{ServiceResourceMenuEntry, ServiceResourceMenuModel},
+};
+use crate::{
+    command_runner::{run_json_operation, run_workflow},
+    service_workflow::{
+        ServiceWorkflowFormState, ServiceWorkflowOption, ServiceWorkflowRunSummary,
+        ServiceWorkflowUiAction, ServiceWorkflowUiModel,
+    },
+    services_page::ServicesPage,
+    services_provider::{ServiceWorkspaceAdapter, ServicesPageState},
 };
 
 pub(crate) const APP_STORE_CONNECT_PROVIDER_ID: &str = "app-store-connect";
@@ -784,12 +784,12 @@ impl AppStoreConnectWorkspaceProvider {
 
                         #[cfg(target_os = "macos")]
                         {
-                            pane.auth_state =
-                                match auth_result.expect("auth should load when ASC CLI is ready")
-                                {
+                            pane.auth_state = match auth_result
+                                .expect("auth should load when ASC CLI is ready")
+                            {
                                 Ok(summary) => LoadState::Ready(summary),
                                 Err(error) => LoadState::Error(error.to_string()),
-                                };
+                            };
                         }
                         pane.web_auth_state = match web_auth_result
                             .expect("web auth should load when ASC CLI is ready")

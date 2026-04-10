@@ -1,10 +1,10 @@
+#[cfg(target_os = "macos")]
+use gpui::surface;
 use gpui::{
     Context, Corner, ElementInputHandler, IntoElement, MouseButton, NativeImageScaling,
     NativeImageSymbolWeight, ObjectFit, ParentElement, Styled, anchored, canvas, deferred, div,
     native_icon_button, native_image_view, prelude::*, px,
 };
-#[cfg(target_os = "macos")]
-use gpui::surface;
 use ui::prelude::*;
 
 use super::BrowserView;

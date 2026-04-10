@@ -131,13 +131,14 @@ fn attach_browser_toolbar_to_pane(
     else {
         return;
     };
-    let (history, browser_focus_handle, active_tab) = browser_view.read_with(cx, |browser_view, cx| {
-        (
-            browser_view.history().clone(),
-            browser_view.focus_handle(cx),
-            browser_view.active_tab().cloned(),
-        )
-    });
+    let (history, browser_focus_handle, active_tab) =
+        browser_view.read_with(cx, |browser_view, cx| {
+            (
+                browser_view.history().clone(),
+                browser_view.focus_handle(cx),
+                browser_view.active_tab().cloned(),
+            )
+        });
 
     toolbar.update(cx, |toolbar, cx| {
         let browser_toolbar = cx.new(|cx| {
@@ -257,13 +258,10 @@ pub fn init(cx: &mut App) {
             let browser_view: Entity<BrowserView> = cx.new(|cx| BrowserView::new(cx));
             let focus_handle = browser_view.focus_handle(cx);
 
-            #[cfg(target_os = "macos")]
             let sidebar_view = {
                 let panel = browser_view.update(cx, |bv, cx| bv.ensure_native_sidebar_panel(cx));
                 Some(gpui::AnyView::from(panel))
             };
-            #[cfg(not(target_os = "macos"))]
-            let sidebar_view = None;
 
             let deactivate_view = browser_view.downgrade();
             let on_deactivate: Arc<dyn Fn(&mut App) + Send + Sync> =

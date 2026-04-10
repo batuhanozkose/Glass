@@ -992,11 +992,10 @@ impl Domain for WorkspaceDb {
             && new.starts_with("CREATE TABLE ssh_connections");
         let remote_env_migration =
             "ALTER TABLE\n  remote_connections\nADD\n  COLUMN remote_env TEXT;";
-        let active_mode_migration =
-            "ALTER TABLE\n  workspaces\nADD\n  COLUMN active_mode TEXT;";
-        let swapped_workspace_mode_migrations =
-            (old == remote_env_migration && new == active_mode_migration)
-                || (old == active_mode_migration && new == remote_env_migration);
+        let active_mode_migration = "ALTER TABLE\n  workspaces\nADD\n  COLUMN active_mode TEXT;";
+        let swapped_workspace_mode_migrations = (old == remote_env_migration
+            && new == active_mode_migration)
+            || (old == active_mode_migration && new == remote_env_migration);
 
         ssh_connections_change || swapped_workspace_mode_migrations
     }

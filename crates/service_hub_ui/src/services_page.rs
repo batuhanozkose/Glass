@@ -1,39 +1,38 @@
 use std::collections::BTreeMap;
 
 use db::kvp::KeyValueStore;
-use gpui::{
-    App, Context, Corner, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, Global,
-    InteractiveElement, Render, SharedString, Stateful, WeakEntity, Window, div,
-    point, prelude::FluentBuilder as _, px,
-};
 #[cfg(target_os = "macos")]
 use gpui::Subscription;
+use gpui::{
+    App, Context, Corner, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, Global,
+    InteractiveElement, Render, SharedString, Stateful, WeakEntity, Window, div, point,
+    prelude::FluentBuilder as _, px,
+};
 use service_hub::{ServiceHub, ServiceProviderDescriptor};
 use ui::{
-    AnyElement, ButtonLike, ButtonSize, ButtonStyle, Checkbox, Clickable, Color, ContextMenu,
-    Icon, IconName, IconSize, Label, LabelSize, PopoverMenu, SpinnerLabel, Toggleable,
-    prelude::*,
+    AnyElement, ButtonLike, ButtonSize, ButtonStyle, Checkbox, Clickable, Color, ContextMenu, Icon,
+    IconName, IconSize, Label, LabelSize, PopoverMenu, SpinnerLabel, Toggleable, prelude::*,
 };
 #[cfg(target_os = "macos")]
 use ui::{
     Button, ContextMenuEntry, ContextMenuItem, IconButton, IconButtonShape, Indicator, Severity,
     TintColor, Tooltip,
 };
-use workspace::item::{Item, ItemBufferKind, ItemEvent};
 use workspace::Workspace;
 #[cfg(target_os = "macos")]
 use workspace::WorkspaceSidebarSection;
+use workspace::item::{Item, ItemBufferKind, ItemEvent};
 #[cfg(target_os = "macos")]
 use workspace_chrome::SidebarRow;
 
+#[cfg(target_os = "macos")]
+use crate::service_auth::{
+    ServiceAuthFieldState, ServiceAuthStatusSummary, ServiceAuthUiAction, ServiceAuthUiModel,
+};
 use crate::service_hub_onboarding::ServiceHubOnboarding;
 use crate::service_workflow::{
     ServiceWorkflowFieldState, ServiceWorkflowOption, ServiceWorkflowRunSummary,
     ServiceWorkflowUiAction, ServiceWorkflowUiModel,
-};
-#[cfg(target_os = "macos")]
-use crate::service_auth::{
-    ServiceAuthFieldState, ServiceAuthStatusSummary, ServiceAuthUiAction, ServiceAuthUiModel,
 };
 use crate::services_provider::{
     ServiceWorkspacePane, ServicesPageState, build_service_workspace_panes,

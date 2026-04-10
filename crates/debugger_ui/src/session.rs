@@ -3,8 +3,8 @@ pub mod running;
 use crate::{persistence::SerializedLayout, session::running::DebugTerminal};
 use dap::client::SessionId;
 use gpui::{App, Axis, Entity, EventEmitter, FocusHandle, Focusable, Task, WeakEntity};
-use rpc::proto;
 use project::debugger::session::Session;
+use rpc::proto;
 
 use project::{Project, debugger::session::SessionQuirks};
 use running::RunningState;

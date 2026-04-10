@@ -3,14 +3,13 @@ use anyhow::Result;
 use gpui::PathPromptOptions;
 #[cfg(target_os = "macos")]
 use gpui::native_sidebar;
-use gpui::{
-    AnyView, App, Context, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
-    ManagedView, Pixels, Render, Subscription, Task, Tiling, Window,
-    WindowBackgroundAppearance, WindowId, actions,
-};
-use gpui::{MouseButton, deferred};
 #[cfg(not(target_os = "macos"))]
 use gpui::px;
+use gpui::{
+    AnyView, App, Context, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
+    ManagedView, Pixels, Render, Subscription, Task, Tiling, Window, WindowId, actions,
+};
+use gpui::{MouseButton, deferred};
 use project::{DirectoryLister, Project, ProjectGroupKey};
 use remote::RemoteConnectionOptions;
 use settings::Settings;
@@ -32,14 +31,13 @@ use zed_actions::agents_sidebar::ToggleThreadSwitcher;
 #[cfg(not(target_os = "macos"))]
 pub const SIDEBAR_RESIZE_HANDLE_SIZE: Pixels = px(6.0);
 
+use crate::WorkspaceSidebarHost;
 use crate::open_remote_project_with_existing_connection;
 use crate::{
     CloseIntent, CloseWindow, DockPosition, Event as WorkspaceEvent, Item, ModalView, OpenMode,
     Panel, Workspace, WorkspaceId, client_side_decorations,
     persistence::model::MultiWorkspaceState,
 };
-#[cfg(target_os = "macos")]
-use crate::WorkspaceSidebarHost;
 
 actions!(
     multi_workspace,
@@ -263,7 +261,6 @@ pub struct MultiWorkspace {
     project_group_keys: Vec<ProjectGroupKey>,
     provisional_project_group_keys: HashMap<EntityId, ProjectGroupKey>,
     sidebar: Option<Box<dyn SidebarHandle>>,
-    #[cfg(target_os = "macos")]
     workspace_sidebar_host: Entity<WorkspaceSidebarHost>,
     sidebar_open: bool,
     sidebar_has_notifications: bool,
@@ -300,7 +297,6 @@ impl MultiWorkspace {
         });
         let quit_subscription = cx.on_app_quit(Self::app_will_quit);
         Self::subscribe_to_workspace(&workspace, cx);
-        #[cfg(target_os = "macos")]
         let workspace_sidebar_host = {
             let left_dock = workspace.read(cx).left_dock().clone();
             let bottom_dock = workspace.read(cx).bottom_dock().clone();
@@ -314,7 +310,6 @@ impl MultiWorkspace {
             active_workspace_index: 0,
             provisional_project_group_keys: HashMap::default(),
             sidebar: None,
-            #[cfg(target_os = "macos")]
             workspace_sidebar_host,
             sidebar_open: false,
             sidebar_has_notifications: false,
@@ -350,7 +345,6 @@ impl MultiWorkspace {
             .cloned()
     }
 
-    #[cfg(target_os = "macos")]
     pub fn workspace_sidebar_host(&self) -> &Entity<WorkspaceSidebarHost> {
         &self.workspace_sidebar_host
     }
@@ -555,11 +549,8 @@ impl MultiWorkspace {
         .detach();
 
         cx.observe(workspace, |_this, _observed_workspace, cx| {
-            #[cfg(target_os = "macos")]
-            {
-                if *_this.workspace() == _observed_workspace {
-                    _this.sync_workspace_sidebar_host(cx);
-                }
+            if *_this.workspace() == _observed_workspace {
+                _this.sync_workspace_sidebar_host(cx);
             }
             cx.notify();
         })
@@ -575,9 +566,8 @@ impl MultiWorkspace {
     }
 
     /// Sync the shared unified sidebar to point at the active workspace's left dock,
-    /// selected section, dock roots, and hosted sidebar view. Width is NOT synced because the NSSplitView manages
-    /// its own divider position independently.
-    #[cfg(target_os = "macos")]
+    /// selected section, dock roots, and hosted sidebar view. Width is NOT synced because the
+    /// sidebar host manages its own divider position independently.
     fn sync_workspace_sidebar_host(&self, cx: &mut App) {
         let active_ws = self.workspace().clone();
         let (workspace_sidebar_surface, workspace_sidebar_view) = {
@@ -1001,7 +991,6 @@ impl MultiWorkspace {
             workspace.invalidate_window_caches(window, cx);
             cx.notify();
         });
-        #[cfg(target_os = "macos")]
         self.sync_workspace_sidebar_host(cx);
         self.focus_active_workspace(window, cx);
         if changed {
@@ -1076,7 +1065,6 @@ impl MultiWorkspace {
             workspace.invalidate_window_caches(window, cx);
             cx.notify();
         });
-        #[cfg(target_os = "macos")]
         self.sync_workspace_sidebar_host(cx);
         self.serialize(cx);
         self.focus_active_workspace(window, cx);
@@ -1097,7 +1085,6 @@ impl MultiWorkspace {
             workspace.invalidate_window_caches(window, cx);
             cx.notify();
         });
-        #[cfg(target_os = "macos")]
         self.sync_workspace_sidebar_host(cx);
         self.serialize(cx);
         self.focus_active_workspace(window, cx);
@@ -1555,66 +1542,9 @@ impl MultiWorkspace {
 
 impl Render for MultiWorkspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        #[cfg(target_os = "macos")]
         self.sync_workspace_sidebar_host(cx);
 
         let multi_workspace_enabled = self.multi_workspace_enabled(cx);
-        #[cfg(not(target_os = "macos"))]
-        let sidebar = if multi_workspace_enabled && self.sidebar_open() {
-            self.sidebar.as_ref().map(|sidebar_handle| {
-                let weak = cx.weak_entity();
-                let sidebar_width = sidebar_handle.width(cx);
-                let resize_handle = deferred(
-                    div()
-                        .id("sidebar-resize-handle")
-                        .absolute()
-                        .right(-SIDEBAR_RESIZE_HANDLE_SIZE / 2.)
-                        .top(px(0.))
-                        .h_full()
-                        .w(SIDEBAR_RESIZE_HANDLE_SIZE)
-                        .cursor_col_resize()
-                        .on_drag(DraggedSidebar, |dragged, _, _, cx| {
-                            cx.stop_propagation();
-                            cx.new(|_| dragged.clone())
-                        })
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| {
-                            cx.stop_propagation();
-                        })
-                        .on_mouse_up(MouseButton::Left, move |event, _, cx| {
-                            if event.click_count == 2 {
-                                weak.update(cx, |this, cx| {
-                                    if let Some(sidebar) = this.sidebar.as_mut() {
-                                        sidebar.set_width(None, cx);
-                                    }
-                                    this.serialize(cx);
-                                })
-                                .ok();
-                                cx.stop_propagation();
-                            } else {
-                                weak.update(cx, |this, cx| {
-                                    this.serialize(cx);
-                                })
-                                .ok();
-                            }
-                        })
-                        .occlude(),
-                );
-
-                div()
-                    .id("sidebar-container")
-                    .relative()
-                    .h_full()
-                    .w(sidebar_width)
-                    .flex_shrink_0()
-                    .child(sidebar_handle.to_any())
-                    .child(resize_handle)
-                    .into_any_element()
-            })
-        } else {
-            None
-        };
-        #[cfg(target_os = "macos")]
-        let sidebar: Option<AnyView> = None;
 
         let ui_font = theme_settings::setup_ui_font(window, cx);
         let text_color = cx.theme().colors().text;
@@ -1681,13 +1611,12 @@ impl Render for MultiWorkspace {
                     |this| {
                         this.on_drag_move(cx.listener(
                             |this: &mut Self, e: &DragMoveEvent<DraggedSidebar>, _window, cx| {
-                                if let Some(sidebar) = &this.sidebar {
-                                    let new_width = e.event.position.x;
-                                    sidebar.set_width(Some(new_width), cx);
-                                }
+                                let new_width = e.event.position.x;
+                                this.workspace_sidebar_host.update(cx, |sidebar, cx| {
+                                    sidebar.set_width(f64::from(new_width), cx);
+                                });
                             },
                         ))
-                        .children(sidebar)
                     },
                 )
                 .on_action(
@@ -1708,61 +1637,139 @@ impl Render for MultiWorkspace {
                         .overflow_hidden()
                         .child(self.workspace().clone());
 
-                    #[cfg(target_os = "macos")]
                     let workspace_content = {
                         let workspace = self.workspace().read(cx);
-                        let sidebar_collapsed =
-                            workspace.workspace_sidebar_host_collapsed(window, cx);
                         let sidebar_width = self.workspace_sidebar_host.read(cx).width();
                         let button_bar = workspace.button_bar(cx);
-                        let sidebar_titlebar_fill = match cx.theme().window_background_appearance()
-                        {
-                            WindowBackgroundAppearance::Opaque => {
-                                Some(cx.theme().colors().panel_background)
-                            }
-                            _ => None,
-                        };
 
-                        if cfg!(any(test, feature = "test-support")) {
+                        #[cfg(not(target_os = "macos"))]
+                        let sidebar_collapsed = !self.sidebar_open();
+
+                        #[cfg(target_os = "macos")]
+                        let sidebar_collapsed =
+                            workspace.workspace_sidebar_host_collapsed(window, cx);
+
+                        #[cfg(not(target_os = "macos"))]
+                        {
+                            let weak = cx.weak_entity();
+                            let resize_handle = deferred(
+                                div()
+                                    .id("workspace-sidebar-resize-handle")
+                                    .absolute()
+                                    .right(-SIDEBAR_RESIZE_HANDLE_SIZE / 2.)
+                                    .top(px(0.))
+                                    .h_full()
+                                    .w(SIDEBAR_RESIZE_HANDLE_SIZE)
+                                    .cursor_col_resize()
+                                    .on_drag(DraggedSidebar, |dragged, _, _, cx| {
+                                        cx.stop_propagation();
+                                        cx.new(|_| dragged.clone())
+                                    })
+                                    .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                                        cx.stop_propagation();
+                                    })
+                                    .on_mouse_up(MouseButton::Left, move |event, _, cx| {
+                                        if event.click_count == 2 {
+                                            weak.update(cx, |this, cx| {
+                                                this.workspace_sidebar_host.update(
+                                                    cx,
+                                                    |sidebar, cx| {
+                                                        sidebar.set_width(240.0, cx);
+                                                    },
+                                                );
+                                                this.serialize(cx);
+                                            })
+                                            .ok();
+                                            cx.stop_propagation();
+                                        } else {
+                                            weak.update(cx, |this, cx| {
+                                                this.serialize(cx);
+                                            })
+                                            .ok();
+                                        }
+                                    })
+                                    .occlude(),
+                            );
+
                             div()
                                 .size_full()
                                 .flex()
                                 .flex_row()
-                                .child(
-                                    div()
-                                        .w(px(sidebar_width as f32))
-                                        .min_w(px(160.0))
-                                        .max_w(px(480.0))
-                                        .when(sidebar_collapsed, |this| {
-                                            this.w(px(0.0)).overflow_hidden()
-                                        })
-                                        .child(self.workspace_sidebar_host.clone()),
-                                )
+                                .when(!sidebar_collapsed, |this| {
+                                    this.child(
+                                        div()
+                                            .id("workspace-sidebar-host-shell")
+                                            .relative()
+                                            .h_full()
+                                            .w(px(sidebar_width as f32))
+                                            .min_w(px(160.0))
+                                            .max_w(px(480.0))
+                                            .flex_shrink_0()
+                                            .flex()
+                                            .flex_col()
+                                            .overflow_hidden()
+                                            .bg(cx.theme().colors().panel_background)
+                                            .when_some(button_bar, |this, dock_button_bar| {
+                                                this.child(dock_button_bar)
+                                            })
+                                            .child(self.workspace_sidebar_host.clone())
+                                            .child(resize_handle),
+                                    )
+                                })
                                 .child(workspace_content)
-                        } else {
-                            div()
-                                .size_full()
-                                .flex()
-                                .flex_row()
-                                .child(
-                                    native_sidebar("workspace-sidebar-host-shell", &[""; 0])
-                                        .when_some(button_bar, |this, dock_button_bar| {
-                                            this.header_view(
-                                                dock_button_bar,
-                                                crate::dock::DockButtonBar::NATIVE_SIDEBAR_HEIGHT,
-                                            )
-                                        })
-                                        .sidebar_view(self.workspace_sidebar_host.clone())
-                                        .sidebar_width(sidebar_width)
-                                        .min_sidebar_width(160.0)
-                                        .max_sidebar_width(480.0)
-                                        .manage_window_chrome(false)
-                                        .manage_toolbar(false)
-                                        .collapsed(sidebar_collapsed)
-                                        .sidebar_background_color(sidebar_titlebar_fill)
-                                        .size_full(),
-                                )
-                                .child(workspace_content)
+                        }
+
+                        #[cfg(target_os = "macos")]
+                        {
+                            let sidebar_titlebar_fill =
+                                match cx.theme().window_background_appearance() {
+                                    gpui::WindowBackgroundAppearance::Opaque => {
+                                        Some(cx.theme().colors().panel_background)
+                                    }
+                                    _ => None,
+                                };
+
+                            if cfg!(any(test, feature = "test-support")) {
+                                div()
+                                    .size_full()
+                                    .flex()
+                                    .flex_row()
+                                    .child(
+                                        div()
+                                            .w(px(sidebar_width as f32))
+                                            .min_w(px(160.0))
+                                            .max_w(px(480.0))
+                                            .when(sidebar_collapsed, |this| {
+                                                this.w(px(0.0)).overflow_hidden()
+                                            })
+                                            .child(self.workspace_sidebar_host.clone()),
+                                    )
+                                    .child(workspace_content)
+                            } else {
+                                div()
+                                    .size_full()
+                                    .flex()
+                                    .flex_row()
+                                    .child(
+                                        native_sidebar("workspace-sidebar-host-shell", &[""; 0])
+                                            .when_some(button_bar, |this, dock_button_bar| {
+                                                this.header_view(
+                                                    dock_button_bar,
+                                                    crate::dock::DockButtonBar::NATIVE_SIDEBAR_HEIGHT,
+                                                )
+                                            })
+                                            .sidebar_view(self.workspace_sidebar_host.clone())
+                                            .sidebar_width(sidebar_width)
+                                            .min_sidebar_width(160.0)
+                                            .max_sidebar_width(480.0)
+                                            .manage_window_chrome(false)
+                                            .manage_toolbar(false)
+                                            .collapsed(sidebar_collapsed)
+                                            .sidebar_background_color(sidebar_titlebar_fill)
+                                            .size_full(),
+                                    )
+                                    .child(workspace_content)
+                            }
                         }
                     };
 

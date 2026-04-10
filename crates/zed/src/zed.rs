@@ -36,9 +36,9 @@ use git_ui::git_panel::GitPanel;
 use git_ui::project_diff::{BranchDiffToolbar, ProjectDiffToolbar};
 use gpui::{
     Action, App, AppContext as _, AsyncWindowContext, Context, DismissEvent, Element, Entity,
-    Focusable, KeyBinding, ParentElement, PathPromptOptions, PromptLevel, ReadGlobal,
-    SharedString, Task, TitlebarOptions, UpdateGlobal, WeakEntity, Window, WindowHandle,
-    WindowKind, WindowOptions, actions, image_cache, px, retain_all,
+    Focusable, KeyBinding, ParentElement, PathPromptOptions, PromptLevel, ReadGlobal, SharedString,
+    Task, TitlebarOptions, UpdateGlobal, WeakEntity, Window, WindowHandle, WindowKind,
+    WindowOptions, actions, image_cache, px, retain_all,
 };
 use image_viewer::ImageInfo;
 use language::Capability;

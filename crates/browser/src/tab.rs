@@ -90,8 +90,13 @@ pub(crate) enum TabEvent {
     OpenNewTab(String),
     OpenTargetRequested(OpenTargetRequest),
     FaviconChanged,
-    LoadError { url: String, error_text: String },
-    ContextMenuOpen { context: ContextMenuContext },
+    LoadError {
+        url: String,
+        error_text: String,
+    },
+    ContextMenuOpen {
+        context: ContextMenuContext,
+    },
     FindResult(FindResultEvent),
     DownloadUpdated(DownloadUpdatedEvent),
 }
