@@ -6,7 +6,7 @@ use gpui::native_sidebar;
 use gpui::{
     AnyView, App, Context, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
     ManagedView, Pixels, Render, Subscription, Task, Tiling, Window,
-    WindowId, actions,
+    WindowBackgroundAppearance, WindowId, actions,
 };
 use gpui::{MouseButton, deferred};
 #[cfg(not(target_os = "macos"))]

@@ -46,7 +46,7 @@ use client::{
 use collections::{HashMap, HashSet, hash_map};
 use db::smol::future::yield_now;
 use dock::{
-    Dock, DockButtonBar, DockPosition, PanelHandle, RESIZE_HANDLE_SIZE,
+    Dock, DockButtonBar, DockPosition, PanelHandle, PanelNavigationEntry, RESIZE_HANDLE_SIZE,
 };
 use futures::{
     Future, FutureExt, StreamExt,
@@ -60,11 +60,11 @@ use futures::{
 use gpui::native_sidebar;
 use gpui::{
     Action, AnyEntity, AnyView, AnyWeakView, App, AsyncApp, AsyncWindowContext, Axis, Bounds,
-    Context, CursorStyle, Decorations, DragMoveEvent, Entity, EntityId, EventEmitter,
+    ClickEvent, Context, CursorStyle, Decorations, DragMoveEvent, Entity, EntityId, EventEmitter,
     FocusHandle, Focusable, Global, HitboxBehavior, Hsla, KeyContext, Keystroke, ManagedView,
     MouseButton, PathPromptOptions, Point, PromptLevel, Render, ResizeEdge, Size, Stateful,
-    Subscription, SystemWindowTabController, Task, Tiling, WeakEntity, WindowBounds, WindowHandle,
-    WindowId, WindowOptions, actions,
+    Subscription, SystemWindowTabController, Task, Tiling, WeakEntity, WindowBackgroundAppearance,
+    WindowBounds, WindowHandle, WindowId, WindowOptions, actions,
     canvas, point, px, relative, size, transparent_black,
 };
 pub use history_manager::*;
@@ -6269,7 +6269,7 @@ impl Workspace {
             WorkspaceTabsSidebarKind::Browser => {
                 let content_view = self
                     .mode_view_entry(ModeId::BROWSER)
-                    .and_then(|entry| entry.sidebar_view.clone())?;
+                    .and_then(|entry| entry._sidebar_view.clone())?;
                 let footer_buttons = vec![WorkspaceTabsSidebarFooterButton {
                     id: SharedString::from("workspace-tabs-sidebar-new-browser-tab"),
                     label: SharedString::from("New Tab"),
