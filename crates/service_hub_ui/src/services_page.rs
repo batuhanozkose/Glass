@@ -3,27 +3,37 @@ use std::collections::BTreeMap;
 use db::kvp::KeyValueStore;
 use gpui::{
     App, Context, Corner, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, Global,
-    InteractiveElement, Render, SharedString, Stateful, Subscription, WeakEntity, Window, div,
+    InteractiveElement, Render, SharedString, Stateful, WeakEntity, Window, div,
     point, prelude::FluentBuilder as _, px,
 };
+#[cfg(target_os = "macos")]
+use gpui::Subscription;
 use service_hub::{ServiceHub, ServiceProviderDescriptor};
 use ui::{
-    AnyElement, Button, ButtonLike, ButtonSize, ButtonStyle, Checkbox, Clickable, Color,
-    ContextMenu, ContextMenuEntry, ContextMenuItem, Icon, IconButton, IconButtonShape, IconName,
-    IconSize, Indicator, Label, LabelSize, PopoverMenu, Severity, SpinnerLabel, TintColor,
-    Toggleable, Tooltip, prelude::*,
+    AnyElement, ButtonLike, ButtonSize, ButtonStyle, Checkbox, Clickable, Color, ContextMenu,
+    Icon, IconName, IconSize, Label, LabelSize, PopoverMenu, SpinnerLabel, Toggleable,
+    prelude::*,
+};
+#[cfg(target_os = "macos")]
+use ui::{
+    Button, ContextMenuEntry, ContextMenuItem, IconButton, IconButtonShape, Indicator, Severity,
+    TintColor, Tooltip,
 };
 use workspace::item::{Item, ItemBufferKind, ItemEvent};
-use workspace::{Workspace, WorkspaceSidebarSection};
+use workspace::Workspace;
+#[cfg(target_os = "macos")]
+use workspace::WorkspaceSidebarSection;
+#[cfg(target_os = "macos")]
 use workspace_chrome::SidebarRow;
 
-use crate::service_auth::{
-    ServiceAuthFieldState, ServiceAuthStatusSummary, ServiceAuthUiAction, ServiceAuthUiModel,
-};
 use crate::service_hub_onboarding::ServiceHubOnboarding;
 use crate::service_workflow::{
     ServiceWorkflowFieldState, ServiceWorkflowOption, ServiceWorkflowRunSummary,
     ServiceWorkflowUiAction, ServiceWorkflowUiModel,
+};
+#[cfg(target_os = "macos")]
+use crate::service_auth::{
+    ServiceAuthFieldState, ServiceAuthStatusSummary, ServiceAuthUiAction, ServiceAuthUiModel,
 };
 use crate::services_provider::{
     ServiceWorkspacePane, ServicesPageState, build_service_workspace_panes,
@@ -285,6 +295,7 @@ impl ServicesPage {
         self.refresh_provider(window, cx);
     }
 
+    #[cfg(target_os = "macos")]
     fn select_navigation(&mut self, navigation_id: String, cx: &mut Context<Self>) {
         if self.state.navigation_id == navigation_id {
             return;
@@ -295,6 +306,7 @@ impl ServicesPage {
         cx.notify();
     }
 
+    #[cfg(target_os = "macos")]
     fn select_resource(
         &mut self,
         resource_id: String,
@@ -307,6 +319,7 @@ impl ServicesPage {
         });
     }
 
+    #[cfg(target_os = "macos")]
     fn render_provider_menu(
         &self,
         page: WeakEntity<Self>,
@@ -349,6 +362,7 @@ impl ServicesPage {
             .offset(point(px(0.), px(4.)))
     }
 
+    #[cfg(target_os = "macos")]
     fn render_resource_menu(
         &self,
         page: WeakEntity<Self>,
@@ -409,6 +423,7 @@ impl ServicesPage {
             .offset(point(px(0.), px(4.)))
     }
 
+    #[cfg(target_os = "macos")]
     fn render_auth_sidebar_footer(
         &self,
         page: WeakEntity<Self>,
@@ -528,6 +543,7 @@ impl ServicesPage {
         )
     }
 
+    #[cfg(target_os = "macos")]
     fn render_auth_overflow_menu(
         &self,
         page: WeakEntity<Self>,
@@ -569,6 +585,7 @@ impl ServicesPage {
             .offset(point(px(0.), px(4.)))
     }
 
+    #[cfg(target_os = "macos")]
     fn render_auth_form(
         &self,
         page: WeakEntity<Self>,
@@ -703,6 +720,7 @@ impl ServicesPage {
             )
     }
 
+    #[cfg(target_os = "macos")]
     fn render_auth_status_indicator(status: &ServiceAuthStatusSummary) -> (Color, String) {
         let indicator_color = match status.severity {
             Severity::Success => Color::Success,
@@ -716,6 +734,7 @@ impl ServicesPage {
         (indicator_color, tooltip_lines.join("\n"))
     }
 
+    #[cfg(target_os = "macos")]
     fn dispatch_auth_action(
         page: &WeakEntity<Self>,
         provider_id: &str,
@@ -732,6 +751,7 @@ impl ServicesPage {
         .ok();
     }
 
+    #[cfg(target_os = "macos")]
     pub(crate) fn render_sidebar_controls(
         page: &Entity<Self>,
         window: &mut Window,
@@ -744,6 +764,7 @@ impl ServicesPage {
         })
     }
 
+    #[cfg(target_os = "macos")]
     fn render_sidebar_controls_inner(
         &self,
         page: WeakEntity<Self>,
@@ -871,6 +892,7 @@ impl ServicesPage {
         }
     }
 
+    #[cfg(target_os = "macos")]
     fn navigation_icon(navigation_id: &str) -> IconName {
         match navigation_id {
             "overview" => IconName::Info,
@@ -1274,6 +1296,7 @@ impl ServiceSidebarMenuTrigger {
         }
     }
 
+    #[cfg(target_os = "macos")]
     fn start_image_path(mut self, start_image_path: Option<String>) -> Self {
         self.start_image_path = start_image_path.map(Into::into);
         self

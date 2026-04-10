@@ -46,7 +46,7 @@ use client::{
 use collections::{HashMap, HashSet, hash_map};
 use db::smol::future::yield_now;
 use dock::{
-    Dock, DockButtonBar, DockPosition, PanelHandle, PanelNavigationEntry, RESIZE_HANDLE_SIZE,
+    Dock, DockButtonBar, DockPosition, PanelHandle, RESIZE_HANDLE_SIZE,
 };
 use futures::{
     Future, FutureExt, StreamExt,
@@ -59,12 +59,12 @@ use futures::{
 #[cfg(target_os = "macos")]
 use gpui::native_sidebar;
 use gpui::{
-    Action, AnyElement, AnyEntity, AnyView, AnyWeakView, App, AsyncApp, AsyncWindowContext, Axis,
-    Bounds, ClickEvent, Context, CursorStyle, Decorations, DragMoveEvent, Entity, EntityId,
-    EventEmitter, FocusHandle, Focusable, Global, HitboxBehavior, Hsla, KeyContext, Keystroke,
-    ManagedView, MouseButton, PathPromptOptions, Point, PromptLevel, Render, ResizeEdge, Size,
-    Stateful, Subscription, SystemWindowTabController, Task, Tiling, WeakEntity,
-    WindowBackgroundAppearance, WindowBounds, WindowHandle, WindowId, WindowOptions, actions,
+    Action, AnyEntity, AnyView, AnyWeakView, App, AsyncApp, AsyncWindowContext, Axis, Bounds,
+    Context, CursorStyle, Decorations, DragMoveEvent, Entity, EntityId, EventEmitter,
+    FocusHandle, Focusable, Global, HitboxBehavior, Hsla, KeyContext, Keystroke, ManagedView,
+    MouseButton, PathPromptOptions, Point, PromptLevel, Render, ResizeEdge, Size, Stateful,
+    Subscription, SystemWindowTabController, Task, Tiling, WeakEntity, WindowBounds, WindowHandle,
+    WindowId, WindowOptions, actions,
     canvas, point, px, relative, size, transparent_black,
 };
 pub use history_manager::*;
@@ -1733,7 +1733,7 @@ impl Global for GlobalAppState {}
 pub struct WorkspaceStore {
     workspaces: HashSet<(gpui::AnyWindowHandle, WeakEntity<Workspace>)>,
     _subscriptions: Vec<client::Subscription>,
-    client: Arc<Client>,
+    _client: Arc<Client>,
 }
 
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
@@ -1977,7 +1977,7 @@ struct DispatchingKeystrokes {
 
 struct PerWorkspaceModeView {
     view: AnyView,
-    sidebar_view: Option<AnyView>,
+    _sidebar_view: Option<AnyView>,
     focus_handle: FocusHandle,
     navigation_host: Option<ModeNavigationHost>,
     on_activate: Option<ModeActivateCallback>,
@@ -2061,7 +2061,7 @@ pub struct Workspace {
     _dev_container_task: Option<Task<Result<()>>>,
     _panels_task: Option<Task<Result<()>>>,
     sidebar_focus_handle: Option<FocusHandle>,
-    multi_workspace: Option<WeakEntity<MultiWorkspace>>,
+    _multi_workspace: Option<WeakEntity<MultiWorkspace>>,
 }
 
 impl EventEmitter<Event> for Workspace {}
@@ -2074,7 +2074,7 @@ pub struct ViewId {
 
 struct Follower {
     project_id: Option<u64>,
-    peer_id: PeerId,
+    _peer_id: PeerId,
 }
 
 pub struct FollowerState {
@@ -2521,7 +2521,7 @@ impl Workspace {
             last_open_dock_positions: Vec::new(),
             removing: false,
             sidebar_focus_handle: None,
-            multi_workspace: None,
+            _multi_workspace: None,
             open_in_dev_container: false,
             _dev_container_task: None,
         }
@@ -6346,7 +6346,7 @@ impl Workspace {
     ) -> PerWorkspaceModeView {
         PerWorkspaceModeView {
             view: registered.view,
-            sidebar_view: registered.sidebar_view,
+            _sidebar_view: registered.sidebar_view,
             focus_handle: registered.focus_handle,
             navigation_host: registered.navigation_host,
             on_activate: registered.on_activate,
@@ -6492,7 +6492,7 @@ impl Workspace {
                     mode_id,
                     PerWorkspaceModeView {
                         view: registered.view,
-                        sidebar_view: registered.sidebar_view,
+                        _sidebar_view: registered.sidebar_view,
                         focus_handle: registered.focus_handle,
                         navigation_host: registered.navigation_host,
                         on_activate: registered.on_activate,
@@ -8552,7 +8552,7 @@ impl Workspace {
         let app_state = Arc::new(AppState {
             languages: project.read(cx).languages().clone(),
             workspace_store,
-            client,
+            _client: client,
             user_store,
             fs: project.read(cx).fs().clone(),
             build_window_options: |_, _| Default::default(),
@@ -9862,7 +9862,7 @@ impl WorkspaceStore {
                 client.add_request_handler(cx.weak_entity(), Self::handle_follow),
                 client.add_message_handler(cx.weak_entity(), Self::handle_update_followers),
             ],
-            client,
+            _client: client,
         }
     }
 
@@ -9884,7 +9884,7 @@ impl WorkspaceStore {
         this.update(&mut cx, |this, cx| {
             let follower = Follower {
                 project_id: envelope.payload.project_id,
-                peer_id: envelope.original_sender_id()?,
+                _peer_id: envelope.original_sender_id()?,
             };
 
             let mut response = proto::FollowResponse::default();

@@ -7,7 +7,7 @@ use client::proto;
 use db::kvp::KeyValueStore;
 
 use gpui::{
-    Action, AnyElement, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter,
+    Action, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter,
     FocusHandle, Focusable, IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent,
     ParentElement, Render, SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window,
     WindowBackgroundAppearance, deferred, div,

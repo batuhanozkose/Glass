@@ -570,7 +570,7 @@ impl GitSidebarSurface {
             .map(|workspace| workspace.read(cx).focus_handle(cx))
             .unwrap_or_else(|| cx.focus_handle());
 
-        let sibling_workspace_ids: HashSet<WorkspaceId> = multi_workspace
+        let _sibling_workspace_ids: HashSet<WorkspaceId> = multi_workspace
             .as_ref()
             .map(|multi_workspace| {
                 multi_workspace
@@ -3713,7 +3713,7 @@ impl ThreadsNavigator {
             .map(|w| w.read(cx).focus_handle(cx))
             .unwrap_or_else(|| cx.focus_handle());
 
-        let sibling_workspace_ids: HashSet<WorkspaceId> = multi_workspace
+        let _sibling_workspace_ids: HashSet<WorkspaceId> = multi_workspace
             .as_ref()
             .map(|mw| {
                 mw.read(cx)
@@ -4075,9 +4075,9 @@ impl ThreadsNavigator {
             .read(cx)
             .agent_server_store()
             .clone();
-        let agent_registry_store = project::AgentRegistryStore::global(cx);
+        let _agent_registry_store = project::AgentRegistryStore::global(cx);
         let workspace = active_workspace.downgrade();
-        let multi_workspace = self.multi_workspace.clone();
+        let _multi_workspace = self.multi_workspace.clone();
 
         let archive_view = cx.new(|cx| {
             ThreadsArchiveView::new(

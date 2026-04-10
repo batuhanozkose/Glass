@@ -17,7 +17,7 @@ use db::kvp::{GlobalKeyValueStore, KeyValueStore};
 use editor::Editor;
 use extension::ExtensionHostProxy;
 use fs::{Fs, RealFs};
-use futures::{StreamExt, channel::oneshot, future};
+use futures::{StreamExt, channel::oneshot};
 use git::GitHostingProviderRegistry;
 use git_ui::clone::clone_and_open;
 use gpui::{App, AppContext, AsyncApp, Focusable as _, QuitMode, UpdateGlobal as _};
@@ -180,7 +180,7 @@ fn main() {
 
     // Handle CEF subprocess execution VERY early, before any other initialization.
     // If this is a CEF subprocess, it will not return (calls process::exit).
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     if let Err(e) = browser::handle_cef_subprocess() {
         // Log error but don't fail - CEF might not be available (not running from bundle)
         eprintln!("CEF subprocess handling warning: {}", e);

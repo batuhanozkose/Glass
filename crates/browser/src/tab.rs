@@ -84,6 +84,7 @@ pub(crate) enum TabEvent {
     LoadingStateChanged,
     PageChromeChanged,
     TextInputStateChanged(BrowserTextInputState),
+    #[cfg(target_os = "macos")]
     FrameReady,
     NavigateToUrl(String),
     OpenNewTab(String),
@@ -217,6 +218,7 @@ impl BrowserTab {
                 BrowserEvent::LoadingProgress(progress) => {
                     self.loading_progress = progress;
                 }
+                #[cfg(target_os = "macos")]
                 BrowserEvent::FrameReady => {
                     cx.emit(TabEvent::FrameReady);
                 }

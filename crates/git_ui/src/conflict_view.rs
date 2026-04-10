@@ -15,8 +15,8 @@ use project::{
     git_store::{GitStore, GitStoreEvent, RepositoryEvent},
 };
 use settings::Settings;
-use std::{cell::RefCell, ops::Range, rc::Rc, sync::Arc};
-use ui::{ActiveTheme, ButtonLike, Divider, Element as _, Styled, Tooltip, Window, prelude::*};
+use std::{ops::Range, sync::Arc};
+use ui::{ActiveTheme, ButtonLike, Element as _, Styled, Tooltip, Window, prelude::*};
 use util::{ResultExt as _, debug_panic, maybe};
 use workspace::{TitleBarItemView, Workspace, item::ItemHandle};
 use zed_actions::agent::{

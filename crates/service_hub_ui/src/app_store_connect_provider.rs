@@ -19,28 +19,32 @@ use service_hub::{
 };
 use ui::{
     AnyElement, Button, ButtonSize, ButtonStyle, Checkbox, Color, ContextMenu, IconButton,
-    IconName, Indicator, Label, LabelSize, Modal, ModalFooter, ModalHeader, Severity, ToggleState,
+    IconName, Indicator, Label, LabelSize, Modal, ModalFooter, ModalHeader, ToggleState,
     WithScrollbar, h_flex, prelude::*, v_flex,
 };
+#[cfg(target_os = "macos")]
+use ui::Severity;
 use ui_input::InputField;
 use util::command::new_command;
 use workspace::{DismissDecision, ModalView, Workspace};
 
 use crate::{
-    app_store_connect_auth::{AscAuthSummary, load_auth_status},
-    command_runner::{run_auth_action, run_json_operation, run_workflow},
-    service_auth::{
-        ServiceAuthFormState, ServiceAuthStatusSummary, ServiceAuthUiAction, ServiceAuthUiModel,
-    },
+    command_runner::{run_json_operation, run_workflow},
     service_workflow::{
         ServiceWorkflowFormState, ServiceWorkflowOption, ServiceWorkflowRunSummary,
         ServiceWorkflowUiAction, ServiceWorkflowUiModel,
     },
     services_page::ServicesPage,
-    services_provider::{
-        ServiceResourceMenuEntry, ServiceResourceMenuModel, ServiceWorkspaceAdapter,
-        ServicesPageState,
+    services_provider::{ServiceWorkspaceAdapter, ServicesPageState},
+};
+#[cfg(target_os = "macos")]
+use crate::{
+    app_store_connect_auth::{AscAuthSummary, load_auth_status},
+    command_runner::run_auth_action,
+    service_auth::{
+        ServiceAuthFormState, ServiceAuthStatusSummary, ServiceAuthUiAction, ServiceAuthUiModel,
     },
+    services_provider::{ServiceResourceMenuEntry, ServiceResourceMenuModel},
 };
 
 pub(crate) const APP_STORE_CONNECT_PROVIDER_ID: &str = "app-store-connect";
@@ -606,12 +610,14 @@ fn two_factor_code_file_has_contents(path: &Path) -> bool {
 
 pub(crate) struct AppStoreConnectWorkspaceProvider {
     descriptor: ServiceProviderDescriptor,
+    #[cfg(target_os = "macos")]
     auth_form: ServiceAuthFormState,
     workflow_forms: BTreeMap<String, ServiceWorkflowFormState>,
     create_app_form: AscCreateAppFormState,
     testflight_release_form: AscTestFlightReleaseFormState,
     latest_run: Option<ServiceRunDescriptor>,
     cli_state: AscCliState,
+    #[cfg(target_os = "macos")]
     auth_state: LoadState<AscAuthSummary>,
     web_auth_state: LoadState<AscWebAuthSummary>,
     workspace_projects_state: LoadState<Vec<AppleWorkspaceProjectSummary>>,
@@ -637,6 +643,7 @@ impl AppStoreConnectWorkspaceProvider {
     // - Build loading fails independently from auth or app loading.
     pub fn new(descriptor: ServiceProviderDescriptor, window: &mut Window, cx: &mut App) -> Self {
         Self {
+            #[cfg(target_os = "macos")]
             auth_form: ServiceAuthFormState::new(&descriptor, window, cx),
             workflow_forms: descriptor
                 .workflows
@@ -653,6 +660,7 @@ impl AppStoreConnectWorkspaceProvider {
             latest_run: None,
             descriptor,
             cli_state: AscCliState::Checking,
+            #[cfg(target_os = "macos")]
             auth_state: LoadState::Loading,
             web_auth_state: LoadState::Loading,
             workspace_projects_state: LoadState::Loading,
@@ -698,7 +706,10 @@ impl AppStoreConnectWorkspaceProvider {
         cx: &mut Context<ServicesPage>,
     ) {
         self.cli_state = AscCliState::Checking;
-        self.auth_state = LoadState::Loading;
+        #[cfg(target_os = "macos")]
+        {
+            self.auth_state = LoadState::Loading;
+        }
         self.web_auth_state = LoadState::Loading;
         self.workspace_projects_state = LoadState::Loading;
         self.apps_state = LoadState::Loading;
@@ -707,6 +718,7 @@ impl AppStoreConnectWorkspaceProvider {
         cx.notify();
 
         cx.spawn_in(window, async move |this, cx| {
+            #[cfg(target_os = "macos")]
             let (cli_state, auth_result, web_auth_result, projects_result, apps_result) = cx
                 .background_spawn(async move {
                     let cli_state = load_asc_cli_state();
@@ -729,14 +741,33 @@ impl AppStoreConnectWorkspaceProvider {
                 })
                 .await;
 
+            #[cfg(not(target_os = "macos"))]
+            let (cli_state, web_auth_result, projects_result, apps_result) = cx
+                .background_spawn(async move {
+                    let cli_state = load_asc_cli_state();
+                    if !matches!(cli_state, AscCliState::Ready(_)) {
+                        let projects = load_workspace_projects(workspace_paths).await;
+                        return (cli_state, None, Some(projects), None);
+                    }
+
+                    let web_auth = load_web_auth_status().await;
+                    let projects = load_workspace_projects(workspace_paths).await;
+                    let apps = load_apps().await;
+                    (cli_state, Some(web_auth), Some(projects), Some(apps))
+                })
+                .await;
+
             let selected_app_id = this
                 .update_in(cx, |page, window, cx| {
                     with_app_store_connect_provider_mut(page, |pane, state| {
                         pane.cli_state = cli_state.clone();
 
                         if !pane.cli_ready() {
-                            pane.auth_form.cancel();
-                            pane.auth_state = LoadState::Error(asc_cli_missing_message());
+                            #[cfg(target_os = "macos")]
+                            {
+                                pane.auth_form.cancel();
+                                pane.auth_state = LoadState::Error(asc_cli_missing_message());
+                            }
                             pane.web_auth_state = LoadState::Error(asc_cli_missing_message());
                             pane.workspace_projects_state = match projects_result
                                 .expect("workspace projects should always be loaded")
@@ -751,11 +782,15 @@ impl AppStoreConnectWorkspaceProvider {
                             return None;
                         }
 
-                        pane.auth_state =
-                            match auth_result.expect("auth should load when ASC CLI is ready") {
+                        #[cfg(target_os = "macos")]
+                        {
+                            pane.auth_state =
+                                match auth_result.expect("auth should load when ASC CLI is ready")
+                                {
                                 Ok(summary) => LoadState::Ready(summary),
                                 Err(error) => LoadState::Error(error.to_string()),
-                            };
+                                };
+                        }
                         pane.web_auth_state = match web_auth_result
                             .expect("web auth should load when ASC CLI is ready")
                         {
@@ -820,6 +855,7 @@ impl AppStoreConnectWorkspaceProvider {
         .detach();
     }
 
+    #[cfg(target_os = "macos")]
     pub fn resource_menu(&self, state: &ServicesPageState) -> Option<ServiceResourceMenuModel> {
         if !self.cli_ready() {
             return None;
@@ -856,6 +892,7 @@ impl AppStoreConnectWorkspaceProvider {
         })
     }
 
+    #[cfg(target_os = "macos")]
     pub fn select_resource(
         &mut self,
         state: &mut ServicesPageState,
@@ -1589,14 +1626,17 @@ impl AppStoreConnectWorkspaceProvider {
         .detach();
     }
 
+    #[cfg(target_os = "macos")]
     fn show_authenticate_form(&mut self) {
         self.auth_form.show();
     }
 
+    #[cfg(target_os = "macos")]
     fn cancel_authenticate_form(&mut self) {
         self.auth_form.cancel();
     }
 
+    #[cfg(target_os = "macos")]
     fn submit_authenticate(
         &mut self,
         _workspace: WeakEntity<Workspace>,
@@ -1641,6 +1681,7 @@ impl AppStoreConnectWorkspaceProvider {
         .detach();
     }
 
+    #[cfg(target_os = "macos")]
     fn logout(
         &mut self,
         _workspace: WeakEntity<Workspace>,
@@ -1681,6 +1722,7 @@ impl AppStoreConnectWorkspaceProvider {
         .detach();
     }
 
+    #[cfg(target_os = "macos")]
     fn pick_auth_file(
         &mut self,
         field_key: String,
@@ -2209,6 +2251,7 @@ impl AppStoreConnectWorkspaceProvider {
         }
     }
 
+    #[cfg(target_os = "macos")]
     fn auth_status_summary(&self) -> ServiceAuthStatusSummary {
         match &self.auth_state {
             LoadState::Loading => ServiceAuthStatusSummary {
@@ -2239,6 +2282,7 @@ impl AppStoreConnectWorkspaceProvider {
         }
     }
 
+    #[cfg(target_os = "macos")]
     fn render_cli_sidebar_status(&self, cx: &App) -> Option<AnyElement> {
         let content = match &self.cli_state {
             AscCliState::Ready(summary) => h_flex()
@@ -3559,10 +3603,12 @@ impl ServiceWorkspaceAdapter for AppStoreConnectWorkspaceProvider {
         self.refresh(state, workspace_paths, window, cx);
     }
 
+    #[cfg(target_os = "macos")]
     fn resource_menu(&self, state: &ServicesPageState) -> Option<ServiceResourceMenuModel> {
         self.resource_menu(state)
     }
 
+    #[cfg(target_os = "macos")]
     fn select_resource(
         &mut self,
         state: &mut ServicesPageState,
@@ -3632,6 +3678,7 @@ impl ServiceWorkspaceAdapter for AppStoreConnectWorkspaceProvider {
         }
     }
 
+    #[cfg(target_os = "macos")]
     fn auth_ui_model(&self) -> Option<ServiceAuthUiModel> {
         if !self.cli_ready() {
             return None;
@@ -3647,6 +3694,7 @@ impl ServiceWorkspaceAdapter for AppStoreConnectWorkspaceProvider {
         })
     }
 
+    #[cfg(target_os = "macos")]
     fn handle_auth_ui_action(
         &mut self,
         _state: &mut ServicesPageState,
@@ -3682,6 +3730,7 @@ impl ServiceWorkspaceAdapter for AppStoreConnectWorkspaceProvider {
         }
     }
 
+    #[cfg(target_os = "macos")]
     fn render_sidebar_footer_extra(
         &self,
         _state: &ServicesPageState,

@@ -36,7 +36,7 @@ pub struct OpenRequest {
     pub open_paths: Vec<String>,
     pub diff_paths: Vec<[String; 2]>,
     pub diff_all: bool,
-    pub dev_container: bool,
+    pub _dev_container: bool,
     pub remote_connection: Option<RemoteConnectionOptions>,
 }
 

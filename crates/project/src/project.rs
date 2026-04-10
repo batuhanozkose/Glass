@@ -4298,11 +4298,6 @@ impl Project {
         });
     }
 
-    fn add_worktree(&mut self, worktree: &Entity<Worktree>, cx: &mut Context<Self>) {
-        self.worktree_store.update(cx, |worktree_store, cx| {
-            worktree_store.add(worktree, cx);
-        });
-    }
     pub fn set_active_path(&mut self, entry: Option<ProjectPath>, cx: &mut Context<Self>) {
         let new_active_entry = entry.and_then(|project_path| {
             let worktree = self.worktree_for_id(project_path.worktree_id, cx)?;

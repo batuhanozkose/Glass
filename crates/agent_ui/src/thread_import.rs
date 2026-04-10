@@ -17,7 +17,7 @@ use ui::{
     prelude::*,
 };
 use util::ResultExt;
-use workspace::{ModalView, MultiWorkspace, PathList, Workspace};
+use workspace::{ModalView, MultiWorkspace, Workspace};
 
 use crate::{
     Agent, AgentPanel,
