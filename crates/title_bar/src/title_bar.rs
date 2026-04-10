@@ -6,14 +6,13 @@ mod plan_chip;
 mod title_bar_settings;
 mod update_version;
 
-pub use workspace::TitleBarItemView;
-
 use crate::application_menu::{ApplicationMenu, show_menus};
 use crate::plan_chip::PlanChip;
 pub use platform_title_bar::{
     self, DraggedWindowTab, MergeAllWindows, MoveTabToNewWindow, PlatformTitleBar,
     ShowNextWindowTab, ShowPreviousWindowTab,
 };
+pub use workspace::TitleBarItemView;
 
 #[cfg(not(target_os = "macos"))]
 use crate::application_menu::{

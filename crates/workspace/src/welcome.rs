@@ -399,7 +399,9 @@ impl Render for WelcomePage {
             })
             .collect::<Vec<_>>();
 
-        let second_section = if self.fallback_to_recent_projects && !recent_projects.is_empty() {
+        let showing_recent_projects =
+            self.fallback_to_recent_projects && !recent_projects.is_empty();
+        let second_section = if showing_recent_projects {
             self.render_recent_project_section(recent_projects)
                 .into_any_element()
         } else {
