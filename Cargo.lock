@@ -1741,7 +1741,7 @@ dependencies = [
  "bitflags 2.10.0",
  "cexpr",
  "clang-sys",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -6887,7 +6887,7 @@ dependencies = [
  "log",
  "presser",
  "thiserror 2.0.17",
- "windows 0.56.0",
+ "windows 0.58.0",
 ]
 
 [[package]]
@@ -7854,7 +7854,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.56.0",
+ "windows-core 0.58.0",
 ]
 
 [[package]]
@@ -12554,7 +12554,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.117",

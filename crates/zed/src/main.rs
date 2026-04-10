@@ -1619,6 +1619,13 @@ struct Args {
     #[arg(long)]
     system_specs: bool,
 
+    /// Open the project in a dev container.
+    ///
+    /// Automatically triggers "Reopen in Dev Container" if a `.devcontainer/`
+    /// configuration is found in the project directory.
+    #[arg(long)]
+    dev_container: bool,
+
     /// Used for the MCP Server, to remove the need for netcat as a dependency,
     /// by having Zed act like netcat communicating over a Unix socket.
     #[arg(long, hide = true)]

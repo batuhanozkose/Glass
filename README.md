@@ -4,7 +4,7 @@ Glass is a browser, code editor, and terminal in one app. Instead of switching b
 
 > **Glass is a fork of [Zed](https://github.com/zed-industries/zed).** We actively sync with upstream every week. Glass would not be possible without the incredible work the Zed team continues to do.
 
-Glass is in **active development**. The focus right now is macOS, with Windows, Linux, iOS, and Android planned.
+Glass is in **active development**. macOS is currently the most mature platform, and Windows development is supported.
 
 ---
 
@@ -31,15 +31,24 @@ script/cargo-gpui-local build -p zed
 script/cargo-gpui-local test -p gpui_examples
 ```
 
+On Windows, use [`script/cargo-gpui-local.ps1`](./script/cargo-gpui-local.ps1):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\script\cargo-gpui-local.ps1 build -p zed
+```
+
 The script uses `GLASS_GPUI_PATH` when it is set, and otherwise defaults to `../gpui`.
 
-To launch Glass itself against a local GPUI checkout, set `GLASS_USE_LOCAL_GPUI=1` or `GLASS_GPUI_PATH` before running [`script/zed-local`](./script/zed-local).
+To launch Glass itself against a local GPUI checkout on Windows, use [`script/setup-windows-dev.ps1`](./script/setup-windows-dev.ps1) with `-Run`. For direct Cargo commands, use [`script/cargo-gpui-local.ps1`](./script/cargo-gpui-local.ps1).
 
 ---
 
 ### Building Glass
 
 - [Building for macOS](./docs/src/development/macos.md)
+- [Building for Windows](./docs/src/development/windows.md)
+
+For Windows development, use [`script/setup-windows-dev.ps1`](./script/setup-windows-dev.ps1) to verify prerequisites, install `ninja` if needed, build the companion CLI, and launch Glass.
 
 ### Contributing
 

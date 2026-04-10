@@ -6359,7 +6359,6 @@ impl Workspace {
         self.workspace_sidebar_host.read(cx).collapsed()
     }
 
-    #[cfg(target_os = "macos")]
     pub fn select_sidebar_section(
         &mut self,
         section: WorkspaceSidebarSection,
@@ -6392,6 +6391,7 @@ impl Workspace {
         }
 
         self.active_sidebar_section = section;
+        #[cfg(target_os = "macos")]
         self.workspace_sidebar_host.update(cx, |sidebar, cx| {
             sidebar.set_active_section(section, cx);
             sidebar.set_collapsed(false, cx);
