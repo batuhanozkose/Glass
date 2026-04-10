@@ -12,6 +12,7 @@ if (-not $CargoArgs -or $CargoArgs.Count -eq 0) {
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $gpuiRoot = if ($env:GLASS_GPUI_PATH) { $env:GLASS_GPUI_PATH } else { Join-Path (Split-Path $repoRoot -Parent) "gpui" }
+$lockFile = Join-Path $repoRoot "Cargo.lock"
 
 if (-not (Test-Path (Join-Path $gpuiRoot "crates\gpui\Cargo.toml"))) {
     throw "Local GPUI checkout not found at '$gpuiRoot'. Set GLASS_GPUI_PATH or clone Glass-HQ/gpui next to the Glass checkout."
@@ -19,8 +20,14 @@ if (-not (Test-Path (Join-Path $gpuiRoot "crates\gpui\Cargo.toml"))) {
 
 $gpuiRootNormalized = $gpuiRoot.Replace("\", "/")
 $configFile = [System.IO.Path]::GetTempFileName()
+$lockFileBytes = $null
+$lockFileExists = Test-Path $lockFile
 
 try {
+    if ($lockFileExists) {
+        $lockFileBytes = [System.IO.File]::ReadAllBytes($lockFile)
+    }
+
     $configContents = @"
 [patch."https://github.com/Glass-HQ/gpui.git"]
 collections = { path = "$gpuiRootNormalized/crates/collections" }
@@ -43,8 +50,18 @@ util = { path = "$gpuiRootNormalized/crates/util" }
     Set-Content -LiteralPath $configFile -Value $configContents -NoNewline
 
     Set-Location $repoRoot
-    & cargo --config $configFile @CargoArgs
+    $cargoInvocationArgs = @("--config", $configFile)
+    if (-not $env:GLASS_CARGO_VERBOSE) {
+        $cargoInvocationArgs += "--quiet"
+    }
+    $cargoInvocationArgs += $CargoArgs
+
+    & cargo @cargoInvocationArgs
 }
 finally {
+    if ($lockFileExists -and $null -ne $lockFileBytes) {
+        [System.IO.File]::WriteAllBytes($lockFile, $lockFileBytes)
+    }
+
     Remove-Item -LiteralPath $configFile -ErrorAction SilentlyContinue
 }

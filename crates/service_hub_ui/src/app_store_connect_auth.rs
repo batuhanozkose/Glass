@@ -1,9 +1,12 @@
+#![cfg(target_os = "macos")]
+
 use anyhow::Result;
 use serde::Deserialize;
 use service_hub::ServiceOperationRequest;
 
 use crate::command_runner::run_json_operation;
 
+#[cfg(target_os = "macos")]
 #[derive(Clone, Debug)]
 pub(crate) struct AscAuthSummary {
     pub headline: String,
@@ -35,6 +38,7 @@ struct AscCredential {
     validation_error: Option<String>,
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) async fn load_auth_status() -> Result<AscAuthSummary> {
     let response: AscAuthStatusResponse = run_json_operation(ServiceOperationRequest {
         provider_id: "app-store-connect".to_string(),
@@ -48,6 +52,7 @@ pub(crate) async fn load_auth_status() -> Result<AscAuthSummary> {
     Ok(summarize_auth_status(response))
 }
 
+#[cfg(target_os = "macos")]
 fn summarize_auth_status(response: AscAuthStatusResponse) -> AscAuthSummary {
     let mut warnings = response.warnings.unwrap_or_default();
     if let Some(note) = response

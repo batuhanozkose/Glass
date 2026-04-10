@@ -1711,14 +1711,14 @@ impl HumanizedActionNameCache {
 #[derive(Clone)]
 struct KeyBinding {
     keystrokes: Rc<[KeybindingKeystroke]>,
-    source: KeybindSource,
+    _source: KeybindSource,
 }
 
 impl KeyBinding {
     fn new(binding: &gpui::KeyBinding, source: KeybindSource) -> Self {
         Self {
             keystrokes: Rc::from(binding.keystrokes()),
-            source,
+            _source: source,
         }
     }
 }

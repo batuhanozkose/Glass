@@ -1,6 +1,8 @@
+#[cfg(target_os = "macos")]
 mod app_store_connect_auth;
 mod app_store_connect_provider;
 mod command_runner;
+#[cfg(target_os = "macos")]
 mod service_auth;
 mod service_hub_onboarding;
 mod service_workflow;

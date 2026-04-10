@@ -846,6 +846,7 @@ impl BrowserView {
         cx: &mut Context<Self>,
     ) {
         match event {
+            #[cfg(target_os = "macos")]
             TabEvent::FrameReady => {
                 cx.notify();
             }
@@ -1005,8 +1006,19 @@ impl BrowserView {
     fn create_toolbar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.active_tab().is_some() {
             let browser_view = cx.entity().downgrade();
+            let history = self.history.clone();
+            let browser_focus_handle = self.focus_handle.clone();
+            let active_tab = self.active_tab().cloned();
             let toolbar = cx.new(|cx| {
-                BrowserToolbar::new(browser_view, BrowserToolbarStyle::TitleBar, window, cx)
+                BrowserToolbar::new(
+                    browser_view,
+                    history,
+                    browser_focus_handle,
+                    active_tab,
+                    BrowserToolbarStyle::TitleBar,
+                    window,
+                    cx,
+                )
             });
             self.toolbar = Some(toolbar.clone());
 

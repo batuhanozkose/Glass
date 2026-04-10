@@ -5,7 +5,7 @@
 //! IOSurface handle. We wrap it as a CVPixelBuffer for zero-copy rendering
 //! through GPUI's Surface element.
 
-use crate::events::{BrowserEvent, EventSender};
+use crate::events::EventSender;
 use cef::{
     AcceleratedPaintInfo, Browser, ImplRenderHandler, PaintElementType, Rect, RenderHandler,
     ScreenInfo, WrapRenderHandler, rc::Rc as _, wrap_render_handler,
@@ -43,12 +43,22 @@ impl Default for RenderState {
 #[derive(Clone)]
 pub struct OsrRenderHandler {
     state: Arc<Mutex<RenderState>>,
+    #[cfg(target_os = "macos")]
     sender: EventSender,
 }
 
 impl OsrRenderHandler {
     pub fn new(state: Arc<Mutex<RenderState>>, sender: EventSender) -> Self {
-        Self { state, sender }
+        #[cfg(target_os = "macos")]
+        {
+            Self { state, sender }
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = sender;
+            Self { state }
+        }
     }
 }
 

@@ -16,6 +16,7 @@ const EVENTFLAG_ALT_DOWN: u32 = 1 << 3;
 const EVENTFLAG_LEFT_MOUSE_BUTTON: u32 = 1 << 4;
 const EVENTFLAG_MIDDLE_MOUSE_BUTTON: u32 = 1 << 5;
 const EVENTFLAG_RIGHT_MOUSE_BUTTON: u32 = 1 << 6;
+#[cfg(target_os = "macos")]
 const EVENTFLAG_COMMAND_DOWN: u32 = 1 << 7;
 
 pub fn handle_mouse_down(browser: &BrowserTab, event: &MouseDownEvent, offset: Point<Pixels>) {

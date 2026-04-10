@@ -1,3 +1,4 @@
+use crate::history::BrowserHistory;
 use crate::BrowserView;
 use crate::omnibox::{Omnibox, OmniboxEvent};
 use crate::tab::{BrowserTab, TabEvent};
@@ -9,7 +10,6 @@ use ui::{h_flex, prelude::*};
 use workspace::{
     ItemHandle, ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView, WorkspaceItemKind,
 };
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BrowserToolbarStyle {
     TitleBar,
@@ -21,7 +21,6 @@ pub struct BrowserToolbar {
     tab: Option<Entity<BrowserTab>>,
     omnibox: Entity<Omnibox>,
     style: BrowserToolbarStyle,
-    _browser_view_subscription: Subscription,
     tab_subscription: Option<Subscription>,
     _omnibox_subscription: Subscription,
 }
@@ -29,20 +28,13 @@ pub struct BrowserToolbar {
 impl BrowserToolbar {
     pub fn new(
         browser_view: WeakEntity<BrowserView>,
+        history: Entity<BrowserHistory>,
+        browser_focus_handle: FocusHandle,
+        active_tab: Option<Entity<BrowserTab>>,
         style: BrowserToolbarStyle,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let browser_view_entity = browser_view
-            .upgrade()
-            .expect("browser toolbar should be created with a live browser view");
-        let (history, browser_focus_handle) =
-            browser_view_entity.read_with(cx, |browser_view, cx| {
-                (
-                    browser_view.history().clone(),
-                    browser_view.focus_handle(cx),
-                )
-            });
         let omnibox = cx.new(|cx| Omnibox::new(history, browser_focus_handle, window, cx));
 
         let omnibox_subscription = cx.subscribe(&omnibox, {
@@ -59,24 +51,15 @@ impl BrowserToolbar {
             }
         });
 
-        let browser_view_subscription = cx.observe_in(
-            &browser_view_entity,
-            window,
-            |this, browser_view, window, cx| {
-                this.sync_active_tab(&browser_view, window, cx);
-            },
-        );
-
         let mut this = Self {
             browser_view,
-            tab: None,
+            tab: active_tab,
             omnibox,
             style,
-            _browser_view_subscription: browser_view_subscription,
             tab_subscription: None,
             _omnibox_subscription: omnibox_subscription,
         };
-        this.sync_active_tab(&browser_view_entity, window, cx);
+        this.bind_active_tab(this.tab.clone(), window, cx);
         this
     }
 
@@ -95,23 +78,6 @@ impl BrowserToolbar {
         self.omnibox.update(cx, |omnibox, cx| {
             omnibox.focus_and_select_all(window, cx);
         });
-    }
-
-    fn sync_active_tab(
-        &mut self,
-        browser_view: &Entity<BrowserView>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let active_tab = browser_view.read(cx).active_tab().cloned();
-        let current_tab_id = self.tab.as_ref().map(Entity::entity_id);
-        let next_tab_id = active_tab.as_ref().map(Entity::entity_id);
-        if current_tab_id == next_tab_id {
-            cx.notify();
-            return;
-        }
-
-        self.bind_active_tab(active_tab, window, cx);
     }
 
     fn bind_active_tab(

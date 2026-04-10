@@ -976,20 +976,29 @@ impl Domain for WorkspaceDb {
         sql!(
             ALTER TABLE remote_connections ADD COLUMN use_podman BOOLEAN;
         ),
+        sql!(
+            ALTER TABLE remote_connections ADD COLUMN remote_env TEXT;
+        ),
         // Add active_mode column for workspace_modes feature
         sql!(
             ALTER TABLE workspaces ADD COLUMN active_mode TEXT;
-        ),
-        sql!(
-            ALTER TABLE remote_connections ADD COLUMN remote_env TEXT;
         ),
     ];
 
     // Allow recovering from bad migration that was initially shipped to nightly
     // when introducing the ssh_connections table.
     fn should_allow_migration_change(_index: usize, old: &str, new: &str) -> bool {
-        old.starts_with("CREATE TABLE ssh_connections")
-            && new.starts_with("CREATE TABLE ssh_connections")
+        let ssh_connections_change = old.starts_with("CREATE TABLE ssh_connections")
+            && new.starts_with("CREATE TABLE ssh_connections");
+        let remote_env_migration =
+            "ALTER TABLE\n  remote_connections\nADD\n  COLUMN remote_env TEXT;";
+        let active_mode_migration =
+            "ALTER TABLE\n  workspaces\nADD\n  COLUMN active_mode TEXT;";
+        let swapped_workspace_mode_migrations =
+            (old == remote_env_migration && new == active_mode_migration)
+                || (old == active_mode_migration && new == remote_env_migration);
+
+        ssh_connections_change || swapped_workspace_mode_migrations
     }
 }
 

@@ -5,7 +5,7 @@ use gpui::PathPromptOptions;
 use gpui::native_sidebar;
 use gpui::{
     AnyView, App, Context, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
-    ManagedView, Pixels, Render, Subscription, Task, Tiling, Window, WindowBackgroundAppearance,
+    ManagedView, Pixels, Render, Subscription, Task, Tiling, Window,
     WindowId, actions,
 };
 use gpui::{MouseButton, deferred};
@@ -554,11 +554,11 @@ impl MultiWorkspace {
         })
         .detach();
 
-        cx.observe(workspace, |this, workspace, cx| {
+        cx.observe(workspace, |_this, _observed_workspace, cx| {
             #[cfg(target_os = "macos")]
             {
-                if *this.workspace() == workspace {
-                    this.sync_workspace_sidebar_host(cx);
+                if *_this.workspace() == _observed_workspace {
+                    _this.sync_workspace_sidebar_host(cx);
                 }
             }
             cx.notify();
@@ -1000,13 +1000,6 @@ impl MultiWorkspace {
             cx.emit(MultiWorkspaceEvent::ActiveWorkspaceChanged);
             self.serialize(cx);
         }
-        cx.notify();
-    }
-
-    fn set_single_workspace(&mut self, workspace: Entity<Workspace>, cx: &mut Context<Self>) {
-        self.workspaces[0] = workspace;
-        self.active_workspace_index = 0;
-        cx.emit(MultiWorkspaceEvent::ActiveWorkspaceChanged);
         cx.notify();
     }
 

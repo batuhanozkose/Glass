@@ -181,6 +181,7 @@ impl BrowserView {
                 tab.set_focus(true);
             });
         } else {
+            #[cfg(target_os = "macos")]
             let viewport = self.last_viewport;
             new_tab.update(cx, |tab, _| {
                 #[cfg(target_os = "macos")]

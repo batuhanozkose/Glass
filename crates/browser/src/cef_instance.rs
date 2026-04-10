@@ -15,10 +15,12 @@ use cef::{
     wrap_browser_process_handler,
 };
 use parking_lot::Mutex;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Instant;
+
+#[cfg(target_os = "macos")]
+use std::path::PathBuf;
 
 use crate::page_chrome::PageChromeRenderProcessHandlerBuilder;
 
@@ -152,13 +154,20 @@ wrap_app! {
                 Some(&"enable-features".into()),
                 Some(&"PlatformHEVCDecoderSupport,PlatformEncryptedDolbyVision".into()),
             );
+            #[cfg(target_os = "windows")]
+            command_line.append_switch_with_value(
+                Some(&"disable-features".into()),
+                Some(&"WebUsbDeviceDetection".into()),
+            );
             #[cfg(debug_assertions)]
             {
-                command_line.append_switch(Some(&"enable-logging=stderr".into()));
-                command_line.append_switch_with_value(
-                    Some(&"remote-debugging-port".into()),
-                    Some(&"9222".into()),
-                );
+                if std::env::var_os("GLASS_CEF_DEBUG").is_some() {
+                    command_line.append_switch(Some(&"enable-logging=stderr".into()));
+                    command_line.append_switch_with_value(
+                        Some(&"remote-debugging-port".into()),
+                        Some(&"9222".into()),
+                    );
+                }
             }
         }
 
@@ -426,7 +435,9 @@ impl CefInstance {
 
         #[cfg(debug_assertions)]
         {
-            settings.remote_debugging_port = 9222;
+            if std::env::var_os("GLASS_CEF_DEBUG").is_some() {
+                settings.remote_debugging_port = 9222;
+            }
         }
 
         let result = cef::initialize(

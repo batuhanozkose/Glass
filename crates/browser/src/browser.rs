@@ -131,11 +131,21 @@ fn attach_browser_toolbar_to_pane(
     else {
         return;
     };
+    let (history, browser_focus_handle, active_tab) = browser_view.read_with(cx, |browser_view, cx| {
+        (
+            browser_view.history().clone(),
+            browser_view.focus_handle(cx),
+            browser_view.active_tab().cloned(),
+        )
+    });
 
     toolbar.update(cx, |toolbar, cx| {
         let browser_toolbar = cx.new(|cx| {
             BrowserToolbar::new(
                 browser_view.downgrade(),
+                history,
+                browser_focus_handle,
+                active_tab,
                 BrowserToolbarStyle::Pane,
                 window,
                 cx,

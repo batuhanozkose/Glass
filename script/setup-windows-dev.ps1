@@ -78,7 +78,7 @@ if (Test-Path (Join-Path $defaultGpuiPath "crates\gpui\Cargo.toml")) {
 }
 
 Write-Host "Building companion CLI..."
-Invoke-BuildCommand -Arguments @("build", "-p", "cli")
+Invoke-BuildCommand -Arguments @("build", "--package", "cli", "--bin", "cli")
 
 if ($Run) {
     Write-Host "Running Glass..."

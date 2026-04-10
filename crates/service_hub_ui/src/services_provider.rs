@@ -7,10 +7,11 @@ use workspace::Workspace;
 
 use crate::{
     app_store_connect_provider::build_app_store_connect_workspace_adapter,
-    service_auth::{ServiceAuthUiAction, ServiceAuthUiModel},
     service_workflow::{ServiceWorkflowUiAction, ServiceWorkflowUiModel},
     services_page::ServicesPage,
 };
+#[cfg(target_os = "macos")]
+use crate::service_auth::{ServiceAuthUiAction, ServiceAuthUiModel};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ServicesPageState {
@@ -21,6 +22,7 @@ pub(crate) struct ServicesPageState {
     pub selected_workflow_id: Option<String>,
 }
 
+#[cfg(target_os = "macos")]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ServiceResourceMenuEntry {
     pub id: String,
@@ -28,6 +30,7 @@ pub(crate) struct ServiceResourceMenuEntry {
     pub detail: Option<String>,
 }
 
+#[cfg(target_os = "macos")]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ServiceResourceMenuModel {
     pub singular_label: String,
@@ -47,7 +50,9 @@ pub(crate) trait ServiceWorkspaceAdapter {
         window: &mut Window,
         cx: &mut Context<ServicesPage>,
     );
+    #[cfg(target_os = "macos")]
     fn resource_menu(&self, state: &ServicesPageState) -> Option<ServiceResourceMenuModel>;
+    #[cfg(target_os = "macos")]
     fn select_resource(
         &mut self,
         state: &mut ServicesPageState,
@@ -83,9 +88,11 @@ pub(crate) trait ServiceWorkspaceAdapter {
         _cx: &mut Context<ServicesPage>,
     ) {
     }
+    #[cfg(target_os = "macos")]
     fn auth_ui_model(&self) -> Option<ServiceAuthUiModel> {
         None
     }
+    #[cfg(target_os = "macos")]
     fn handle_auth_ui_action(
         &mut self,
         _state: &mut ServicesPageState,
@@ -95,6 +102,7 @@ pub(crate) trait ServiceWorkspaceAdapter {
         _cx: &mut Context<ServicesPage>,
     ) {
     }
+    #[cfg(target_os = "macos")]
     fn render_sidebar_footer_extra(
         &self,
         _state: &ServicesPageState,
@@ -235,10 +243,12 @@ impl ServiceWorkspaceAdapter for UnavailableServiceWorkspacePane {
         cx.notify();
     }
 
+    #[cfg(target_os = "macos")]
     fn resource_menu(&self, _state: &ServicesPageState) -> Option<ServiceResourceMenuModel> {
         None
     }
 
+    #[cfg(target_os = "macos")]
     fn select_resource(
         &mut self,
         _state: &mut ServicesPageState,

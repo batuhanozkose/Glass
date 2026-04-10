@@ -123,6 +123,7 @@ pub enum BrowserEvent {
         can_go_forward: bool,
     },
     LoadingProgress(f64),
+    #[cfg(target_os = "macos")]
     FrameReady,
     BrowserCreated,
     LoadError {
