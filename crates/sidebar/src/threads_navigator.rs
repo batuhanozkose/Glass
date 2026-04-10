@@ -140,6 +140,8 @@ pub fn dump_workspace_info(
         writeln!(output).ok();
     }
 
+    writeln!(output, "ProjectGroupKey: {:?}", workspace.project_group_key(cx)).ok();
+
     if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
         if let Some(thread) = panel.read(cx).active_agent_thread(cx) {
             let thread = thread.read(cx);
@@ -2870,6 +2872,7 @@ impl ThreadsNavigator {
         let Some(multi_workspace) = self.multi_workspace.upgrade() else {
             return;
         };
+        let modal_workspace = multi_workspace.read(cx).workspace().clone();
 
         let paths: Vec<std::path::PathBuf> =
             path_list.paths().iter().map(|p| p.to_path_buf()).collect();
@@ -2879,7 +2882,9 @@ impl ThreadsNavigator {
         });
 
         cx.spawn_in(window, async move |this, cx| {
-            let workspace = open_task.await?;
+            let result = open_task.await;
+            remote_connection::dismiss_connection_modal(&modal_workspace, cx);
+            let workspace = result?;
 
             this.update_in(cx, |this, window, cx| {
                 this.activate_thread(agent, session_info, &workspace, window, cx);

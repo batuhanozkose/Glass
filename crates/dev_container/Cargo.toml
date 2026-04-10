@@ -15,6 +15,7 @@ log.workspace = true
 node_runtime.workspace = true
 menu.workspace = true
 paths.workspace = true
+regex.workspace = true
 picker.workspace = true
 settings.workspace = true
 smol.workspace = true

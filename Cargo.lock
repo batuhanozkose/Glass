@@ -4379,6 +4379,7 @@ dependencies = [
  "paths",
  "picker",
  "project",
+ "regex",
  "serde",
  "serde_json",
  "settings",
