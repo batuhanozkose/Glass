@@ -39,7 +39,7 @@ powershell -ExecutionPolicy Bypass -File .\script\cargo-gpui-local.ps1 build -p 
 
 The script uses `GLASS_GPUI_PATH` when it is set, and otherwise defaults to `../gpui`.
 
-To launch Glass itself against a local GPUI checkout on Windows, use [`script/setup-windows-dev.ps1`](./script/setup-windows-dev.ps1) with `-Run`. For direct Cargo commands, use [`script/cargo-gpui-local.ps1`](./script/cargo-gpui-local.ps1).
+To launch Glass itself against a local GPUI checkout on Windows, use [`script/setup-windows-dev.ps1`](./script/setup-windows-dev.ps1) with `-Run`. The script calls [`script/stage-windows-cef-runtime.ps1`](./script/stage-windows-cef-runtime.ps1) to stage the CEF runtime into a stable dev directory, builds the companion CLI, and launches `zed.exe` directly. For direct Cargo commands, use [`script/cargo-gpui-local.ps1`](./script/cargo-gpui-local.ps1).
 
 ---
 
@@ -48,7 +48,7 @@ To launch Glass itself against a local GPUI checkout on Windows, use [`script/se
 - [Building for macOS](./docs/src/development/macos.md)
 - [Building for Windows](./docs/src/development/windows.md)
 
-For Windows development, use [`script/setup-windows-dev.ps1`](./script/setup-windows-dev.ps1) to verify prerequisites, install `ninja` if needed, build the companion CLI, and launch Glass.
+For Windows development, use [`script/setup-windows-dev.ps1`](./script/setup-windows-dev.ps1) to verify prerequisites, install `ninja` if needed, stage the CEF runtime, build the companion CLI, and launch Glass.
 
 ### Contributing
 

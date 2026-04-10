@@ -39,7 +39,7 @@ If you install only Build Tools, launch Glass from a developer shell so MSVC and
 
 ## Recommended bootstrap
 
-Glass includes a Windows bootstrap script that verifies the machine, installs `ninja` with `winget` when needed, builds the companion CLI, and launches the app.
+Glass includes a Windows bootstrap script that verifies the machine, installs `ninja` with `winget` when needed, stages the CEF runtime into a stable dev directory, builds the companion CLI, and launches the app.
 
 From the repo root:
 
@@ -60,8 +60,10 @@ What the script does:
 - verifies `cargo` and `cmake`
 - installs `ninja` for the current user if it is missing
 - uses a sibling `..\gpui` checkout automatically when one is present
+- stages the Windows CEF runtime next to the development build so `zed.exe` can be launched directly
+  - this step is handled by [`script/stage-windows-cef-runtime.ps1`](../../../script/stage-windows-cef-runtime.ps1)
 - builds `cli.exe`, which Glass expects in the Windows dev layout
-- launches `zed.exe` through the same Cargo path used for development
+- launches `zed.exe` directly with the staged dev runtime
 
 ## Manual local-GPUI build
 
