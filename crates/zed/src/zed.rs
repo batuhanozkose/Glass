@@ -2299,7 +2299,7 @@ mod tests {
     use project::{Project, ProjectPath};
     use semver::Version;
     use serde_json::json;
-    use settings::{SaturatingBool, SettingsStore, watch_config_file};
+    use settings::{KeymapFile, SaturatingBool, SettingsStore, VIM_KEYMAP_PATH, watch_config_file};
     use std::{
         path::{Path, PathBuf},
         sync::Arc,
@@ -4635,6 +4635,18 @@ mod tests {
     }
 
     actions!(test_only, [ActionA, ActionB]);
+
+    #[gpui::test]
+    async fn test_vim_keymap_asset_loads(cx: &mut gpui::TestAppContext) {
+        let _app_state = init_keymap_test(cx);
+
+        cx.update(|cx| {
+            vim::init(cx);
+
+            KeymapFile::load_asset(VIM_KEYMAP_PATH, Some(KeybindSource::Vim), cx)
+                .unwrap_or_else(|error| panic!("{error:#}"));
+        });
+    }
 
     #[gpui::test]
     async fn test_base_keymap(cx: &mut gpui::TestAppContext) {
