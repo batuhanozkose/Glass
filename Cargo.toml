@@ -188,6 +188,8 @@ members = [
     "crates/ui_input",
     "crates/ui_macros",
     "crates/ui_prompt",
+    "crates/vim",
+    "crates/vim_mode_setting",
     "crates/util_macros",
     "crates/vercel",
     "crates/which_key",
@@ -440,6 +442,8 @@ ui_prompt = { path = "crates/ui_prompt" }
 util = { git = "https://github.com/Glass-HQ/gpui.git", rev = "1512401f36c73da245e5da1c5d1ebeebf1545cdc" }
 util_macros = { path = "crates/util_macros" }
 vercel = { path = "crates/vercel" }
+vim = { path = "crates/vim" }
+vim_mode_setting = { path = "crates/vim_mode_setting" }
 which_key = { path = "crates/which_key" }
 
 watch = { path = "crates/watch" }

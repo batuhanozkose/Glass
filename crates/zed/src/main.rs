@@ -737,6 +737,7 @@ fn main() {
             },
             wrap_div_with_search_actions: search::buffer_search::register_pane_search_actions,
         });
+        vim::init(cx);
         terminal_view::init(cx);
         browser::init(cx);
         encoding_selector::init(cx);

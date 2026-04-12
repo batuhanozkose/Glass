@@ -19,6 +19,7 @@ use ui::{
     ToggleButtonGroup, ToggleButtonGroupSize, ToggleButtonSimple, ToggleButtonWithIcon, Tooltip,
     prelude::*,
 };
+use vim_mode_setting::VimModeSetting;
 
 use crate::{
     ImportCursorSettings, ImportVsCodeSettings, SettingsImportState,
@@ -429,6 +430,44 @@ fn render_worktree_auto_trust_switch(tab_index: &mut isize, cx: &mut App) -> imp
     .tooltip(Tooltip::text(tooltip_description))
 }
 
+fn render_vim_mode_switch(tab_index: &mut isize, cx: &mut App) -> impl IntoElement {
+    let toggle_state = if VimModeSetting::get_global(cx).0 {
+        ui::ToggleState::Selected
+    } else {
+        ui::ToggleState::Unselected
+    };
+
+    SwitchField::new(
+        "onboarding-vim-mode",
+        Some("Vim Mode"),
+        Some("Coming from Neovim? Use our first-class implementation of Vim Mode".into()),
+        toggle_state,
+        {
+            let fs = <dyn Fs>::global(cx);
+            move |&selection, _, cx| {
+                let vim_mode = match selection {
+                    ToggleState::Selected => true,
+                    ToggleState::Unselected => false,
+                    ToggleState::Indeterminate => return,
+                };
+
+                update_settings_file(fs.clone(), cx, move |setting, _| {
+                    setting.vim_mode = Some(vim_mode);
+                });
+
+                telemetry::event!(
+                    "Welcome Vim Mode Toggled",
+                    options = if vim_mode { "on" } else { "off" },
+                );
+            }
+        },
+    )
+    .tab_index({
+        *tab_index += 1;
+        *tab_index - 1
+    })
+}
+
 fn render_setting_import_button(
     tab_index: isize,
     label: SharedString,
@@ -668,6 +707,7 @@ pub(crate) fn render_basics_page(user_store: &Entity<UserStore>, cx: &mut App) -
         .child(render_base_keymap_section(&mut tab_index, cx))
         .child(render_ai_section(user_store, cx))
         .child(render_import_settings_section(&mut tab_index, cx))
+        .child(render_vim_mode_switch(&mut tab_index, cx))
         .child(render_worktree_auto_trust_switch(&mut tab_index, cx))
         .child(Divider::horizontal().color(ui::DividerColor::BorderVariant))
         .child(render_telemetry_section(&mut tab_index, cx))

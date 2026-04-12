@@ -962,8 +962,8 @@ impl<T: Item> ItemHandle for Entity<T> {
                             return;
                         }
 
-                        let vim_mode = false;
-                        let helix_mode = false;
+                        let vim_mode = vim_mode_setting::VimModeSetting::is_enabled(cx);
+                        let helix_mode = vim_mode_setting::HelixModeSetting::is_enabled(cx);
 
                         if vim_mode || helix_mode {
                             // We use the command palette for executing commands in Vim and Helix modes (e.g., `:w`), so

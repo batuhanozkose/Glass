@@ -8552,7 +8552,7 @@ impl Workspace {
         let app_state = Arc::new(AppState {
             languages: project.read(cx).languages().clone(),
             workspace_store,
-            _client: client,
+            client,
             user_store,
             fs: project.read(cx).fs().clone(),
             build_window_options: |_, _| Default::default(),
