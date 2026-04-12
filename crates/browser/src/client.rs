@@ -3,14 +3,14 @@
 //! Provides the Client that CEF uses to communicate with the browser.
 //! Ties together the render, load, display, life span, and keyboard handlers.
 
+#[cfg(target_os = "windows")]
+use cef::sys::tagMSG;
 use cef::{
     Browser, Client, ContextMenuHandler, DisplayHandler, DownloadHandler, FindHandler, ImplClient,
     ImplKeyboardHandler, KeyEvent, KeyboardHandler, LifeSpanHandler, LoadHandler,
     PermissionHandler, RenderHandler, WrapClient, WrapKeyboardHandler, rc::Rc as _, wrap_client,
     wrap_keyboard_handler,
 };
-#[cfg(target_os = "windows")]
-use cef::sys::tagMSG;
 
 use crate::context_menu_handler::{ContextMenuHandlerBuilder, OsrContextMenuHandler};
 use crate::display_handler::{DisplayHandlerBuilder, OsrDisplayHandler};

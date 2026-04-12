@@ -140,7 +140,12 @@ pub fn dump_workspace_info(
         writeln!(output).ok();
     }
 
-    writeln!(output, "ProjectGroupKey: {:?}", workspace.project_group_key(cx)).ok();
+    writeln!(
+        output,
+        "ProjectGroupKey: {:?}",
+        workspace.project_group_key(cx)
+    )
+    .ok();
 
     if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
         if let Some(thread) = panel.read(cx).active_agent_thread(cx) {
@@ -427,11 +432,7 @@ fn build_project_navigation_context_menu(
         let workspace_count = multi_workspace.upgrade().map_or(0, |multi_workspace| {
             multi_workspace.read(cx).workspaces().len()
         });
-        let menu = if workspace_count > 1 {
-            menu
-        } else {
-            menu
-        };
+        let menu = if workspace_count > 1 { menu } else { menu };
 
         let workspace_for_remove = workspace.clone();
         let multi_workspace_for_remove = multi_workspace.clone();
@@ -852,11 +853,34 @@ pub struct ThreadsNavigator {
 impl gpui::EventEmitter<SidebarEvent> for ThreadsNavigator {}
 
 impl ThreadsNavigator {
+    fn active_project_group_path_list(&self, cx: &App) -> Option<PathList> {
+        let multi_workspace = self.multi_workspace.upgrade()?;
+        let workspace = multi_workspace.read(cx).workspace().clone();
+        Some(
+            multi_workspace
+                .read(cx)
+                .project_group_key_for_workspace(&workspace, cx)
+                .path_list()
+                .clone(),
+        )
+    }
+
+    fn set_active_project_group_mode(&mut self, mode: ProjectGroupMode, cx: &mut Context<Self>) {
+        let Some(path_list) = self.active_project_group_path_list(cx) else {
+            return;
+        };
+
+        self.project_group_modes.insert(path_list, mode);
+        self.selection = None;
+        self.view = SidebarView::ThreadList;
+        self.git_panel_visible = false;
+        self.update_entries(cx);
+    }
+
     pub fn project_surface(&self) -> Option<Entity<ProjectSidebarSurface>> {
         self.project_surface.upgrade()
     }
 
-    #[cfg(target_os = "macos")]
     fn install_project_section_view(
         workspace: &Entity<Workspace>,
         project_surface: &Entity<ProjectSidebarSurface>,
@@ -876,7 +900,6 @@ impl ThreadsNavigator {
         });
     }
 
-    #[cfg(target_os = "macos")]
     fn install_git_section_view(
         workspace: &Entity<Workspace>,
         git_surface: &Entity<GitSidebarSurface>,
@@ -894,22 +917,6 @@ impl ThreadsNavigator {
                 cx,
             );
         });
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    fn install_project_section_view(
-        _workspace: &Entity<Workspace>,
-        _project_surface: &Entity<ProjectSidebarSurface>,
-        _cx: &mut App,
-    ) {
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    fn install_git_section_view(
-        _workspace: &Entity<Workspace>,
-        _git_surface: &Entity<GitSidebarSurface>,
-        _cx: &mut App,
-    ) {
     }
 
     pub fn new(
@@ -2905,15 +2912,13 @@ impl ThreadsNavigator {
     }
 
     fn find_active_workspace(&self, cx: &App) -> Option<Entity<Workspace>> {
-        self.multi_workspace
-            .upgrade()
-            .and_then(|multi_workspace| {
-                let multi_workspace = multi_workspace.read(cx);
-                multi_workspace
-                    .workspaces()
-                    .get(multi_workspace.active_workspace_index())
-                    .cloned()
-            })
+        self.multi_workspace.upgrade().and_then(|multi_workspace| {
+            let multi_workspace = multi_workspace.read(cx);
+            multi_workspace
+                .workspaces()
+                .get(multi_workspace.active_workspace_index())
+                .cloned()
+        })
     }
 
     fn find_open_workspace_for_path_list(
@@ -2949,12 +2954,8 @@ impl ThreadsNavigator {
             archived: false,
         };
 
-        ThreadMetadataStore::global(cx).update(cx, |store, cx| {
-            store.save_all(
-                vec![metadata.clone()],
-                cx,
-            )
-        });
+        ThreadMetadataStore::global(cx)
+            .update(cx, |store, cx| store.save_all(vec![metadata.clone()], cx));
 
         let session_id = metadata.session_id.clone();
         let weak_archive_view = match &self.view {
@@ -2963,7 +2964,8 @@ impl ThreadsNavigator {
         };
 
         if metadata.folder_paths().paths().is_empty() {
-            ThreadMetadataStore::global(cx).update(cx, |store, cx| store.unarchive(&session_id, cx));
+            ThreadMetadataStore::global(cx)
+                .update(cx, |store, cx| store.unarchive(&session_id, cx));
 
             if let Some(workspace) = self.find_active_workspace(cx) {
                 self.activate_thread_locally(agent, session_info, &workspace, window, cx);
@@ -3006,7 +3008,8 @@ impl ThreadsNavigator {
                         ThreadMetadataStore::global(cx)
                             .update(cx, |store, cx| store.unarchive(&session_id, cx));
 
-                        if let Some(workspace) = this.find_current_workspace_for_path_list(&path_list, cx)
+                        if let Some(workspace) =
+                            this.find_current_workspace_for_path_list(&path_list, cx)
                         {
                             this.activate_thread_locally(
                                 agent.clone(),
@@ -3068,7 +3071,8 @@ impl ThreadsNavigator {
 
                                         workspace.show_toast(
                                             workspace::Toast::new(
-                                                NotificationId::unique::<RestoreWorktreeErrorToast>(),
+                                                NotificationId::unique::<RestoreWorktreeErrorToast>(
+                                                ),
                                                 format!("Failed to restore worktree: {error:#}"),
                                             )
                                             .autohide(),
@@ -4337,6 +4341,14 @@ impl WorkspaceSidebar for ThreadsNavigator {
         cx.notify();
     }
 
+    fn show_project_files(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        self.set_active_project_group_mode(ProjectGroupMode::Files, cx);
+    }
+
+    fn show_project_threads(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        self.set_active_project_group_mode(ProjectGroupMode::Threads, cx);
+    }
+
     fn toggle_thread_switcher(
         &mut self,
         select_last: bool,
@@ -4361,10 +4373,7 @@ impl Render for ThreadsNavigator {
         let color = cx.theme().colors();
         let no_open_projects = !self.contents.has_open_projects;
         let no_search_results = self.contents.entries.is_empty();
-        #[cfg(target_os = "macos")]
         let hosted_in_native_sidebar = true;
-        #[cfg(not(target_os = "macos"))]
-        let hosted_in_native_sidebar = false;
         let git_panel = self
             .git_panel_visible
             .then(|| self.active_git_panel(cx))

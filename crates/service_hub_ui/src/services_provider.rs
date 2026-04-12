@@ -5,13 +5,13 @@ use service_hub::ServiceProviderDescriptor;
 use ui::{ActiveTheme, AnyElement, Color, Label, LabelCommon, LabelSize, prelude::*};
 use workspace::Workspace;
 
+#[cfg(target_os = "macos")]
+use crate::service_auth::{ServiceAuthUiAction, ServiceAuthUiModel};
 use crate::{
     app_store_connect_provider::build_app_store_connect_workspace_adapter,
     service_workflow::{ServiceWorkflowUiAction, ServiceWorkflowUiModel},
     services_page::ServicesPage,
 };
-#[cfg(target_os = "macos")]
-use crate::service_auth::{ServiceAuthUiAction, ServiceAuthUiModel};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ServicesPageState {

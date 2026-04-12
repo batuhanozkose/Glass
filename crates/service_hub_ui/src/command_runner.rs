@@ -1,10 +1,10 @@
 use anyhow::{Context as _, Result, anyhow};
 use serde::Deserialize;
+#[cfg(target_os = "macos")]
+use service_hub::ServiceAuthActionRequest;
 use service_hub::{
     ServiceCommandPlan, ServiceHub, ServiceOperationRequest, ServiceWorkflowRequest,
 };
-#[cfg(target_os = "macos")]
-use service_hub::ServiceAuthActionRequest;
 use util::command::new_command;
 
 pub(crate) struct CommandExecution {

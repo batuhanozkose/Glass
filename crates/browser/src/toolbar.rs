@@ -1,5 +1,5 @@
-use crate::history::BrowserHistory;
 use crate::BrowserView;
+use crate::history::BrowserHistory;
 use crate::omnibox::{Omnibox, OmniboxEvent};
 use crate::tab::{BrowserTab, TabEvent};
 use gpui::{

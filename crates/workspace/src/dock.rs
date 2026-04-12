@@ -1,15 +1,15 @@
+use crate::WorkspaceSettings;
 use crate::focus_follows_mouse::FocusFollowsMouse as _;
 use crate::persistence::model::DockData;
 use crate::{DraggedDock, Event, FocusFollowsMouse, ModalLayer, MultiWorkspace, Pane, Workspace};
-use crate::WorkspaceSettings;
 use anyhow::Context as _;
 use client::proto;
 use db::kvp::KeyValueStore;
 
 use gpui::{
-    Action, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter,
-    FocusHandle, Focusable, IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent,
-    ParentElement, Render, SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window,
+    Action, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter, FocusHandle,
+    Focusable, IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent, ParentElement,
+    Render, SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window,
     WindowBackgroundAppearance, deferred, div,
 };
 use serde::{Deserialize, Serialize};
@@ -41,12 +41,25 @@ fn show_project_sidebar_tab(
     window: &mut Window,
     cx: &mut App,
 ) {
+    #[cfg(not(target_os = "macos"))]
     if let Some(multi_workspace) = multi_workspace {
         multi_workspace.update(cx, |multi_workspace, cx| {
-            if multi_workspace.sidebar_open() {
-                multi_workspace.close_sidebar(window, cx);
+            multi_workspace.open_sidebar(cx);
+            if let Some(sidebar) = multi_workspace.sidebar() {
+                sidebar.show_project_files(window, cx);
+                sidebar.focus(window, cx);
             }
         });
+        if let Some(workspace) = workspace.upgrade() {
+            workspace.update(cx, |workspace, cx| {
+                workspace.select_sidebar_section(
+                    crate::WorkspaceSidebarSection::Project,
+                    window,
+                    cx,
+                );
+            });
+        }
+        return;
     }
 
     if let Some(workspace) = workspace.upgrade() {
@@ -148,11 +161,10 @@ impl Render for DockButtonBar {
                     let workspace = self.workspace.clone();
                     let multi_workspace = multi_workspace.clone();
                     move |_, window, cx| {
-                        if let Some(multi_workspace) = multi_workspace.as_ref()
-                            && multi_workspace.read(cx).sidebar_open()
-                        {
+                        #[cfg(not(target_os = "macos"))]
+                        if let Some(multi_workspace) = multi_workspace.as_ref() {
                             multi_workspace.update(cx, |multi_workspace, cx| {
-                                multi_workspace.close_sidebar(window, cx);
+                                multi_workspace.open_sidebar(cx);
                             });
                         }
 

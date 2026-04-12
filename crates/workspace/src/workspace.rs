@@ -63,9 +63,8 @@ use gpui::{
     ClickEvent, Context, CursorStyle, Decorations, DragMoveEvent, Entity, EntityId, EventEmitter,
     FocusHandle, Focusable, Global, HitboxBehavior, Hsla, KeyContext, Keystroke, ManagedView,
     MouseButton, PathPromptOptions, Point, PromptLevel, Render, ResizeEdge, Size, Stateful,
-    Subscription, SystemWindowTabController, Task, Tiling, WeakEntity, WindowBackgroundAppearance,
-    WindowBounds, WindowHandle, WindowId, WindowOptions, actions,
-    canvas, point, px, relative, size, transparent_black,
+    Subscription, SystemWindowTabController, Task, Tiling, WeakEntity, WindowBounds, WindowHandle,
+    WindowId, WindowOptions, actions, canvas, point, px, relative, size, transparent_black,
 };
 pub use history_manager::*;
 pub use item::{
@@ -149,7 +148,6 @@ use util::{
     serde::default_true,
 };
 use uuid::Uuid;
-#[cfg(target_os = "macos")]
 use workspace_chrome::{SidebarNavigationList, SidebarNavigationListItem};
 use workspace_modes::{
     ModeActivateCallback, ModeDeactivateCallback, ModeId, ModeNavigationHost, ModeViewRegistry,
@@ -174,7 +172,6 @@ use crate::{
 /// Instead of each mode creating its own native_sidebar, this single entity wraps
 /// the appropriate sidebar content for the current mode, avoiding teardown/rebuild
 /// of the NSSplitViewController on mode switches.
-#[cfg(target_os = "macos")]
 const DEFAULT_SIDEBAR_WIDTH: f64 = 240.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -194,7 +191,6 @@ pub enum WorkspaceTabsSidebarKind {
     Terminal,
 }
 
-#[cfg(target_os = "macos")]
 #[derive(Clone)]
 struct WorkspaceTabsSidebarFooterButton {
     id: SharedString,
@@ -203,20 +199,17 @@ struct WorkspaceTabsSidebarFooterButton {
     action: WorkspaceTabsSidebarFooterAction,
 }
 
-#[cfg(target_os = "macos")]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WorkspaceTabsSidebarFooterAction {
     CreateEntry,
 }
 
-#[cfg(target_os = "macos")]
 #[derive(Clone)]
 struct WorkspaceTabsSidebarSource {
     content_view: AnyView,
     footer_buttons: Vec<WorkspaceTabsSidebarFooterButton>,
 }
 
-#[cfg(target_os = "macos")]
 pub struct WorkspaceSidebarHost {
     left_dock: Entity<Dock>,
     bottom_dock: Entity<Dock>,
@@ -228,7 +221,6 @@ pub struct WorkspaceSidebarHost {
     width: f64,
 }
 
-#[cfg(target_os = "macos")]
 #[derive(Clone)]
 pub struct WorkspaceSidebarHostSurface {
     left_dock: Entity<Dock>,
@@ -238,7 +230,6 @@ pub struct WorkspaceSidebarHostSurface {
     section_views: HashMap<WorkspaceSidebarSection, AnyView>,
 }
 
-#[cfg(target_os = "macos")]
 impl WorkspaceSidebarHost {
     pub fn new(
         left_dock: Entity<Dock>,
@@ -395,8 +386,9 @@ impl WorkspaceSidebarHost {
     fn active_section_view(&self, cx: &App) -> Option<AnyView> {
         match self.active_section {
             WorkspaceSidebarSection::Project => self
-                .section_view(WorkspaceSidebarSection::Project)
-                .cloned()
+                .workspace_sidebar_view
+                .clone()
+                .or_else(|| self.section_view(WorkspaceSidebarSection::Project).cloned())
                 .or_else(|| self.panel_view("ProjectPanel", cx)),
             WorkspaceSidebarSection::Outline => self.panel_view("OutlinePanel", cx),
             WorkspaceSidebarSection::Git => self
@@ -419,7 +411,6 @@ impl WorkspaceSidebarHost {
     }
 }
 
-#[cfg(target_os = "macos")]
 impl Render for WorkspaceSidebarHost {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let body = self
@@ -447,14 +438,12 @@ impl Render for WorkspaceSidebarHost {
     }
 }
 
-#[cfg(target_os = "macos")]
 struct WorkspaceTerminalSidebarPanel {
     workspace: WeakEntity<Workspace>,
     _subscriptions: Vec<Subscription>,
     subscriptions_initialized: bool,
 }
 
-#[cfg(target_os = "macos")]
 impl WorkspaceTerminalSidebarPanel {
     fn new(workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
         let _ = cx;
@@ -498,7 +487,6 @@ impl WorkspaceTerminalSidebarPanel {
     }
 }
 
-#[cfg(target_os = "macos")]
 impl Render for WorkspaceTerminalSidebarPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if !self.subscriptions_initialized {
@@ -574,13 +562,11 @@ impl Render for WorkspaceTerminalSidebarPanel {
     }
 }
 
-#[cfg(target_os = "macos")]
 struct WorkspaceTabsSidebarPanel {
     workspace: WeakEntity<Workspace>,
     _subscriptions: Vec<Subscription>,
 }
 
-#[cfg(target_os = "macos")]
 impl WorkspaceTabsSidebarPanel {
     fn new(workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
         let mut subscriptions = Vec::new();
@@ -687,7 +673,6 @@ impl WorkspaceTabsSidebarPanel {
     }
 }
 
-#[cfg(target_os = "macos")]
 impl Render for WorkspaceTabsSidebarPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(workspace) = self.workspace.upgrade() else {
@@ -1998,7 +1983,6 @@ pub struct Workspace {
     zoomed_position: Option<DockPosition>,
     center: PaneGroup,
     left_dock: Entity<Dock>,
-    #[cfg(target_os = "macos")]
     pub(crate) workspace_sidebar_host: Entity<WorkspaceSidebarHost>,
     bottom_dock: Entity<Dock>,
     right_dock: Entity<Dock>,
@@ -2049,7 +2033,6 @@ pub struct Workspace {
     per_workspace_mode_views: HashMap<ModeId, PerWorkspaceModeView>,
     /// Mode views shared by every workspace in the current MultiWorkspace window.
     shared_mode_views: HashMap<ModeId, PerWorkspaceModeView>,
-    #[cfg(target_os = "macos")]
     terminal_tabs_sidebar_panel: Entity<WorkspaceTerminalSidebarPanel>,
     /// Tracks whether the bottom dock was visible before entering Terminal Mode,
     /// so we can restore it when returning to Editor Mode
@@ -2355,7 +2338,6 @@ impl Workspace {
         });
         let bottom_dock = Dock::new(DockPosition::Bottom, modal_layer.clone(), None, window, cx);
         let right_dock = Dock::new(DockPosition::Right, modal_layer.clone(), None, window, cx);
-        #[cfg(target_os = "macos")]
         let workspace_sidebar_host = {
             let left_dock_clone = left_dock.clone();
             let bottom_dock_clone = bottom_dock.clone();
@@ -2364,10 +2346,8 @@ impl Workspace {
                 WorkspaceSidebarHost::new(left_dock_clone, bottom_dock_clone, right_dock_clone)
             })
         };
-        #[cfg(target_os = "macos")]
         let terminal_tabs_sidebar_panel =
             cx.new(|cx| WorkspaceTerminalSidebarPanel::new(weak_handle.clone(), cx));
-        #[cfg(target_os = "macos")]
         {
             let tabs_sidebar_panel =
                 cx.new(|cx| WorkspaceTabsSidebarPanel::new(weak_handle.clone(), cx));
@@ -2473,7 +2453,6 @@ impl Workspace {
             notifications: Notifications::default(),
             suppressed_notifications: HashSet::default(),
             left_dock,
-            #[cfg(target_os = "macos")]
             workspace_sidebar_host,
             bottom_dock,
             right_dock,
@@ -2513,7 +2492,6 @@ impl Workspace {
             active_tabs_sidebar_kind: WorkspaceTabsSidebarKind::Browser,
             per_workspace_mode_views: HashMap::default(),
             shared_mode_views: HashMap::default(),
-            #[cfg(target_os = "macos")]
             terminal_tabs_sidebar_panel,
             bottom_dock_visible_before_terminal_mode: None,
 
@@ -6254,12 +6232,10 @@ impl Workspace {
         self.active_sidebar_section
     }
 
-    #[cfg(target_os = "macos")]
     pub fn active_tabs_sidebar_kind(&self) -> WorkspaceTabsSidebarKind {
         self.active_tabs_sidebar_kind
     }
 
-    #[cfg(target_os = "macos")]
     fn tabs_sidebar_source(
         &self,
         _window: &Window,
@@ -6293,7 +6269,6 @@ impl Workspace {
         }
     }
 
-    #[cfg(target_os = "macos")]
     pub fn set_active_tabs_sidebar_kind(
         &mut self,
         kind: WorkspaceTabsSidebarKind,
@@ -6312,7 +6287,6 @@ impl Workspace {
         cx.notify();
     }
 
-    #[cfg(target_os = "macos")]
     fn handle_tabs_footer_action(
         &mut self,
         action: WorkspaceTabsSidebarFooterAction,
@@ -6327,7 +6301,6 @@ impl Workspace {
         }
     }
 
-    #[cfg(target_os = "macos")]
     pub fn set_sidebar_section_view(
         &mut self,
         section: WorkspaceSidebarSection,
@@ -6391,7 +6364,6 @@ impl Workspace {
         }
 
         self.active_sidebar_section = section;
-        #[cfg(target_os = "macos")]
         self.workspace_sidebar_host.update(cx, |sidebar, cx| {
             sidebar.set_active_section(section, cx);
             sidebar.set_collapsed(false, cx);
@@ -6456,7 +6428,15 @@ impl Workspace {
         }
 
         #[cfg(not(target_os = "macos"))]
-        self.toggle_dock(DockPosition::Left, window, cx);
+        {
+            if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() {
+                multi_workspace.update(cx, |multi_workspace, cx| {
+                    multi_workspace.toggle_sidebar(window, cx);
+                });
+            } else {
+                self.toggle_dock(DockPosition::Left, window, cx);
+            }
+        }
     }
 
     pub(crate) fn set_shared_mode_view(
@@ -6660,8 +6640,6 @@ impl Workspace {
         weak_pane.upgrade()
     }
 
-    #[cfg(target_os = "macos")]
-    #[cfg(target_os = "macos")]
     fn navigation_panel(
         &self,
         section: WorkspaceSidebarSection,
@@ -6688,14 +6666,12 @@ impl Workspace {
         None
     }
 
-    #[cfg(target_os = "macos")]
     fn terminal_navigation_entries(&self, window: &Window, cx: &App) -> Vec<PanelNavigationEntry> {
         self.navigation_panel(WorkspaceSidebarSection::Terminal, cx)
             .map(|panel| panel.navigation_entries(window, cx))
             .unwrap_or_default()
     }
 
-    #[cfg(target_os = "macos")]
     fn navigation_panes(&self, section: WorkspaceSidebarSection, cx: &App) -> Vec<Entity<Pane>> {
         self.navigation_panel(section, cx)
             .map(|panel| panel.navigation_panes(cx))
@@ -6715,15 +6691,10 @@ impl Workspace {
             (navigation_host.activate)(view, entry_id, window, cx);
             return;
         }
-        #[cfg(target_os = "macos")]
-        {
-            let Some(panel) = self.navigation_panel(section, cx) else {
-                return;
-            };
-            panel.activate_navigation_entry(entry_id, window, cx);
-        }
-        #[cfg(not(target_os = "macos"))]
-        let _ = (section, entry_id, window, cx);
+        let Some(panel) = self.navigation_panel(section, cx) else {
+            return;
+        };
+        panel.activate_navigation_entry(entry_id, window, cx);
     }
 
     fn close_navigation_entry(
@@ -6739,15 +6710,10 @@ impl Workspace {
             (navigation_host.close)(view, entry_id, window, cx);
             return;
         }
-        #[cfg(target_os = "macos")]
-        {
-            let Some(panel) = self.navigation_panel(section, cx) else {
-                return;
-            };
-            panel.close_navigation_entry(entry_id, window, cx);
-        }
-        #[cfg(not(target_os = "macos"))]
-        let _ = (section, entry_id, window, cx);
+        let Some(panel) = self.navigation_panel(section, cx) else {
+            return;
+        };
+        panel.close_navigation_entry(entry_id, window, cx);
     }
 
     fn create_navigation_entry(
@@ -6762,15 +6728,10 @@ impl Workspace {
             (navigation_host.create)(view, window, cx);
             return;
         }
-        #[cfg(target_os = "macos")]
-        {
-            let Some(panel) = self.navigation_panel(section, cx) else {
-                return;
-            };
-            panel.create_navigation_entry(window, cx);
-        }
-        #[cfg(not(target_os = "macos"))]
-        let _ = (section, window, cx);
+        let Some(panel) = self.navigation_panel(section, cx) else {
+            return;
+        };
+        panel.create_navigation_entry(window, cx);
     }
 
     fn tabs_sidebar_section_for_kind(kind: WorkspaceTabsSidebarKind) -> WorkspaceSidebarSection {
@@ -6799,7 +6760,6 @@ impl Workspace {
             self.switch_to_mode(mode_id, window, cx);
         }
 
-        #[cfg(target_os = "macos")]
         self.select_sidebar_section(WorkspaceSidebarSection::Tabs, window, cx);
         self.activate_navigation_entry(section, entry_id, window, cx);
     }
@@ -6833,7 +6793,6 @@ impl Workspace {
             self.switch_to_mode(mode_id, window, cx);
         }
 
-        #[cfg(target_os = "macos")]
         self.select_sidebar_section(WorkspaceSidebarSection::Tabs, window, cx);
         self.create_navigation_entry(section, window, cx);
     }
@@ -8252,6 +8211,14 @@ impl Workspace {
                 workspace.move_pane_to_border(SplitDirection::Down, cx)
             }))
             .on_action(cx.listener(|this, _: &ToggleLeftDock, window, cx| {
+                #[cfg(not(target_os = "macos"))]
+                if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() {
+                    multi_workspace.update(cx, |multi_workspace, cx| {
+                        multi_workspace.toggle_sidebar(window, cx);
+                    });
+                    return;
+                }
+
                 this.toggle_dock(DockPosition::Left, window, cx);
             }))
             .on_action(cx.listener(|this, _: &ToggleSidebar, window, cx| {
@@ -8678,6 +8645,11 @@ impl Workspace {
             return None;
         }
 
+        #[cfg(not(target_os = "macos"))]
+        if position == DockPosition::Left && window.root::<MultiWorkspace>().flatten().is_some() {
+            return None;
+        }
+
         // Only render if dock has something visible in this window.
         {
             let dock_read = dock.read(cx);
@@ -8765,7 +8737,7 @@ impl Workspace {
             })
     }
 
-    /// Wraps the entire mode-specific content with the native workspace sidebar shell.
+    /// Wraps the entire mode-specific content with the workspace sidebar shell.
     #[cfg(target_os = "macos")]
     fn render_with_workspace_sidebar_host(
         &self,
@@ -8777,11 +8749,13 @@ impl Workspace {
         let sidebar_width = workspace_sidebar_host.read(cx).width();
         let sidebar_collapsed = self.workspace_sidebar_host_collapsed(window, cx);
         let button_bar = self.button_bar(cx);
+        #[cfg(target_os = "macos")]
         let sidebar_titlebar_fill = match cx.theme().window_background_appearance() {
-            WindowBackgroundAppearance::Opaque => Some(cx.theme().colors().panel_background),
+            gpui::WindowBackgroundAppearance::Opaque => Some(cx.theme().colors().panel_background),
             _ => None,
         };
 
+        #[cfg(target_os = "macos")]
         if cfg!(any(test, feature = "test-support")) {
             return div()
                 .size_full()
@@ -8807,6 +8781,7 @@ impl Workspace {
                 .into_any_element();
         }
 
+        #[cfg(target_os = "macos")]
         div()
             .size_full()
             .flex()
@@ -10159,9 +10134,10 @@ pub async fn apply_restored_multiworkspace_state(
         window_handle
             .update(cx, |multi_workspace, window, cx| {
                 multi_workspace.restore_project_group_keys(restored_keys);
-                let target_index = multi_workspace.workspaces().iter().position(|ws| {
-                    ws.read(cx).database_id() == Some(active_workspace_id)
-                });
+                let target_index = multi_workspace
+                    .workspaces()
+                    .iter()
+                    .position(|ws| ws.read(cx).database_id() == Some(active_workspace_id));
                 if let Some(index) = target_index {
                     multi_workspace.activate_index(index, window, cx);
                 } else if !multi_workspace.workspaces().is_empty() {

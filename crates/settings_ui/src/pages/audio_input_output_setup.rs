@@ -86,4 +86,3 @@ where
     .full_width(true)
     .into_any_element()
 }
-
