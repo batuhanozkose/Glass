@@ -77,6 +77,8 @@ auto_update.workspace = true
 auto_update_ui.workspace = true
 breadcrumbs.workspace = true
 browser.workspace = true
+call.workspace = true
+channel.workspace = true
 chrono.workspace = true
 clap.workspace = true
 cli.workspace = true
@@ -89,6 +91,7 @@ component_preview.workspace = true
 copilot.workspace = true
 copilot_chat.workspace = true
 copilot_ui.workspace = true
+collab_ui.workspace = true
 crashes.workspace = true
 csv_preview.workspace = true
 dap_adapters.workspace = true
@@ -243,6 +246,7 @@ ashpd.workspace = true
 pkg-config = "0.3.22"
 
 [dev-dependencies]
+call = { workspace = true, features = ["test-support"] }
 dap = { workspace = true, features = ["test-support"] }
 editor = { workspace = true, features = ["test-support"] }
 gpui = { workspace = true, features = ["test-support"] }

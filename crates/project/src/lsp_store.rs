@@ -26,10 +26,12 @@ use self::code_lens::CodeLensData;
 use self::document_colors::DocumentColorData;
 use self::document_symbols::DocumentSymbolsData;
 use self::inlay_hints::BufferInlayHints;
+use self::log_store::{GlobalLogStore, LanguageServerKind};
 use crate::{
     CodeAction, Completion, CompletionDisplayOptions, CompletionResponse, CompletionSource,
     CoreCompletion, Hover, InlayHint, InlayId, LocationLink, LspAction, LspPullDiagnostics,
     ManifestProvidersStore, ProjectItem, ProjectPath, ProjectTransaction, PulledDiagnostics,
+    Project,
     ResolveState, Symbol,
     buffer_store::{BufferStore, BufferStoreEvent},
     environment::ProjectEnvironment,
@@ -8337,6 +8339,65 @@ impl LspStore {
         {
             upstream_client.take();
         }
+    }
+
+    pub(crate) fn set_language_server_statuses_from_proto(
+        &mut self,
+        project: WeakEntity<Project>,
+        language_servers: Vec<proto::LanguageServer>,
+        server_capabilities: Vec<String>,
+        cx: &mut Context<Self>,
+    ) {
+        let lsp_logs = cx
+            .try_global::<GlobalLogStore>()
+            .map(|log_store| log_store.0.clone());
+
+        self.language_server_statuses = language_servers
+            .into_iter()
+            .zip(server_capabilities)
+            .map(|(server, server_capabilities)| {
+                let server_id = LanguageServerId(server.id as usize);
+                if let Ok(server_capabilities) = serde_json::from_str(&server_capabilities) {
+                    self.lsp_server_capabilities
+                        .insert(server_id, server_capabilities);
+                }
+
+                let name = LanguageServerName::from_proto(server.name);
+                let worktree = server.worktree_id.map(WorktreeId::from_proto);
+
+                if let Some(lsp_logs) = &lsp_logs {
+                    lsp_logs.update(cx, |lsp_logs, cx| {
+                        lsp_logs.add_language_server(
+                            LanguageServerKind::Remote {
+                                project: project.clone(),
+                            },
+                            server_id,
+                            Some(name.clone()),
+                            worktree,
+                            None,
+                            cx,
+                        );
+                    });
+                }
+
+                (
+                    server_id,
+                    LanguageServerStatus {
+                        name,
+                        server_version: None,
+                        server_readable_version: None,
+                        pending_work: Default::default(),
+                        has_pending_diagnostic_updates: false,
+                        progress_tokens: Default::default(),
+                        worktree,
+                        binary: None,
+                        configuration: None,
+                        workspace_folders: BTreeSet::new(),
+                        process_id: None,
+                    },
+                )
+            })
+            .collect();
     }
 
     #[cfg(feature = "test-support")]

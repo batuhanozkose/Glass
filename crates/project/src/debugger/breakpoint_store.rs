@@ -208,6 +208,28 @@ impl BreakpointStore {
         cx.notify();
     }
 
+    pub(crate) fn broadcast(&self) {
+        if let Some((client, project_id)) = &self.downstream_client {
+            for (path, breakpoint_set) in &self.breakpoints {
+                let _ = client.send(proto::BreakpointsForFile {
+                    project_id: *project_id,
+                    path: path.to_string_lossy().into_owned(),
+                    breakpoints: breakpoint_set
+                        .breakpoints
+                        .iter()
+                        .filter_map(|breakpoint| {
+                            breakpoint.bp.bp.to_proto(
+                                path.as_ref(),
+                                &breakpoint.bp.position,
+                                &breakpoint.session_state,
+                            )
+                        })
+                        .collect(),
+                });
+            }
+        }
+    }
+
     async fn handle_breakpoints_for_file(
         this: Entity<Self>,
         message: TypedEnvelope<proto::BreakpointsForFile>,

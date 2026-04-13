@@ -11033,6 +11033,7 @@ impl Element for EditorElement {
     ) {
         if !layout.mode.is_minimap() {
             let focus_handle = self.editor.focus_handle(cx);
+            window.set_focus_handle(&focus_handle, cx);
             let key_context = self
                 .editor
                 .update(cx, |editor, cx| editor.key_context(window, cx));

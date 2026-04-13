@@ -669,11 +669,25 @@ fn initialize_panels(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> Task<anyhow::Result<()>> {
+    fn collab_panel_debug_enabled() -> bool {
+        std::env::var_os("GLASS_DEBUG_COLLAB_PANEL").is_some_and(|value| value != "0")
+    }
+
+    fn debug_collab_panel(message: impl AsRef<str>) {
+        let message = message.as_ref();
+        log::info!("[collab-panel] {message}");
+        if collab_panel_debug_enabled() {
+            eprintln!("[collab-panel] {message}");
+        }
+    }
+
     cx.spawn_in(window, async move |workspace_handle, cx| {
         let project_panel = ProjectPanel::load(workspace_handle.clone(), cx.clone());
         let outline_panel = OutlinePanel::load(workspace_handle.clone(), cx.clone());
         let terminal_panel = TerminalPanel::load(workspace_handle.clone(), cx.clone());
         let git_panel = GitPanel::load(workspace_handle.clone(), cx.clone());
+        let channels_panel =
+            collab_ui::collab_panel::CollabPanel::load(workspace_handle.clone(), cx.clone());
         let debug_panel = DebugPanel::load(workspace_handle.clone(), cx);
 
         async fn add_panel_when_ready(
@@ -691,11 +705,59 @@ fn initialize_panels(
             }
         }
 
+        async fn add_collab_panel_when_ready(
+            panel_task: impl Future<
+                    Output = anyhow::Result<Entity<collab_ui::collab_panel::CollabPanel>>,
+                > + 'static,
+            workspace_handle: WeakEntity<Workspace>,
+            mut cx: gpui::AsyncWindowContext,
+        ) {
+            debug_collab_panel("initialize_panels: waiting for collab panel load");
+            match panel_task.await {
+                Ok(panel) => {
+                    debug_collab_panel(format!(
+                        "initialize_panels: collab panel loaded entity_id={:?}",
+                        panel.entity_id()
+                    ));
+                    workspace_handle
+                        .update_in(&mut cx, |workspace, window, cx| {
+                            debug_collab_panel(format!(
+                                "initialize_panels: before add_panel has_collab_panel={}",
+                                workspace
+                                    .panel::<collab_ui::collab_panel::CollabPanel>(cx)
+                                    .is_some()
+                            ));
+                            workspace.add_panel(panel, window, cx);
+                            debug_collab_panel(format!(
+                                "initialize_panels: after add_panel has_collab_panel={} right_dock_open={} active_panel={}",
+                                workspace
+                                    .panel::<collab_ui::collab_panel::CollabPanel>(cx)
+                                    .is_some(),
+                                workspace.right_dock().read(cx).is_open(),
+                                workspace
+                                    .right_dock()
+                                    .read(cx)
+                                    .active_panel()
+                                    .map(|panel| panel.persistent_name())
+                                    .unwrap_or("<none>")
+                            ));
+                        })
+                        .log_err();
+                }
+                Err(error) => {
+                    debug_collab_panel(format!(
+                        "initialize_panels: collab panel load failed: {error:#}"
+                    ));
+                }
+            }
+        }
+
         futures::join!(
             add_panel_when_ready(project_panel, workspace_handle.clone(), cx.clone()),
             add_panel_when_ready(outline_panel, workspace_handle.clone(), cx.clone()),
             add_panel_when_ready(terminal_panel, workspace_handle.clone(), cx.clone()),
             add_panel_when_ready(git_panel, workspace_handle.clone(), cx.clone()),
+            add_collab_panel_when_ready(channels_panel, workspace_handle.clone(), cx.clone()),
             add_panel_when_ready(debug_panel, workspace_handle.clone(), cx.clone()),
             initialize_agent_panel(workspace_handle, prompt_builder, cx.clone()).map(|r| r.log_err()),
         );
@@ -4649,6 +4711,44 @@ mod tests {
     }
 
     #[gpui::test]
+    async fn test_collab_panel_toggle_focus_opens_panel_once(cx: &mut gpui::TestAppContext) {
+        let app_state = init_test(cx);
+
+        cx.update_global(|store: &mut SettingsStore, cx| {
+            store.update_user_settings(cx, |settings| {
+                settings.workspace.close_panel_on_toggle = Some(true);
+            });
+        });
+
+        let project = Project::test(app_state.fs.clone(), [], cx).await;
+        let window = cx.add_window(|window, cx| MultiWorkspace::test_new(project, window, cx));
+        cx.run_until_parked();
+
+        cx.dispatch_action(window.into(), collab_ui::collab_panel::ToggleFocus);
+        cx.run_until_parked();
+
+        window
+            .read_with(cx, |multi_workspace, cx| {
+                let workspace = multi_workspace.workspace();
+                let workspace = workspace.read(cx);
+                let right_dock = workspace.right_dock().read(cx);
+
+                assert!(
+                    right_dock.is_open(),
+                    "Collab panel toggle should leave the dock open after one dispatch"
+                );
+                assert_eq!(
+                    right_dock
+                        .active_panel()
+                        .map(|panel| panel.persistent_name()),
+                    Some(collab_ui::collab_panel::CollabPanel::persistent_name()),
+                    "Collab panel toggle should activate the collab panel"
+                );
+            })
+            .unwrap();
+    }
+
+    #[gpui::test]
     async fn test_base_keymap(cx: &mut gpui::TestAppContext) {
         let executor = cx.executor();
         let app_state = init_keymap_test(cx);
@@ -5195,6 +5295,8 @@ mod tests {
             gpui_tokio::init(cx);
             theme_settings::init(theme::LoadThemes::JustBase, cx);
             audio::init(cx);
+            channel::init(&app_state.client, app_state.user_store.clone(), cx);
+            call::init(app_state.client.clone(), app_state.user_store.clone(), cx);
             notifications::init(app_state.client.clone(), app_state.user_store.clone(), cx);
             workspace::init(app_state.clone(), cx);
             app_runtime_ui::init(cx);
@@ -5203,6 +5305,7 @@ mod tests {
             release_channel::init(Version::new(0, 0, 0), cx);
             command_palette::init(cx);
             editor::init(cx);
+            collab_ui::init(&app_state, cx);
             git_ui::init(cx);
             outline::init(cx);
             project_panel::init(cx);

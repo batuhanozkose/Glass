@@ -37,12 +37,12 @@ pub struct PanelButtons {
 
 fn show_project_sidebar_tab(
     workspace: &WeakEntity<Workspace>,
-    multi_workspace: Option<&Entity<MultiWorkspace>>,
+    _multi_workspace: Option<&Entity<MultiWorkspace>>,
     window: &mut Window,
     cx: &mut App,
 ) {
     #[cfg(not(target_os = "macos"))]
-    if let Some(multi_workspace) = multi_workspace {
+    if let Some(multi_workspace) = _multi_workspace {
         multi_workspace.update(cx, |multi_workspace, cx| {
             multi_workspace.open_sidebar(cx);
             if let Some(sidebar) = multi_workspace.sidebar() {
@@ -159,7 +159,8 @@ impl Render for DockButtonBar {
                 ))
                 .on_click({
                     let workspace = self.workspace.clone();
-                    let multi_workspace = multi_workspace.clone();
+                    #[cfg(not(target_os = "macos"))]
+                    let multi_workspace = multi_workspace.cloned();
                     move |_, window, cx| {
                         #[cfg(not(target_os = "macos"))]
                         if let Some(multi_workspace) = multi_workspace.as_ref() {

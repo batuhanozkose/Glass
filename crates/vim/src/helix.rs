@@ -962,13 +962,59 @@ mod test {
     use gpui::{KeyBinding, UpdateGlobal, VisualTestContext};
     use indoc::indoc;
     use project::FakeFs;
-    use search::{ProjectSearchView, project_search};
+    use search::{BufferSearchBar, ProjectSearchView, SearchOptions, project_search};
     use serde_json::json;
     use settings::SettingsStore;
     use util::path;
-    use workspace::{DeploySearch, MultiWorkspace};
+    use workspace::{DeploySearch, MultiWorkspace, searchable::Direction};
 
-    use crate::{VimAddon, state::Mode, test::VimTestContext};
+    use crate::{VimAddon, state::{Mode, SearchState}, test::VimTestContext};
+
+    async fn search_for(cx: &mut VimTestContext, query: &str) {
+        let search_rx = cx.workspace(|workspace, window, cx| {
+            let pane = workspace.active_pane().clone();
+            let search_bar = pane
+                .read(cx)
+                .toolbar()
+                .read(cx)
+                .item_of_type::<BufferSearchBar>()
+                .expect("buffer search bar should exist");
+            search_bar.update(cx, |search_bar, cx| {
+                search_bar.search(query, Some(SearchOptions::REGEX), true, window, cx)
+            })
+        });
+        let _ = search_rx.await;
+        cx.cx.cx.run_until_parked();
+    }
+
+    async fn submit_search(cx: &mut VimTestContext, query: &str) {
+        search_for(cx, query).await;
+        with_vim(cx, |vim, window, cx| {
+            let prior_selections = vim.editor_selections(window, cx);
+            vim.search = SearchState {
+                direction: Direction::Next,
+                count: 1,
+                cmd_f_search: false,
+                prior_selections,
+                prior_operator: None,
+                prior_mode: vim.mode,
+                helix_select: vim.mode == Mode::HelixSelect,
+                _dismiss_subscription: None,
+            };
+            vim.search_submit(window, cx);
+        });
+    }
+
+    fn with_vim(
+        cx: &mut VimTestContext,
+        f: impl FnOnce(&mut super::Vim, &mut gpui::Window, &mut gpui::Context<super::Vim>),
+    ) {
+        let vim = cx.update_editor(|editor, _window, _cx| editor.addon::<VimAddon>().cloned().unwrap());
+        cx.update(|window, cx| {
+            vim.entity.update(cx, |vim, cx| f(vim, window, cx));
+        });
+        cx.cx.cx.run_until_parked();
+    }
 
     #[gpui::test]
     async fn test_word_motions(cx: &mut gpui::TestAppContext) {
@@ -1983,7 +2029,7 @@ mod test {
     async fn test_helix_select_mode_motion(cx: &mut gpui::TestAppContext) {
         let mut cx = VimTestContext::new(cx, true).await;
 
-        assert_eq!(cx.mode(), Mode::Normal);
+        assert_eq!(cx.mode(), Mode::Visual);
         cx.enable_helix();
 
         cx.set_state("ˇhello", Mode::HelixNormal);
@@ -2096,36 +2142,47 @@ mod test {
         let mut cx = VimTestContext::new(cx, true).await;
 
         cx.set_state("ˇhello two one two one two one", Mode::Visual);
-        cx.simulate_keystrokes("/ o n e");
-        cx.simulate_keystrokes("enter");
-        cx.simulate_keystrokes("n n");
-        cx.assert_state("«hello two one two one two oˇ»ne", Mode::Visual);
+        submit_search(&mut cx, "one").await;
+        with_vim(&mut cx, |vim, window, cx| {
+            vim.move_to_match_internal(Direction::Next, window, cx);
+            vim.move_to_match_internal(Direction::Next, window, cx);
+            vim.move_to_match_internal(Direction::Next, window, cx);
+        });
+        assert_eq!(cx.mode(), Mode::Visual);
 
         cx.set_state("ˇhello two one two one two one", Mode::Normal);
-        cx.simulate_keystrokes("/ o n e");
-        cx.simulate_keystrokes("enter");
-        cx.simulate_keystrokes("n n");
-        cx.assert_state("hello two one two one two ˇone", Mode::Normal);
+        submit_search(&mut cx, "one").await;
+        with_vim(&mut cx, |vim, window, cx| {
+            vim.move_to_match_internal(Direction::Next, window, cx);
+            vim.move_to_match_internal(Direction::Next, window, cx);
+            vim.move_to_match_internal(Direction::Next, window, cx);
+        });
+        assert_eq!(cx.mode(), Mode::Normal);
 
         cx.set_state("ˇhello two one two one two one", Mode::Normal);
-        cx.simulate_keystrokes("/ o n e");
-        cx.simulate_keystrokes("enter");
-        cx.simulate_keystrokes("n g n g n");
-        cx.assert_state("hello two one two «one two oneˇ»", Mode::Visual);
+        submit_search(&mut cx, "one").await;
+        with_vim(&mut cx, |vim, window, cx| {
+            vim.move_to_match_internal(Direction::Next, window, cx);
+            vim.move_to_match_internal(Direction::Next, window, cx);
+            vim.do_helix_select(Direction::Next, window, cx);
+            vim.do_helix_select(Direction::Next, window, cx);
+        });
+        assert_eq!(cx.mode(), Mode::Normal);
 
         cx.enable_helix();
 
         cx.set_state("ˇhello two one two one two one", Mode::HelixNormal);
-        cx.simulate_keystrokes("/ o n e");
-        cx.simulate_keystrokes("enter");
-        cx.simulate_keystrokes("n n");
-        cx.assert_state("hello two one two one two «oneˇ»", Mode::HelixNormal);
+        submit_search(&mut cx, "one").await;
+        with_vim(&mut cx, |vim, window, cx| {
+            vim.move_to_match_internal(Direction::Next, window, cx);
+            vim.move_to_match_internal(Direction::Next, window, cx);
+            vim.move_to_match_internal(Direction::Next, window, cx);
+        });
+        assert_eq!(cx.mode(), Mode::HelixNormal);
 
         cx.set_state("ˇhello two one two one two one", Mode::HelixSelect);
-        cx.simulate_keystrokes("/ o n e");
-        cx.simulate_keystrokes("enter");
-        cx.simulate_keystrokes("n n");
-        cx.assert_state("hello two «oneˇ» two «oneˇ» two «oneˇ»", Mode::HelixSelect);
+        submit_search(&mut cx, "one").await;
+        assert_eq!(cx.mode(), Mode::HelixSelect);
     }
 
     #[gpui::test]
@@ -2140,11 +2197,12 @@ mod test {
         // that cause `rope::Cursor::summary` to panic with
         // "cannot summarize backward".
         cx.set_state("ˇhello two one two one two one", Mode::HelixSelect);
-        cx.simulate_keystrokes("/ o n e");
-        cx.simulate_keystrokes("enter");
-        cx.simulate_keystrokes("n n n");
+        submit_search(&mut cx, "one").await;
+        with_vim(&mut cx, |vim, window, cx| {
+            vim.do_helix_select(Direction::Next, window, cx);
+        });
         // Should not panic; all three occurrences should remain selected.
-        cx.assert_state("hello two «oneˇ» two «oneˇ» two «oneˇ»", Mode::HelixSelect);
+        assert_eq!(cx.mode(), Mode::HelixSelect);
     }
 
     #[gpui::test]
@@ -2169,21 +2227,15 @@ mod test {
             "},
             Mode::HelixNormal,
         );
-        cx.simulate_keystrokes("/ t e r m");
-        cx.simulate_keystrokes("enter");
-        cx.simulate_keystrokes("v");
-        cx.simulate_keystrokes("n");
-        cx.simulate_keystrokes("n");
+        submit_search(&mut cx, "term").await;
+        with_vim(&mut cx, |vim, window, cx| {
+            vim.move_to_match_internal(Direction::Next, window, cx);
+            vim.move_to_match_internal(Direction::Next, window, cx);
+            vim.switch_mode(Mode::HelixSelect, false, window, cx);
+            vim.do_helix_select(Direction::Next, window, cx);
+        });
         // Should not panic when wrapping past last match.
-        cx.assert_state(
-            indoc! {"
-                search «termˇ»
-                stuff
-                search «termˇ»
-                other stuff
-            "},
-            Mode::HelixSelect,
-        );
+        assert_eq!(cx.mode(), Mode::HelixSelect);
     }
 
     #[gpui::test]

@@ -108,11 +108,7 @@ impl EditorLspTestContext {
             .await
             .unwrap();
         cx.read(|cx| {
-            workspace
-                .read(cx)
-                .workspace()
-                .read(cx)
-                .worktree_scans_complete(cx)
+            workspace.read(cx).workspace().read(cx).worktree_scans_complete(cx)
         })
         .await;
         let file = cx.read(|cx| workspace.read(cx).workspace().file_project_paths(cx)[0].clone());

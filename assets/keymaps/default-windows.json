@@ -621,11 +621,9 @@
       "alt-9": ["workspace::ActivatePane", 8],
       "ctrl-alt-b": "workspace::ToggleRightDock",
       "ctrl-b": "workspace::ToggleLeftDock",
-      "ctrl-shift-j": "workspace::ToggleBottomDock",
-      "ctrl-j": "workspace_modes::SwitchToTerminalMode",
-      "ctrl-e": "workspace_modes::SwitchToEditorMode",
-      "ctrl-alt-j": "multi_workspace::ToggleProjectNavigation",
-      "ctrl-alt-;": "multi_workspace::FocusProjectNavigation",
+      "ctrl-j": "workspace::ToggleBottomDock",
+      "ctrl-alt-j": "multi_workspace::ToggleWorkspaceSidebar",
+      "ctrl-alt-;": "multi_workspace::FocusWorkspaceSidebar",
       "ctrl-shift-y": "workspace::ToggleAllDocks",
       "alt-r": "workspace::ResetActiveDockSize",
       // For 0px parameter, uses UI font size value.
@@ -643,8 +641,7 @@
       "ctrl-p": "file_finder::Toggle",
       "ctrl-shift-tab": ["tab_switcher::Toggle", { "select_last": true }],
       "ctrl-tab": "tab_switcher::Toggle",
-      // ctrl-e reserved for workspace_modes::SwitchToEditorMode
-      // "ctrl-e": "file_finder::Toggle",
+      "ctrl-e": "file_finder::Toggle",
       "f1": "command_palette::Toggle",
       "ctrl-shift-p": "command_palette::Toggle",
       "ctrl-shift-m": "diagnostics::Deploy",
@@ -846,12 +843,20 @@
   {
     "use_key_equivalents": true,
     "bindings": {
+      "ctrl-shift-alt-f": "workspace::FollowNextCollaborator",
       // Only available in debug builds: opens an element inspector for development.
       "shift-alt-i": "dev::ToggleInspector",
     },
   },
   {
-    "context": "!ContextEditor && !AcpThread > Editor && mode == full",
+    "context": "!Terminal",
+    "use_key_equivalents": true,
+    "bindings": {
+      "ctrl-shift-c": "collab_panel::ToggleFocus",
+    },
+  },
+  {
+    "context": "!AcpThread > Editor && mode == full",
     "use_key_equivalents": true,
     "bindings": {
       "alt-enter": "editor::OpenExcerpts",
@@ -892,6 +897,22 @@
     },
   },
   {
+    "context": "OutlinePanel && not_editing",
+    "use_key_equivalents": true,
+    "bindings": {
+      "left": "outline_panel::CollapseSelectedEntry",
+      "right": "outline_panel::ExpandSelectedEntry",
+      "shift-alt-c": "outline_panel::CopyPath",
+      "ctrl-shift-alt-c": "workspace::CopyRelativePath",
+      "ctrl-alt-r": "outline_panel::RevealInFileManager",
+      "space": "outline_panel::OpenSelectedEntry",
+      "shift-down": "menu::SelectNext",
+      "shift-up": "menu::SelectPrevious",
+      "alt-enter": "editor::OpenExcerpts",
+      "ctrl-alt-enter": "editor::OpenExcerptsSplit",
+    },
+  },
+  {
     "context": "ProjectPanel",
     "use_key_equivalents": true,
     "bindings": {
@@ -923,23 +944,6 @@
       "shift-down": "menu::SelectNext",
       "shift-up": "menu::SelectPrevious",
       "escape": "menu::Cancel",
-    },
-  },
-  {
-    "context": "OutlinePanel && not_editing",
-    "use_key_equivalents": true,
-    "bindings": {
-      "space": "outline_panel::OpenSelectedEntry",
-      "left": "outline_panel::CollapseSelectedEntry",
-      "right": "outline_panel::ExpandSelectedEntry",
-      "ctrl-alt-r": "outline_panel::RevealInFileManager",
-      "shift-down": "menu::SelectNext",
-      "shift-up": "menu::SelectPrevious",
-      "escape": "menu::Cancel",
-      "alt-enter": "editor::OpenExcerpts",
-      "ctrl-alt-enter": "editor::OpenExcerptsSplit",
-      "shift-alt-c": "workspace::CopyPath",
-      "ctrl-k ctrl-shift-c": "workspace::CopyRelativePath",
     },
   },
   {
@@ -1075,6 +1079,38 @@
     },
   },
   {
+    "context": "CollabPanel && not_editing",
+    "use_key_equivalents": true,
+    "bindings": {
+      "ctrl-backspace": "collab_panel::Remove",
+      "space": "menu::Confirm",
+    },
+  },
+  {
+    "context": "CollabPanel",
+    "use_key_equivalents": true,
+    "bindings": {
+      "alt-up": "collab_panel::MoveChannelUp",
+      "alt-down": "collab_panel::MoveChannelDown",
+      "alt-enter": "collab_panel::OpenSelectedChannelNotes",
+      "shift-enter": "collab_panel::ToggleSelectedChannelFavorite",
+    },
+  },
+  {
+    "context": "(CollabPanel && editing) > Editor",
+    "use_key_equivalents": true,
+    "bindings": {
+      "space": "collab_panel::InsertSpace",
+    },
+  },
+  {
+    "context": "ChannelModal",
+    "use_key_equivalents": true,
+    "bindings": {
+      "tab": "channel_modal::ToggleMode",
+    },
+  },
+  {
     "context": "Picker > Editor",
     "use_key_equivalents": true,
     "bindings": {
@@ -1083,6 +1119,13 @@
       "down": "menu::SelectNext",
       "tab": "picker::ConfirmCompletion",
       "alt-enter": ["picker::ConfirmInput", { "secondary": false }],
+    },
+  },
+  {
+    "context": "ChannelModal > Picker > Editor",
+    "use_key_equivalents": true,
+    "bindings": {
+      "tab": "channel_modal::ToggleMode",
     },
   },
   {
@@ -1106,8 +1149,7 @@
     "use_key_equivalents": true,
     "bindings": {
       "ctrl-shift-p": "file_finder::SelectPrevious",
-      // ctrl-j reserved for workspace_modes::SwitchToTerminalMode
-      "ctrl-shift-down": "pane::SplitDown",
+      "ctrl-j": "pane::SplitDown",
       "ctrl-k": "pane::SplitUp",
       "ctrl-h": "pane::SplitLeft",
       "ctrl-l": "pane::SplitRight",
@@ -1160,8 +1202,7 @@
       // Overrides for conflicting keybindings
       "ctrl-b": ["terminal::SendKeystroke", "ctrl-b"],
       "ctrl-c": ["terminal::SendKeystroke", "ctrl-c"],
-      // ctrl-e reserved for workspace_modes::SwitchToEditorMode (use ctrl-shift-e or escape to exit terminal mode)
-      // "ctrl-e": ["terminal::SendKeystroke", "ctrl-e"],
+      "ctrl-e": ["terminal::SendKeystroke", "ctrl-e"],
       "ctrl-o": ["terminal::SendKeystroke", "ctrl-o"],
       "ctrl-w": ["terminal::SendKeystroke", "ctrl-w"],
       "ctrl-q": ["terminal::SendKeystroke", "ctrl-q"],
@@ -1183,6 +1224,7 @@
       "shift-down": "terminal::ScrollLineDown",
       "shift-home": "terminal::ScrollToTop",
       "shift-end": "terminal::ScrollToBottom",
+      "ctrl-shift-space": "terminal::ToggleViMode",
       "ctrl-shift-r": "terminal::RerunTask",
       "ctrl-alt-r": "terminal::RerunTask",
       "alt-t": "terminal::RerunTask",
@@ -1278,8 +1320,7 @@
       "ctrl-c": "keymap_editor::CopyAction",
       "ctrl-shift-c": "keymap_editor::CopyContext",
       "ctrl-t": "keymap_editor::ShowMatchingKeybinds",
-      // ctrl-e reserved for workspace_modes::SwitchToEditorMode
-      "ctrl-shift-k": "zed::OpenKeymapFile",
+      "ctrl-e": "zed::OpenKeymapFile",
     },
   },
   {

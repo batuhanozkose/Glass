@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use editor::test::editor_lsp_test_context::EditorLspTestContext;
-use gpui::{Context, Entity, UpdateGlobal};
+use gpui::{Context, Entity, Focusable as _, UpdateGlobal};
 use search::{BufferSearchBar, project_search::ProjectSearchBar};
 use semver::Version;
 
@@ -135,10 +135,12 @@ impl VimTestContext {
                     toolbar.add_item(project_search_bar, window, cx);
                 })
             });
-            workspace.status_bar().update(cx, |status_bar, cx| {
-                let vim_mode_indicator = cx.new(|cx| ModeIndicator::new(window, cx));
-                status_bar.add_right_item(vim_mode_indicator, window, cx);
-            });
+        });
+        cx.update_editor(|editor, window, cx| {
+            window.focus(&editor.focus_handle(cx), cx);
+        });
+        cx.update(|window, cx| {
+            window.draw(cx).clear();
         });
 
         Self { cx }
@@ -219,6 +221,9 @@ impl VimTestContext {
             });
         });
         self.cx.cx.cx.run_until_parked();
+        self.update(|window, cx| {
+            window.draw(cx).clear();
+        });
     }
 
     #[track_caller]
@@ -263,6 +268,72 @@ impl VimTestContext {
                 .unwrap_or_default(),
         }
     }
+
+    pub fn simulate_keystrokes(&mut self, keystrokes: &str) {
+        let mut pending = Vec::new();
+
+        for keystroke_text in keystrokes.split_whitespace() {
+            let keystroke = gpui::Keystroke::parse(keystroke_text)
+                .unwrap_or_else(|_| panic!("Invalid keystroke: {keystroke_text}"));
+            pending.push(keystroke.clone());
+
+            enum DispatchState {
+                Pending,
+                Dispatched,
+                Unhandled,
+            }
+
+            let dispatch_state = self.update_editor(|editor, window, cx| {
+                let key_context = editor.key_context(window, cx);
+                let (bindings, is_pending) = cx.bindings_for_input_in_context(&pending, &[key_context]);
+
+                if let Some(binding) = bindings.first() {
+                    if binding.action().name() != "zed::NoAction" {
+                        window.dispatch_action_on_view(cx.entity().entity_id(), binding.action().boxed_clone(), cx);
+                    }
+                    return DispatchState::Dispatched;
+                }
+
+                if is_pending {
+                    return DispatchState::Pending;
+                }
+
+                window.dispatch_keystroke(keystroke, cx);
+                DispatchState::Unhandled
+            });
+
+            if matches!(dispatch_state, DispatchState::Dispatched | DispatchState::Unhandled) {
+                pending.clear();
+            }
+        }
+
+        self.cx.cx.cx.run_until_parked();
+        self.update(|window, cx| {
+            window.draw(cx).clear();
+        });
+    }
+
+    pub fn simulate_input(&mut self, input: &str) {
+        for char in input.chars() {
+            let key = char.to_string();
+            let keystroke = gpui::Keystroke {
+                modifiers: Default::default(),
+                key: key.clone(),
+                key_char: Some(key),
+                native_key_code: None,
+            };
+
+            self.update(|window, cx| {
+                window.dispatch_keystroke(keystroke, cx);
+            });
+        }
+
+        self.cx.cx.cx.run_until_parked();
+        self.update(|window, cx| {
+            window.draw(cx).clear();
+        });
+    }
+
 }
 
 pub struct VimClipboard {

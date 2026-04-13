@@ -1,4 +1,5 @@
 mod application_menu;
+pub mod collab;
 #[cfg(target_os = "macos")]
 mod native_toolbar;
 mod onboarding_banner;
@@ -22,6 +23,7 @@ use crate::application_menu::{
 use browser::BrowserView;
 
 use auto_update::AutoUpdateStatus;
+use call::ActiveCall;
 use client::{Client, UserStore, zed_urls};
 use cloud_api_types::Plan;
 #[allow(unused_imports)]
@@ -66,6 +68,19 @@ pub use onboarding_banner::restore_banner;
 const MAX_PROJECT_NAME_LENGTH: usize = 40;
 const MAX_BRANCH_NAME_LENGTH: usize = 40;
 const MAX_SHORT_SHA_LENGTH: usize = 8;
+
+fn title_bar_debug_enabled() -> bool {
+    std::env::var_os("GLASS_DEBUG_TITLE_BAR").is_some_and(|value| value != "0")
+}
+
+pub(crate) fn debug_title_bar(message: impl AsRef<str>) {
+    if !title_bar_debug_enabled() {
+        return;
+    }
+
+    let message = message.as_ref();
+    eprintln!("[title-bar] {message}");
+}
 
 actions!(
     collab,
@@ -171,6 +186,7 @@ pub struct TitleBar {
     _subscriptions: Vec<Subscription>,
     banner: Entity<OnboardingBanner>,
     update_version: Entity<UpdateVersion>,
+    screen_share_popover_handle: PopoverMenuHandle<ContextMenu>,
     right_items: Vec<Box<dyn TitleBarItemViewHandle>>,
     active_pane: Option<Entity<Pane>>,
     #[cfg(target_os = "macos")]
@@ -265,6 +281,7 @@ impl TitleBar {
                     .into_any_element(),
             );
         }
+        children.push(self.render_collaborator_list(window, cx).into_any_element());
         #[cfg(not(target_os = "macos"))]
         if titlebar_center.is_none() && title_bar_settings.show_onboarding_banner {
             children.push(self.banner.clone().into_any_element())
@@ -288,6 +305,7 @@ impl TitleBar {
                 .gap_1()
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .child(self.render_editor_nav_buttons(cx))
+                .children(self.render_call_controls(window, cx))
                 .children(self.render_connection_status(status, cx))
                 .child(self.update_version.clone())
                 .when(!is_browser_mode && !is_terminal_mode, |this| {
@@ -409,6 +427,20 @@ impl TitleBar {
             }),
         );
         subscriptions.push(cx.observe(&user_store, |_a, _, cx| cx.notify()));
+        if let Some(active_call) = ActiveCall::try_global(cx) {
+            subscriptions.push(cx.observe(&active_call, |this, _, cx| {
+                #[cfg(target_os = "macos")]
+                this.invalidate_native_toolbar(cx);
+                cx.notify();
+            }));
+            subscriptions.push(
+                cx.subscribe(&active_call, |this, _, _: &call::room::Event, cx| {
+                    #[cfg(target_os = "macos")]
+                    this.invalidate_native_toolbar(cx);
+                    cx.notify();
+                }),
+            );
+        }
         subscriptions.push(cx.observe_button_layout_changed(window, move |_, _, cx| {
             let title_bar = title_bar.clone();
             cx.defer(move |cx| {
@@ -491,6 +523,7 @@ impl TitleBar {
             _subscriptions: subscriptions,
             banner,
             update_version,
+            screen_share_popover_handle: Default::default(),
             right_items: Vec::new(),
             active_pane: None,
             #[cfg(target_os = "macos")]
@@ -1237,6 +1270,22 @@ impl TitleBar {
                 )
                 .anchor(gpui::Corner::TopLeft),
         )
+    }
+
+    fn share_project(&mut self, cx: &mut Context<Self>) {
+        let active_call = call::ActiveCall::global(cx);
+        let project = self.project.clone();
+        active_call
+            .update(cx, |call, cx| call.share_project(project, cx))
+            .detach_and_log_err(cx);
+    }
+
+    fn unshare_project(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        let active_call = call::ActiveCall::global(cx);
+        let project = self.project.clone();
+        active_call
+            .update(cx, |call, cx| call.unshare_project(project, cx))
+            .log_err();
     }
 
     fn window_activation_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {

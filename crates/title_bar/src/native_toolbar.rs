@@ -8,14 +8,17 @@ mod state;
 mod status;
 
 use self::editor_items::plan_label;
-use crate::{TitleBar, show_menus, title_bar_settings::TitleBarSettings};
+use crate::{TitleBar, debug_title_bar, show_menus, title_bar_settings::TitleBarSettings};
+use call::ActiveCall;
 use client::Status as ClientStatus;
 use gpui::{
     Action, AnyElement, Context, IntoElement, NativeToolbar, NativeToolbarDisplayMode,
     NativeToolbarItem, NativeToolbarSizeMode, Window,
 };
 use settings::Settings;
-use workspace::{ToggleRightDock, ToggleSidebar};
+use workspace::{
+    Deafen, LeaveCall, Mute, ScreenShare, ShareProject, ToggleRightDock, ToggleSidebar,
+};
 use workspace_modes::ModeId;
 
 pub(crate) use state::NativeToolbarState;
@@ -26,6 +29,14 @@ impl TitleBar {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        let uses_gpui_title_bar = show_menus(cx);
+        let has_active_room = ActiveCall::try_global(cx)
+            .and_then(|call| call.read(cx).room().cloned())
+            .is_some();
+        debug_title_bar(format!(
+            "render_macos_title_bar show_menus={uses_gpui_title_bar} has_active_room={has_active_room}"
+        ));
+
         if show_menus(cx) {
             window.set_native_toolbar(None);
             return self.render_gpui_title_bar(window, cx).into_any_element();
@@ -150,6 +161,16 @@ impl TitleBar {
             self.native_toolbar_state.status_image_info,
         );
 
+        let has_active_room = ActiveCall::try_global(cx)
+            .and_then(|call| call.read(cx).room().cloned())
+            .is_some();
+        debug_title_bar(format!(
+            "update_native_toolbar active_mode={} has_active_room={} toolbar_key_changed={}",
+            active_mode.0,
+            has_active_room,
+            self.native_toolbar_state.last_toolbar_key != toolbar_key
+        ));
+
         if self.native_toolbar_state.last_toolbar_key == toolbar_key {
             return;
         }
@@ -213,6 +234,96 @@ impl TitleBar {
             if let Some(image_info) = self.native_toolbar_state.status_image_info.clone() {
                 toolbar = toolbar.item(self.build_image_info_item(image_info));
             }
+        }
+
+        if let Some(room) = ActiveCall::global(cx).read(cx).room().cloned() {
+            let room = room.read(cx);
+            let is_muted = room.is_muted();
+            let is_deafened = room.is_deafened().unwrap_or(false);
+            let is_screen_sharing = room.is_sharing_screen();
+            let can_use_microphone = room.can_use_microphone();
+            let can_share_projects = room.can_share_projects();
+            let project = self.project.read(cx);
+            let is_shared =
+                (project.is_local() || project.is_via_remote_server()) && project.is_shared();
+
+            toolbar = toolbar.item(self.build_simple_action_button(
+                "glass.call.leave",
+                "phone.down",
+                "Leave Call",
+                |window, cx| window.dispatch_action(LeaveCall.boxed_clone(), cx),
+            ));
+
+            if can_share_projects {
+                toolbar = toolbar.item(self.build_simple_action_button(
+                    "glass.call.share_project",
+                    if is_shared {
+                        "person.2.slash"
+                    } else {
+                        "person.2.wave.2"
+                    },
+                    if is_shared {
+                        "Unshare Project"
+                    } else {
+                        "Share Project"
+                    },
+                    |window, cx| window.dispatch_action(ShareProject.boxed_clone(), cx),
+                ));
+            }
+
+            if can_use_microphone {
+                toolbar = toolbar.item(self.build_simple_action_button(
+                    "glass.call.mute",
+                    if is_muted { "mic.slash" } else { "mic" },
+                    if is_muted {
+                        "Unmute Microphone"
+                    } else {
+                        "Mute Microphone"
+                    },
+                    |window, cx| window.dispatch_action(Mute.boxed_clone(), cx),
+                ));
+            }
+
+            toolbar = toolbar.item(self.build_simple_action_button(
+                "glass.call.deafen",
+                if is_deafened {
+                    "speaker.slash"
+                } else {
+                    "speaker.wave.2"
+                },
+                if is_deafened {
+                    "Unmute Audio"
+                } else {
+                    "Mute Audio"
+                },
+                |window, cx| window.dispatch_action(Deafen.boxed_clone(), cx),
+            ));
+
+            if can_use_microphone && cx.is_screen_capture_supported() {
+                toolbar = toolbar.item(self.build_simple_action_button(
+                    "glass.call.screen_share",
+                    if is_screen_sharing {
+                        "rectangle.on.rectangle.slash"
+                    } else {
+                        "rectangle.on.rectangle"
+                    },
+                    if is_screen_sharing {
+                        "Stop Sharing Screen"
+                    } else {
+                        "Share Screen"
+                    },
+                    |window, cx| window.dispatch_action(ScreenShare.boxed_clone(), cx),
+                ));
+            }
+
+            debug_title_bar(format!(
+                "native toolbar call controls room_id={} channel_id={:?} can_use_microphone={} can_share_projects={} is_screen_sharing={}",
+                room.id(),
+                room.channel_id(),
+                can_use_microphone,
+                can_share_projects,
+                is_screen_sharing
+            ));
         }
 
         if let Some(item) = self.build_connection_status_item(cx) {
