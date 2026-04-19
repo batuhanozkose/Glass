@@ -44,6 +44,29 @@ jobs:
         with:
           targets: ${{ github.event.inputs.architecture }}-pc-windows-msvc
 
+      - name: Setup MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ github.event.inputs.architecture == 'aarch64' && 'amd64_arm64' || 'x64' }}
+
+      - name: Locate fxc.exe and export GPUI_FXC_PATH
+        shell: pwsh
+        run: |
+          $fxc = (Get-Command fxc.exe -ErrorAction SilentlyContinue).Source
+          if (-not $fxc) {
+            $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin"
+            $latest = Get-ChildItem $sdkBin -Directory | Where-Object { $_.Name -match '^10\.' } | Sort-Object Name -Descending | Select-Object -First 1
+            if ($latest) {
+              $fxc = Join-Path $latest.FullName "x64\fxc.exe"
+            }
+          }
+          if (-not $fxc -or -not (Test-Path $fxc)) {
+            Write-Error "fxc.exe not found"
+            exit 1
+          }
+          Write-Host "fxc.exe found at: $fxc"
+          echo "GPUI_FXC_PATH=$fxc" >> $env:GITHUB_ENV
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
