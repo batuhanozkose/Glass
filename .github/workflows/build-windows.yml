@@ -47,28 +47,15 @@ jobs:
         shell: pwsh
 
       - name: Install cargo-about
-        uses: actions/cache@v4
-        id: cache-cargo-about
-        with:
-          path: |
-            ~/.cargo/bin/cargo-about
-            ~/.cargo/.crates.toml
-            ~/.cargo/.crates2.json
-          key: cargo-about-windows-v0.8.2
-
-      - name: Install cargo-about (if not cached)
-        if: steps.cache-cargo-about.outputs.cache-hit != 'true'
-        run: cargo install "cargo-about@0.8.2"
+        run: cargo install "cargo-about@0.8.2" --locked
         shell: pwsh
 
       - name: Generate licenses
         run: |
           if (Test-Path "script/generate-licenses.ps1") {
-            powershell -ExecutionPolicy Bypass -File script/generate-licenses.ps1
-          } elseif (Test-Path "script/generate-licenses") {
-            bash script/generate-licenses
+            pwsh -ExecutionPolicy Bypass -File script/generate-licenses.ps1
           } else {
-            Write-Host "No generate-licenses script found, skipping"
+            Write-Host "No generate-licenses script found, creating placeholder"
             New-Item -ItemType Directory -Force -Path assets | Out-Null
             "# Licenses`n(generated during build)" | Out-File -FilePath assets/licenses.md -Encoding utf8
           }
@@ -101,7 +88,7 @@ jobs:
           echo "Release channel: $channel"
         shell: pwsh
 
-      - name: Build Zed (zed.exe, cli.exe, auto_update_helper.exe)
+      - name: Build Glass (zed.exe, cli.exe, auto_update_helper.exe)
         run: |
           $target = "${{ github.event.inputs.architecture }}-pc-windows-msvc"
           cargo build --release --package zed --package cli --package auto_update_helper --target $target
