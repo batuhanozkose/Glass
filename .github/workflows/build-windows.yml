@@ -24,6 +24,16 @@ jobs:
     timeout-minutes: 120
 
     steps:
+      - name: Enable long paths in Windows
+        shell: pwsh
+        run: |
+          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+            -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+
+      - name: Enable long paths in Git
+        shell: pwsh
+        run: git config --system core.longpaths true
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -120,14 +130,12 @@ jobs:
           Copy-Item "$outDir\explorer_command_injector.dll" "$collectDir\explorer_command_injector.dll" -Force
           Copy-Item "$outDir\remote_server.exe" "$collectDir\remote_server.exe" -Force
 
-          # ConPTY
           if ($arch -eq "x86_64") {
             New-Item -ItemType Directory -Force -Path "$collectDir\x64" | Out-Null
             New-Item -ItemType Directory -Force -Path "$collectDir\arm64" | Out-Null
             Copy-Item ".\conpty\build\native\runtimes\x64\OpenConsole.exe" "$collectDir\x64\OpenConsole.exe" -Force
             Copy-Item ".\conpty\build\native\runtimes\arm64\OpenConsole.exe" "$collectDir\arm64\OpenConsole.exe" -Force
             Copy-Item ".\conpty\runtimes\win-x64\native\conpty.dll" "$collectDir\conpty.dll" -Force
-            # AMD AGS
             if (Test-Path ".\AGS_SDK-6.3.0\ags_lib\lib\amd_ags_x64.dll") {
               Copy-Item ".\AGS_SDK-6.3.0\ags_lib\lib\amd_ags_x64.dll" "$collectDir\amd_ags_x64.dll" -Force
             }
