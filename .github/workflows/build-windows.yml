@@ -1,0 +1,169 @@
+name: Build Windows (.exe)
+
+on:
+  workflow_dispatch:
+    inputs:
+      architecture:
+        description: "Target architecture"
+        required: true
+        default: "x86_64"
+        type: choice
+        options:
+          - x86_64
+          - aarch64
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  build-windows:
+    name: Build Windows (${{ github.event.inputs.architecture }})
+    runs-on: windows-2022
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ github.event.inputs.architecture }}-pc-windows-msvc
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-${{ github.event.inputs.architecture }}
+          cache-targets: true
+          cache-all-crates: true
+
+      - name: Install CMake and Ninja
+        run: |
+          choco install cmake ninja --installargs 'ADD_CMAKE_TO_PATH=System' -y
+        shell: pwsh
+
+      - name: Install cargo-about
+        uses: actions/cache@v4
+        id: cache-cargo-about
+        with:
+          path: |
+            ~/.cargo/bin/cargo-about
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+          key: cargo-about-windows-v0.8.2
+
+      - name: Install cargo-about (if not cached)
+        if: steps.cache-cargo-about.outputs.cache-hit != 'true'
+        run: cargo install "cargo-about@0.8.2"
+        shell: pwsh
+
+      - name: Generate licenses
+        run: |
+          if (Test-Path "script/generate-licenses.ps1") {
+            powershell -ExecutionPolicy Bypass -File script/generate-licenses.ps1
+          } elseif (Test-Path "script/generate-licenses") {
+            bash script/generate-licenses
+          } else {
+            Write-Host "No generate-licenses script found, skipping"
+            New-Item -ItemType Directory -Force -Path assets | Out-Null
+            "# Licenses`n(generated during build)" | Out-File -FilePath assets/licenses.md -Encoding utf8
+          }
+        shell: pwsh
+
+      - name: Download AMD GPU Services SDK
+        if: github.event.inputs.architecture == 'x86_64'
+        run: |
+          $url = "https://codeload.github.com/GPUOpen-LibrariesAndSDKs/AGS_SDK/zip/refs/tags/v6.3.0"
+          $zipPath = ".\AGS_SDK_v6.3.0.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath "." -Force
+        shell: pwsh
+
+      - name: Download ConPTY
+        run: |
+          $url = "https://github.com/microsoft/terminal/releases/download/v1.23.13503.0/Microsoft.Windows.Console.ConPTY.1.23.251216003.nupkg"
+          $zipPath = ".\Microsoft.Windows.Console.ConPTY.nupkg"
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath ".\conpty" -Force
+        shell: pwsh
+
+      - name: Set release channel
+        run: |
+          $channel = Get-Content "crates/zed/RELEASE_CHANNEL" -ErrorAction SilentlyContinue
+          if (-not $channel) { $channel = "dev" }
+          $channel = $channel.Trim()
+          echo "ZED_RELEASE_CHANNEL=$channel" >> $env:GITHUB_ENV
+          echo "RELEASE_CHANNEL=$channel" >> $env:GITHUB_ENV
+          echo "Release channel: $channel"
+        shell: pwsh
+
+      - name: Build Zed (zed.exe, cli.exe, auto_update_helper.exe)
+        run: |
+          $target = "${{ github.event.inputs.architecture }}-pc-windows-msvc"
+          cargo build --release --package zed --package cli --package auto_update_helper --target $target
+        shell: pwsh
+
+      - name: Build explorer_command_injector.dll
+        run: |
+          $target = "${{ github.event.inputs.architecture }}-pc-windows-msvc"
+          cargo build --release --package explorer_command_injector --target $target
+        shell: pwsh
+
+      - name: Build remote_server.exe
+        run: |
+          $target = "${{ github.event.inputs.architecture }}-pc-windows-msvc"
+          cargo build --release --package remote_server --target $target
+        shell: pwsh
+
+      - name: Collect build artifacts
+        run: |
+          $arch = "${{ github.event.inputs.architecture }}"
+          $target = "$arch-pc-windows-msvc"
+          $outDir = ".\target\$target\release"
+          $collectDir = ".\target\glass-windows-$arch"
+          New-Item -ItemType Directory -Force -Path $collectDir | Out-Null
+
+          Copy-Item "$outDir\zed.exe" "$collectDir\Glass.exe" -Force
+          Copy-Item "$outDir\cli.exe" "$collectDir\cli.exe" -Force
+          Copy-Item "$outDir\auto_update_helper.exe" "$collectDir\auto_update_helper.exe" -Force
+          Copy-Item "$outDir\explorer_command_injector.dll" "$collectDir\explorer_command_injector.dll" -Force
+          Copy-Item "$outDir\remote_server.exe" "$collectDir\remote_server.exe" -Force
+
+          # ConPTY
+          if ($arch -eq "x86_64") {
+            New-Item -ItemType Directory -Force -Path "$collectDir\x64" | Out-Null
+            New-Item -ItemType Directory -Force -Path "$collectDir\arm64" | Out-Null
+            Copy-Item ".\conpty\build\native\runtimes\x64\OpenConsole.exe" "$collectDir\x64\OpenConsole.exe" -Force
+            Copy-Item ".\conpty\build\native\runtimes\arm64\OpenConsole.exe" "$collectDir\arm64\OpenConsole.exe" -Force
+            Copy-Item ".\conpty\runtimes\win-x64\native\conpty.dll" "$collectDir\conpty.dll" -Force
+            # AMD AGS
+            if (Test-Path ".\AGS_SDK-6.3.0\ags_lib\lib\amd_ags_x64.dll") {
+              Copy-Item ".\AGS_SDK-6.3.0\ags_lib\lib\amd_ags_x64.dll" "$collectDir\amd_ags_x64.dll" -Force
+            }
+          } else {
+            New-Item -ItemType Directory -Force -Path "$collectDir\arm64" | Out-Null
+            Copy-Item ".\conpty\build\native\runtimes\arm64\OpenConsole.exe" "$collectDir\arm64\OpenConsole.exe" -Force
+            Copy-Item ".\conpty\runtimes\win-arm64\native\conpty.dll" "$collectDir\conpty.dll" -Force
+          }
+
+          Write-Host "Collected files:"
+          Get-ChildItem $collectDir -Recurse | Select-Object FullName
+        shell: pwsh
+
+      - name: Upload Glass.exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glass-windows-${{ github.event.inputs.architecture }}
+          path: target/glass-windows-${{ github.event.inputs.architecture }}/
+          if-no-files-found: error
+
+      - name: Upload remote_server artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: glass-remote-server-windows-${{ github.event.inputs.architecture }}
+          path: target/${{ github.event.inputs.architecture }}-pc-windows-msvc/release/remote_server.exe
+          if-no-files-found: error
