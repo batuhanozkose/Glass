@@ -4935,7 +4935,7 @@ impl Workspace {
         for dock in docks {
             if let Some(panel_index) = dock.read(cx).panel_index_for_type::<T>() {
                 let mut focus_center = false;
-                let mut sidebar_section_to_select = None;
+                let mut sidebar_section_to_select: Option<crate::WorkspaceSidebarSection> = None;
                 let panel: Option<Arc<dyn PanelHandle>> = dock.update(cx, |dock, cx| {
                     dock.activate_panel(panel_index, window, cx);
 
