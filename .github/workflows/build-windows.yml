@@ -80,10 +80,8 @@ jobs:
           & $fxc /? 2>&1 | Select-Object -First 5 | ForEach-Object { Write-Host $_ }
           Write-Host "fxc.exe smoke test passed"
 
-          # Test /I flag with a dummy shader
-          @"
-float4 main() : SV_Target { return float4(1,0,0,1); }
-"@ | Out-File -FilePath "$env:TEMP\dummy.hlsl" -Encoding ascii
+          # Test /I flag with a dummy shader (avoid heredoc to keep YAML valid)
+          'float4 main() : SV_Target { return float4(1,0,0,1); }' | Out-File -FilePath "$env:TEMP\dummy.hlsl" -Encoding ascii
 
           & $fxc /T ps_4_1 /E main /Fo "$env:TEMP\dummy.cso" /I $env:TEMP "$env:TEMP\dummy.hlsl" 2>&1 | Out-Null
           if ($LASTEXITCODE -ne 0) {
