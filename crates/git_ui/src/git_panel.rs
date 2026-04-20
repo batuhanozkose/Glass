@@ -1,3 +1,5 @@
+use crate::branch_picker;
+use crate::repository_selector::RepositorySelector;
 use crate::askpass_modal::AskPassModal;
 use crate::commit_modal::CommitModal;
 use crate::commit_tooltip::CommitTooltip;
@@ -5916,7 +5918,7 @@ impl RenderOnce for PanelRepoFooter {
             .as_ref()
             .map(|panel| panel.read(cx).project.clone());
 
-        let (_workspace, _repo) = self
+        let (workspace, repo) = self
             .git_panel
             .as_ref()
             .map(|panel| {
