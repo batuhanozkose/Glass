@@ -283,7 +283,7 @@ cloud_api_types = { path = "crates/cloud_api_types" }
 cloud_llm_client = { path = "crates/cloud_llm_client" }
 collab = { path = "crates/collab" }
 collab_ui = { path = "crates/collab_ui" }
-collections = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e", version = "0.1.0" }
+collections = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b", version = "0.1.0" }
 command_palette = { path = "crates/command_palette" }
 command_palette_hooks = { path = "crates/command_palette_hooks" }
 compliance = { path = "tooling/compliance" }
@@ -304,7 +304,7 @@ debug_adapter_extension = { path = "crates/debug_adapter_extension" }
 debugger_tools = { path = "crates/debugger_tools" }
 debugger_ui = { path = "crates/debugger_ui" }
 deepseek = { path = "crates/deepseek" }
-derive_refineable = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e" }
+derive_refineable = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b" }
 dev_container = { path = "crates/dev_container" }
 diagnostics = { path = "crates/diagnostics" }
 editor = { path = "crates/editor" }
@@ -329,15 +329,15 @@ git_ui = { path = "crates/git_ui" }
 go_to_line = { path = "crates/go_to_line" }
 google_ai = { path = "crates/google_ai" }
 grammars = { path = "crates/grammars" }
-gpui = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e", default-features = false }
+gpui = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b", default-features = false }
 gpui_shared_string = { path = "crates/gpui_shared_string" }
-gpui_macros = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e" }
-gpui_platform = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e", default-features = false, features = ["font-kit"] }
-gpui_tokio = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e" }
-gpui_util = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e" }
+gpui_macros = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b" }
+gpui_platform = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b", default-features = false, features = ["font-kit"] }
+gpui_tokio = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b" }
+gpui_util = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b" }
 html_to_markdown = { path = "crates/html_to_markdown" }
-http_client = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e" }
-http_client_tls = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e" }
+http_client = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b" }
+http_client_tls = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b" }
 icons = { path = "crates/icons" }
 image_viewer = { path = "crates/image_viewer" }
 edit_prediction_types = { path = "crates/edit_prediction_types" }
@@ -366,7 +366,7 @@ lsp = { path = "crates/lsp" }
 markdown = { path = "crates/markdown" }
 markdown_preview = { path = "crates/markdown_preview" }
 svg_preview = { path = "crates/svg_preview" }
-media = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e" }
+media = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b" }
 menu = { path = "crates/menu" }
 mermaid-rs-renderer = { git = "https://github.com/zed-industries/mermaid-rs-renderer", rev = "374db9ead5426697c6c2111151d9f246899bc638", default-features = false }
 migrator = { path = "crates/migrator" }
@@ -397,7 +397,7 @@ project_symbols = { path = "crates/project_symbols" }
 prompt_store = { path = "crates/prompt_store" }
 proto = { path = "crates/proto" }
 recent_projects = { path = "crates/recent_projects" }
-refineable = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e" }
+refineable = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b" }
 release_channel = { path = "crates/release_channel" }
 remote = { path = "crates/remote" }
 remote_connection = { path = "crates/remote_connection" }
@@ -408,7 +408,7 @@ rodio = { git = "https://github.com/RustAudio/rodio", rev = "e50e726ddd0292f6ef9
 rope = { path = "crates/rope" }
 rpc = { path = "crates/rpc" }
 rules_library = { path = "crates/rules_library" }
-scheduler = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e" }
+scheduler = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b" }
 search = { path = "crates/search" }
 service_hub = { path = "crates/service_hub" }
 service_hub_ui = { path = "crates/service_hub_ui" }
@@ -426,7 +426,7 @@ snippets_ui = { path = "crates/snippets_ui" }
 sqlez = { path = "crates/sqlez" }
 sqlez_macros = { path = "crates/sqlez_macros" }
 streaming_diff = { path = "crates/streaming_diff" }
-sum_tree = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e" }
+sum_tree = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b" }
 codestral = { path = "crates/codestral" }
 system_specs = { path = "crates/system_specs" }
 syntax_theme = { path = "crates/syntax_theme" }
@@ -451,7 +451,7 @@ ui = { path = "crates/ui" }
 ui_input = { path = "crates/ui_input" }
 ui_macros = { path = "crates/ui_macros" }
 ui_prompt = { path = "crates/ui_prompt" }
-util = { git = "https://github.com/batuhanozkose/gpui.git", rev = "49c4d7e" }
+util = { git = "https://github.com/batuhanozkose/gpui.git", rev = "12f6d8b" }
 util_macros = { path = "crates/util_macros" }
 vercel = { path = "crates/vercel" }
 vim = { path = "crates/vim" }

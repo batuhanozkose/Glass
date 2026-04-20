@@ -49,23 +49,46 @@ jobs:
         with:
           arch: ${{ github.event.inputs.architecture == 'aarch64' && 'amd64_arm64' || 'x64' }}
 
-      - name: Locate fxc.exe and export GPUI_FXC_PATH
+      - name: Pin FXC to stable Windows SDK (10.0.22621.0)
         shell: pwsh
         run: |
-          $fxc = (Get-Command fxc.exe -ErrorAction SilentlyContinue).Source
-          if (-not $fxc) {
-            $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin"
-            $latest = Get-ChildItem $sdkBin -Directory | Where-Object { $_.Name -match '^10\.' } | Sort-Object Name -Descending | Select-Object -First 1
-            if ($latest) {
-              $fxc = Join-Path $latest.FullName "x64\fxc.exe"
+          $fxc = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\fxc.exe"
+          if (-not (Test-Path $fxc)) {
+            Write-Host "10.0.22621.0 not found, falling back to latest..."
+            $fxc = (Get-Command fxc.exe -ErrorAction SilentlyContinue).Source
+            if (-not $fxc) {
+              $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin"
+              $latest = Get-ChildItem $sdkBin -Directory | Where-Object { $_.Name -match '^10\.' } | Sort-Object Name -Descending | Select-Object -First 1
+              if ($latest) { $fxc = Join-Path $latest.FullName "x64\fxc.exe" }
             }
           }
           if (-not $fxc -or -not (Test-Path $fxc)) {
-            Write-Error "fxc.exe not found"
-            exit 1
+            Write-Error "fxc.exe not found"; exit 1
           }
-          Write-Host "fxc.exe found at: $fxc"
+          Write-Host "Using fxc.exe: $fxc"
           echo "GPUI_FXC_PATH=$fxc" >> $env:GITHUB_ENV
+
+      - name: Validate FXC /I flag (fast-fail test)
+        shell: pwsh
+        run: |
+          $fxc = $env:GPUI_FXC_PATH
+          $shader = "$PWD\crates\gpui_windows\src\shaders.hlsl"
+          $shaderDir = "$PWD\crates\gpui_windows\src"
+          if (-not (Test-Path $shader)) { Write-Error "shaders.hlsl not found"; exit 1 }
+
+          # Test WITHOUT /I (expected to fail)
+          & $fxc /T vs_4_1 /E quad_vertex /Fo "$env:TEMP\quad_vs_fail.cso" $shader 2>&1 | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Error "Unexpected: fxc succeeded without /I"; exit 1
+          }
+          Write-Host "OK: fxc correctly failed without /I"
+
+          # Test WITH /I (expected to succeed)
+          & $fxc /T vs_4_1 /E quad_vertex /Fo "$env:TEMP\quad_vs_ok.cso" /I $shaderDir $shader 2>&1 | Out-Null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "fxc failed even WITH /I flag"; exit 1
+          }
+          Write-Host "OK: fxc succeeded with /I"
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
