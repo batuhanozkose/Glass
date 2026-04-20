@@ -4936,10 +4936,10 @@ impl Workspace {
             if let Some(panel_index) = dock.read(cx).panel_index_for_type::<T>() {
                 let mut focus_center = false;
                 let mut sidebar_section_to_select = None;
-                let panel = dock.update(cx, |dock, cx| {
+                let panel: Option<Arc<dyn PanelHandle>> = dock.update(cx, |dock, cx| {
                     dock.activate_panel(panel_index, window, cx);
 
-                    let panel: Option<Arc<dyn PanelHandle>> = dock.active_panel().cloned();
+                    let panel = dock.active_panel().cloned();
                     if let Some(panel) = panel.as_ref() {
                         if should_focus(&**panel, window, cx) {
                             dock.set_open(true, window, cx);
