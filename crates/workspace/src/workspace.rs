@@ -4939,7 +4939,7 @@ impl Workspace {
                 let panel = dock.update(cx, |dock, cx| {
                     dock.activate_panel(panel_index, window, cx);
 
-                    let panel = dock.active_panel().cloned();
+                    let panel: Option<Arc<dyn PanelHandle>> = dock.active_panel().cloned();
                     if let Some(panel) = panel.as_ref() {
                         if should_focus(&**panel, window, cx) {
                             dock.set_open(true, window, cx);
