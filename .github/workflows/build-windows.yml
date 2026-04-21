@@ -11,6 +11,14 @@ on:
         options:
           - x86_64
           - aarch64
+      artifact_mode:
+        description: "Artifact mode"
+        required: true
+        default: "editor_only"
+        type: choice
+        options:
+          - editor_only
+          - full_with_cef
 
 env:
   CARGO_TERM_COLOR: always
@@ -161,12 +169,36 @@ jobs:
           cargo build --release --package remote_server --target $target
         shell: pwsh
 
+      - name: Stage Windows CEF runtime
+        if: github.event.inputs.artifact_mode == 'full_with_cef'
+        run: |
+          $target = "${{ github.event.inputs.architecture }}-pc-windows-msvc"
+          $runtimeOutput = pwsh -ExecutionPolicy Bypass -File .\script\stage-windows-cef-runtime.ps1 -TargetDirectory ".\target\$target\release"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "CEF runtime staging script failed with exit code $LASTEXITCODE"
+            exit 1
+          }
+          if (-not $runtimeOutput) {
+            Write-Error "Failed to stage CEF runtime"
+            exit 1
+          }
+          $runtimeLines = @($runtimeOutput | Where-Object { $_ -and $_.Trim() -ne "" })
+          $runtimeDir = $runtimeLines[-1].Trim()
+          if (-not (Test-Path $runtimeDir -PathType Container)) {
+            Write-Error "Staged CEF runtime directory not found: $runtimeDir"
+            exit 1
+          }
+          Write-Host "Staged CEF runtime: $runtimeDir"
+          echo "STAGED_CEF_RUNTIME=$runtimeDir" >> $env:GITHUB_ENV
+        shell: pwsh
+
       - name: Collect build artifacts
         run: |
           $arch = "${{ github.event.inputs.architecture }}"
+          $artifactMode = "${{ github.event.inputs.artifact_mode }}"
           $target = "$arch-pc-windows-msvc"
           $outDir = ".\target\$target\release"
-          $collectDir = ".\target\glass-windows-$arch"
+          $collectDir = ".\target\glass-windows-$arch-$artifactMode"
           New-Item -ItemType Directory -Force -Path $collectDir | Out-Null
 
           Copy-Item "$outDir\zed.exe" "$collectDir\Glass.exe" -Force
@@ -174,6 +206,16 @@ jobs:
           Copy-Item "$outDir\auto_update_helper.exe" "$collectDir\auto_update_helper.exe" -Force
           Copy-Item "$outDir\explorer_command_injector.dll" "$collectDir\explorer_command_injector.dll" -Force
           Copy-Item "$outDir\remote_server.exe" "$collectDir\remote_server.exe" -Force
+
+          if ($artifactMode -eq "full_with_cef") {
+            if (-not $env:STAGED_CEF_RUNTIME -or -not (Test-Path $env:STAGED_CEF_RUNTIME -PathType Container)) {
+              Write-Error "STAGED_CEF_RUNTIME is not set or invalid"
+              exit 1
+            }
+            Copy-Item -Path (Join-Path $env:STAGED_CEF_RUNTIME "*") -Destination $collectDir -Recurse -Force
+          } else {
+            Write-Host "Skipping CEF runtime copy (editor_only mode)"
+          }
 
           if ($arch -eq "x86_64") {
             New-Item -ItemType Directory -Force -Path "$collectDir\x64" | Out-Null
@@ -194,11 +236,44 @@ jobs:
           Get-ChildItem $collectDir -Recurse | Select-Object FullName
         shell: pwsh
 
+      - name: Validate packaged runtime contents
+        if: github.event.inputs.artifact_mode == 'full_with_cef'
+        run: |
+          $arch = "${{ github.event.inputs.architecture }}"
+          $artifactMode = "${{ github.event.inputs.artifact_mode }}"
+          $collectDir = ".\target\glass-windows-$arch-$artifactMode"
+
+          $requiredFiles = @(
+            "Glass.exe",
+            "libcef.dll",
+            "chrome_elf.dll",
+            "icudtl.dat"
+          )
+          foreach ($fileName in $requiredFiles) {
+            $path = Join-Path $collectDir $fileName
+            if (-not (Test-Path $path)) {
+              Write-Error "Missing required file in artifact: $fileName"
+              exit 1
+            }
+          }
+
+          $requiredDirs = @("locales", "swiftshader")
+          foreach ($dirName in $requiredDirs) {
+            $path = Join-Path $collectDir $dirName
+            if (-not (Test-Path $path -PathType Container)) {
+              Write-Error "Missing required directory in artifact: $dirName"
+              exit 1
+            }
+          }
+
+          Write-Host "Artifact runtime validation passed"
+        shell: pwsh
+
       - name: Upload Glass.exe artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Glass-windows-${{ github.event.inputs.architecture }}
-          path: target/glass-windows-${{ github.event.inputs.architecture }}/
+          name: Glass-windows-${{ github.event.inputs.architecture }}-${{ github.event.inputs.artifact_mode }}
+          path: target/glass-windows-${{ github.event.inputs.architecture }}-${{ github.event.inputs.artifact_mode }}/
           if-no-files-found: error
 
       - name: Upload remote_server artifact

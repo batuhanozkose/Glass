@@ -86,6 +86,10 @@ fn main() {
         if cfg!(target_env = "msvc") {
             // todo(windows): This is to avoid stack overflow. Remove it when solved.
             println!("cargo:rustc-link-arg=/stack:{}", 8 * 1024 * 1024);
+            // Keep editor-only Windows builds runnable even when CEF runtime files
+            // are not bundled next to Glass.exe.
+            println!("cargo:rustc-link-arg=/DELAYLOAD:libcef.dll");
+            println!("cargo:rustc-link-lib=delayimp");
         }
 
         if cfg!(target_arch = "x86_64") || cfg!(target_arch = "aarch64") {

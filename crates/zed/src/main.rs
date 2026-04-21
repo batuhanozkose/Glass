@@ -175,15 +175,60 @@ fn fail_to_open_window(e: anyhow::Error, _cx: &mut App) {
 }
 static STARTUP_TIME: OnceLock<Instant> = OnceLock::new();
 
+#[cfg(target_os = "windows")]
+fn has_windows_cef_runtime_layout(root: &Path) -> bool {
+    let required_files = ["libcef.dll", "chrome_elf.dll", "icudtl.dat"];
+    let required_dirs = ["locales", "swiftshader"];
+
+    required_files
+        .iter()
+        .all(|file_name| root.join(file_name).exists())
+        && required_dirs
+            .iter()
+            .all(|dir_name| root.join(dir_name).is_dir())
+}
+
+#[cfg(target_os = "windows")]
+fn has_windows_cef_runtime() -> bool {
+    let Ok(exe_path) = std::env::current_exe() else {
+        return false;
+    };
+    let Some(exe_dir) = exe_path.parent() else {
+        return false;
+    };
+
+    has_windows_cef_runtime_layout(exe_dir)
+        || has_windows_cef_runtime_layout(&exe_dir.join("cef_runtime"))
+}
+
 fn main() {
     STARTUP_TIME.get_or_init(|| Instant::now());
 
     // Handle CEF subprocess execution VERY early, before any other initialization.
     // If this is a CEF subprocess, it will not return (calls process::exit).
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     if let Err(e) = browser::handle_cef_subprocess() {
         // Log error but don't fail - CEF might not be available (not running from bundle)
-        eprintln!("CEF subprocess handling warning: {}", e);
+        eprintln!(
+            "CEF subprocess handling warning: {}. Browser mode may be unavailable until CEF runtime is resolved.",
+            e
+        );
+    }
+    #[cfg(target_os = "windows")]
+    let has_cef_runtime = has_windows_cef_runtime();
+    #[cfg(target_os = "windows")]
+    if has_cef_runtime {
+        if let Err(e) = browser::handle_cef_subprocess() {
+            eprintln!(
+                "CEF subprocess handling warning: {}. Browser mode may be unavailable until CEF runtime is resolved.",
+                e
+            );
+        }
+    } else {
+        eprintln!(
+            "CEF runtime not found next to Glass.exe (or Glass.exe/cef_runtime). \
+             Starting in editor-only mode."
+        );
     }
 
     #[cfg(unix)]
@@ -740,6 +785,11 @@ fn main() {
         });
         vim::init(cx);
         terminal_view::init(cx);
+        #[cfg(target_os = "windows")]
+        if has_cef_runtime {
+            browser::init(cx);
+        }
+        #[cfg(not(target_os = "windows"))]
         browser::init(cx);
         encoding_selector::init(cx);
         language_selector::init(cx);
