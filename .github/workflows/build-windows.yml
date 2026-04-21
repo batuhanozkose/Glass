@@ -21,7 +21,7 @@ jobs:
   build-windows:
     name: Build Windows (${{ github.event.inputs.architecture }})
     runs-on: windows-2022
-    timeout-minutes: 120
+    timeout-minutes: 360
 
     steps:
       - name: Enable long paths in Windows
