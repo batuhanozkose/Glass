@@ -1,4 +1,3 @@
-#[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
     Context, Corner, ElementInputHandler, IntoElement, MouseButton, NativeImageScaling,
@@ -368,7 +367,7 @@ impl BrowserView {
         let current_frame = self.active_tab().and_then(|t| {
             let tab = t.read(cx);
             tab.current_frame().map(|f| {
-                gpui::elements::surface::BgraFrame {
+                gpui::BgraFrame {
                     data: f.data,
                     width: f.width,
                     height: f.height,
@@ -520,7 +519,7 @@ impl BrowserView {
 
         #[cfg(target_os = "windows")]
         let content = content.when_some(current_frame, |this, frame| {
-            this.child(gpui::surface(frame).size_full().object_fit(ObjectFit::Fill))
+            this.child(surface(frame).size_full().object_fit(ObjectFit::Fill))
         });
 
         content.into_any_element()

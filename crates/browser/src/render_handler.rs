@@ -176,6 +176,7 @@ wrap_render_handler! {
 
             #[cfg(target_os = "windows")]
             {
+                use windows::Win32::Foundation::HANDLE;
                 use windows::Win32::Graphics::Direct3D11::*;
                 use windows::Win32::Graphics::Dxgi::Common::*;
 
@@ -185,7 +186,6 @@ wrap_render_handler! {
                     return;
                 }
 
-                // Get or create our D3D11 device for reading shared textures
                 let device1 = {
                     let mut guard = self.handler.d3d_device.lock();
                     if guard.is_none() {
@@ -200,9 +200,8 @@ wrap_render_handler! {
                     guard.clone().unwrap()
                 };
 
-                // Open the shared texture handle via OpenSharedResource1
                 let shared_texture: ID3D11Texture2D = unsafe {
-                    match device1.OpenSharedResource1::<ID3D11Texture2D>(handle) {
+                    match device1.OpenSharedResource1(HANDLE(handle as *mut _)) {
                         Ok(tex) => tex,
                         Err(e) => {
                             log::error!("[browser::render_handler] OpenSharedResource1 failed: {}", e);
@@ -211,12 +210,11 @@ wrap_render_handler! {
                     }
                 };
 
-                // Get texture dimensions
-                let desc = unsafe { shared_texture.GetDesc() };
+                let mut desc = D3D11_TEXTURE2D_DESC::default();
+                unsafe { shared_texture.GetDesc(&mut desc) };
                 let width = desc.Width;
                 let height = desc.Height;
 
-                // Create a staging texture for CPU readback
                 let staging_desc = D3D11_TEXTURE2D_DESC {
                     Width: width,
                     Height: height,
@@ -225,34 +223,43 @@ wrap_render_handler! {
                     Format: DXGI_FORMAT_B8G8R8A8_UNORM,
                     SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
                     Usage: D3D11_USAGE_STAGING,
-                    BindFlags: D3D11_BIND_FLAG(0),
+                    BindFlags: 0,
                     CPUAccessFlags: D3D11_CPU_ACCESS_READ.0 as u32,
                     ..Default::default()
                 };
 
-                let staging: ID3D11Texture2D = match unsafe {
-                    device1.CreateTexture2D(&staging_desc, None, None)
+                let mut staging_opt: Option<ID3D11Texture2D> = None;
+                match unsafe {
+                    device1.CreateTexture2D(&staging_desc, None, Some(&mut staging_opt))
                 } {
-                    Ok(tex) => tex,
+                    Ok(()) => {}
                     Err(e) => {
                         log::error!("[browser::render_handler] Failed to create staging texture: {}", e);
                         return;
                     }
-                };
-
-                // Copy shared texture to staging
-                let device_ctx: ID3D11DeviceContext = match device1.GetImmediateContext() {
-                    Some(ctx) => ctx,
+                }
+                let staging = match staging_opt {
+                    Some(tex) => tex,
                     None => {
-                        log::error!("[browser::render_handler] GetImmediateContext returned None");
+                        log::error!("[browser::render_handler] CreateTexture2D returned None");
                         return;
                     }
                 };
+
+                let device_ctx: ID3D11DeviceContext = match unsafe {
+                    device1.GetImmediateContext()
+                } {
+                    Ok(ctx) => ctx,
+                    Err(e) => {
+                        log::error!("[browser::render_handler] GetImmediateContext failed: {}", e);
+                        return;
+                    }
+                };
+
                 unsafe {
                     device_ctx.CopyResource(&staging, &shared_texture);
                 }
 
-                // Map staging texture and copy pixels
                 let mapped = match unsafe {
                     device_ctx.Map(&staging, 0, D3D11_MAP_READ, 0)
                 } {
@@ -264,7 +271,6 @@ wrap_render_handler! {
                 };
 
                 let row_pitch = mapped.RowPitch as usize;
-                let data_size = (row_pitch * height as usize) as usize;
                 let mut pixel_data = vec![0u8; (width * height * 4) as usize];
 
                 let src = mapped.pData as *const u8;
@@ -301,18 +307,16 @@ wrap_render_handler! {
             _width: ::std::os::raw::c_int,
             _height: ::std::os::raw::c_int,
         ) {
-            // Fallback: should not be called when shared_texture_enabled is set.
             log::warn!("[browser::render_handler] on_paint() called unexpectedly (shared_texture_enabled should prevent this)");
         }
     }
 }
 
-/// Create a D3D11 device for capturing shared textures from CEF.
-/// Uses the default adapter with BGRA support.
 #[cfg(target_os = "windows")]
 fn create_capture_device() -> anyhow::Result<windows::Win32::Graphics::Direct3D11::ID3D11Device1> {
     use windows::Win32::Graphics::Direct3D::*;
     use windows::Win32::Graphics::Direct3D11::*;
+    use windows_core::Interface;
 
     let mut device: Option<ID3D11Device> = None;
     let mut context: Option<ID3D11DeviceContext> = None;
@@ -321,11 +325,11 @@ fn create_capture_device() -> anyhow::Result<windows::Win32::Graphics::Direct3D1
 
     unsafe {
         D3D11CreateDevice(
-            None,
+            Default::default(),
             D3D_DRIVER_TYPE_HARDWARE,
             None,
             flags,
-            Some(&[D3D11_FEATURE_LEVEL_11_0, D3D11_FEATURE_LEVEL_10_1]),
+            Some(&[D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1]),
             D3D11_SDK_VERSION,
             Some(&mut device),
             None,
