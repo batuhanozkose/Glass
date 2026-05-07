@@ -38,6 +38,7 @@ workspace_chrome.workspace = true
 workspace_modes.workspace = true
 workspace.workspace = true
 zed_actions.workspace = true
+windows.workspace = true
 
 # CEF browser integration
 cef = { git = "https://github.com/tauri-apps/cef-rs", tag = "cef-v145.6.1+145.0.28", default-features = false }

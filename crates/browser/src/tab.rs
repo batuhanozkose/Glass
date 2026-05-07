@@ -84,7 +84,7 @@ pub(crate) enum TabEvent {
     LoadingStateChanged,
     PageChromeChanged,
     TextInputStateChanged(BrowserTextInputState),
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     FrameReady,
     NavigateToUrl(String),
     OpenNewTab(String),
@@ -223,7 +223,7 @@ impl BrowserTab {
                 BrowserEvent::LoadingProgress(progress) => {
                     self.loading_progress = progress;
                 }
-                #[cfg(target_os = "macos")]
+                #[cfg(any(target_os = "macos", target_os = "windows"))]
                 BrowserEvent::FrameReady => {
                     cx.emit(TabEvent::FrameReady);
                 }
@@ -675,6 +675,11 @@ impl BrowserTab {
         self.render_state.lock().current_frame.clone()
     }
 
+    #[cfg(target_os = "windows")]
+    pub fn current_frame(&self) -> Option<crate::render_handler::WindowsFrame> {
+        self.render_state.lock().current_frame.clone()
+    }
+
     pub fn url(&self) -> &str {
         &self.url
     }
@@ -767,6 +772,10 @@ impl BrowserTab {
             }
         }
         #[cfg(target_os = "macos")]
+        {
+            self.render_state.lock().current_frame = None;
+        }
+        #[cfg(target_os = "windows")]
         {
             self.render_state.lock().current_frame = None;
         }

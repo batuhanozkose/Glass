@@ -46,9 +46,7 @@ impl BrowserView {
                             .text_size(rems(0.875))
                             .max_w(px(400.))
                             .text_center()
-                            .child(
-                                "CEF is not initialized. Set CEF_PATH environment variable and restart.",
-                            ),
+                            .child("CEF is not initialized. Ensure CEF runtime files are packaged next to Glass.exe or set CEF_PATH to a valid runtime directory, then restart."),
                     ),
             )
     }
@@ -365,7 +363,22 @@ impl BrowserView {
         let current_frame = self.active_tab().and_then(|t| t.read(cx).current_frame());
         #[cfg(target_os = "macos")]
         let has_frame = current_frame.is_some();
-        #[cfg(not(target_os = "macos"))]
+
+        #[cfg(target_os = "windows")]
+        let current_frame = self.active_tab().and_then(|t| {
+            let tab = t.read(cx);
+            tab.current_frame().map(|f| {
+                gpui::elements::surface::BgraFrame {
+                    data: f.data,
+                    width: f.width,
+                    height: f.height,
+                }
+            })
+        });
+        #[cfg(target_os = "windows")]
+        let has_frame = current_frame.is_some();
+
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         let has_frame = false;
 
         let this = cx.entity();
@@ -503,6 +516,11 @@ impl BrowserView {
         #[cfg(target_os = "macos")]
         let content = content.when_some(current_frame, |this, frame| {
             this.child(surface(frame).size_full().object_fit(ObjectFit::Fill))
+        });
+
+        #[cfg(target_os = "windows")]
+        let content = content.when_some(current_frame, |this, frame| {
+            this.child(gpui::surface(frame).size_full().object_fit(ObjectFit::Fill))
         });
 
         content.into_any_element()

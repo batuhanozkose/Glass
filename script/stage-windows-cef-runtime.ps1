@@ -39,7 +39,7 @@ function Sync-CefRuntimeContents {
     }
     New-Item -ItemType Directory -Path $DestinationDirectory -Force | Out-Null
 
-    $directoriesToCopy = @("locales")
+    $directoriesToCopy = @("locales", "swiftshader")
     $filePatternsToCopy = @("*.bin", "*.dat", "*.dll", "*.json", "*.pak")
 
     foreach ($directoryName in $directoriesToCopy) {

@@ -66,6 +66,39 @@ Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
 Source: "{#ResourcesDir}\Zed.exe"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+; CEF runtime files required by Glass browser mode on Windows
+Source: "{#ResourcesDir}\libcef.dll"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+Source: "{#ResourcesDir}\chrome_elf.dll"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+Source: "{#ResourcesDir}\icudtl.dat"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+Source: "{#ResourcesDir}\snapshot_blob.bin"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+Source: "{#ResourcesDir}\v8_context_snapshot.bin"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+Source: "{#ResourcesDir}\resources.pak"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+Source: "{#ResourcesDir}\chrome_100_percent.pak"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+Source: "{#ResourcesDir}\chrome_200_percent.pak"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+#ifexist ResourcesDir + "\devtools_resources.pak"
+Source: "{#ResourcesDir}\devtools_resources.pak"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+#endif
+#ifexist ResourcesDir + "\vk_swiftshader_icd.json"
+Source: "{#ResourcesDir}\vk_swiftshader_icd.json"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+#endif
+#ifexist ResourcesDir + "\locales"
+Source: "{#ResourcesDir}\locales\*"; DestDir: "{code:GetInstallDir}\locales"; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+#ifexist ResourcesDir + "\swiftshader"
+Source: "{#ResourcesDir}\swiftshader\*"; DestDir: "{code:GetInstallDir}\swiftshader"; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+#ifexist ResourcesDir + "\d3dcompiler_47.dll"
+Source: "{#ResourcesDir}\d3dcompiler_47.dll"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+#endif
+#ifexist ResourcesDir + "\libEGL.dll"
+Source: "{#ResourcesDir}\libEGL.dll"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+#endif
+#ifexist ResourcesDir + "\libGLESv2.dll"
+Source: "{#ResourcesDir}\libGLESv2.dll"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+#endif
+#ifexist ResourcesDir + "\vk_swiftshader.dll"
+Source: "{#ResourcesDir}\vk_swiftshader.dll"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+#endif
 Source: "{#ResourcesDir}\bin\*"; DestDir: "{code:GetInstallDir}\bin"; Flags: ignoreversion
 Source: "{#ResourcesDir}\tools\*"; DestDir: "{app}\tools"; Flags: ignoreversion
 Source: "{#ResourcesDir}\appx\*"; DestDir: "{app}\appx";  BeforeInstall: RemoveAppxPackage; AfterInstall: AddAppxPackage; Flags: ignoreversion; Check: IsWindows11OrLater

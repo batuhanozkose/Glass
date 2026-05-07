@@ -14,11 +14,11 @@ on:
       artifact_mode:
         description: "Artifact mode"
         required: true
-        default: "editor_only"
+        default: "full_with_cef"
         type: choice
         options:
-          - editor_only
           - full_with_cef
+          - editor_only
 
 env:
   CARGO_TERM_COLOR: always
@@ -170,7 +170,6 @@ jobs:
         shell: pwsh
 
       - name: Stage Windows CEF runtime
-        if: github.event.inputs.artifact_mode == 'full_with_cef'
         run: |
           $target = "${{ github.event.inputs.architecture }}-pc-windows-msvc"
           $runtimeOutput = pwsh -ExecutionPolicy Bypass -File .\script\stage-windows-cef-runtime.ps1 -TargetDirectory ".\target\$target\release"
@@ -207,15 +206,11 @@ jobs:
           Copy-Item "$outDir\explorer_command_injector.dll" "$collectDir\explorer_command_injector.dll" -Force
           Copy-Item "$outDir\remote_server.exe" "$collectDir\remote_server.exe" -Force
 
-          if ($artifactMode -eq "full_with_cef") {
-            if (-not $env:STAGED_CEF_RUNTIME -or -not (Test-Path $env:STAGED_CEF_RUNTIME -PathType Container)) {
-              Write-Error "STAGED_CEF_RUNTIME is not set or invalid"
-              exit 1
-            }
-            Copy-Item -Path (Join-Path $env:STAGED_CEF_RUNTIME "*") -Destination $collectDir -Recurse -Force
-          } else {
-            Write-Host "Skipping CEF runtime copy (editor_only mode)"
+          if (-not $env:STAGED_CEF_RUNTIME -or -not (Test-Path $env:STAGED_CEF_RUNTIME -PathType Container)) {
+            Write-Error "STAGED_CEF_RUNTIME is not set or invalid"
+            exit 1
           }
+          Copy-Item -Path (Join-Path $env:STAGED_CEF_RUNTIME "*") -Destination $collectDir -Recurse -Force
 
           if ($arch -eq "x86_64") {
             New-Item -ItemType Directory -Force -Path "$collectDir\x64" | Out-Null
@@ -236,8 +231,147 @@ jobs:
           Get-ChildItem $collectDir -Recurse | Select-Object FullName
         shell: pwsh
 
+      - name: Bundle MSVC runtime DLLs
+        shell: pwsh
+        run: |
+          $arch = "${{ github.event.inputs.architecture }}"
+          $artifactMode = "${{ github.event.inputs.artifact_mode }}"
+          $collectDir = ".\target\glass-windows-$arch-$artifactMode"
+
+          # Find MSVC runtime DLLs from the CI runner's VS installation
+          $vcRedistDir = $env:VCToolsRedistDir
+          if (-not $vcRedistDir) {
+            Write-Error "VCToolsRedistDir not set — MSVC dev environment not configured"
+            exit 1
+          }
+
+          # Resolve architecture-specific CRT directory
+          $crtArch = if ($arch -eq "aarch64") { "arm64" } else { "x64" }
+          $crtDir = Join-Path $vcRedistDir $crtArch
+          if (-not (Test-Path $crtDir)) {
+            # Fallback: search for Microsoft.VC143.CRT directory
+            $crtDir = Get-ChildItem -Path $vcRedistDir -Directory -Filter "Microsoft.VC*.CRT" -ErrorAction SilentlyContinue |
+              ForEach-Object { Join-Path $_.FullName $crtArch } |
+              Where-Object { Test-Path $_ } |
+              Select-Object -First 1
+          }
+
+          if (-not $crtDir -or -not (Test-Path $crtDir)) {
+            Write-Error "Cannot find MSVC CRT directory for $crtArch under $vcRedistDir"
+            exit 1
+          }
+
+          Write-Host "MSVC CRT directory: $crtDir"
+
+          # Copy required MSVC runtime DLLs
+          $msvcDlls = @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll")
+          foreach ($dll in $msvcDlls) {
+            $source = Join-Path $crtDir $dll
+            if (Test-Path $source) {
+              Copy-Item $source -Destination $collectDir -Force
+              Write-Host "OK: bundled $dll"
+            } else {
+              Write-Warning "MSVC runtime DLL not found: $source"
+            }
+          }
+
+          # Also copy ucrtbase DLLs if available (needed on older Windows)
+          $ucrtDir = "C:\Program Files (x86)\Windows Kits\10\Redist\ucrt\dlls\$crtArch"
+          if (Test-Path $ucrtDir) {
+            $ucrtDlls = @("ucrtbase.dll")
+            foreach ($dll in $ucrtDlls) {
+              $source = Join-Path $ucrtDir $dll
+              if (Test-Path $source) {
+                Copy-Item $source -Destination $collectDir -Force
+                Write-Host "OK: bundled $dll"
+              }
+            }
+          }
+
+          Write-Host "MSVC runtime bundling complete"
+
+      - name: Validate DLL dependencies
+        shell: pwsh
+        run: |
+          $arch = "${{ github.event.inputs.architecture }}"
+          $artifactMode = "${{ github.event.inputs.artifact_mode }}"
+          $collectDir = ".\target\glass-windows-$arch-$artifactMode"
+          $glassExe = Join-Path $collectDir "Glass.exe"
+
+          if (-not (Test-Path $glassExe)) {
+            Write-Error "Glass.exe not found in artifact directory"
+            exit 1
+          }
+
+          # Use dumpbin to list DLL dependencies
+          $dumpbinOutput = & dumpbin /dependents $glassExe 2>&1
+          Write-Host "=== Glass.exe DLL Dependencies ==="
+          $dumpbinOutput | ForEach-Object { Write-Host $_ }
+
+          # Extract DLL names from dumpbin output
+          $dependencies = $dumpbinOutput | Where-Object { $_ -match '^\s+\S+\.dll\s*$' } | ForEach-Object { $_.Trim() }
+
+          # Check that bundled DLLs are present
+          $bundledDlls = Get-ChildItem -Path $collectDir -Filter "*.dll" -Recurse | Select-Object -ExpandProperty Name
+          Write-Host "`n=== Bundled DLLs ==="
+          $bundledDlls | ForEach-Object { Write-Host "  $_" }
+
+          # Known system DLLs that don't need bundling (provided by Windows 10+)
+          $systemDlls = @(
+            "KERNEL32.dll", "USER32.dll", "GDI32.dll", "ADVAPI32.dll",
+            "ole32.dll", "OLEAUT32.dll", "SHELL32.dll", "SHLWAPI.dll",
+            "ntdll.dll", "WS2_32.dll", "WINMM.dll", "IMM32.dll",
+            "dbghelp.dll", "VERSION.dll", "CRYPT32.dll", "bcrypt.dll",
+            "dwmapi.dll", "uxtheme.dll", "d3d11.dll", "dxgi.dll",
+            "d3dcompiler_47.dll", "SETUPAPI.dll", "cfgmgr32.dll",
+            "PROPSYS.dll", "WTSAPI32.dll", "NETAPI32.dll", "Secur32.dll",
+            "RPCRT4.dll", "NSI.dll", "MSASN1.dll", "ncrypt.dll",
+            "DPAPI.dll", "WINTRUST.dll", "MSCTF.dll", "COMCTL32.dll",
+            "CRYPTBASE.dll", "bcryptPrimitives.dll", "gdi32full.dll",
+            "msvcp_win.dll", "win32u.dll", "ucrtbase.dll", "USERENV.dll",
+            "profapi.dll", "POWRPROF.dll", "kernel.appcore.dll",
+            "CRYPTSP.dll", "rsaenh.dll", "DEVOBJ.dll", "UMPDC.dll",
+            "windows.storage.dll", "wintypes.dll", "CoreMessaging.dll",
+            "CoreUIComponents.dll", "TextInputFramework.dll",
+            "dcomp.dll", "twinapi.appcore.dll", "dxcore.dll",
+            "directxdatabasehelper.dll", "d3d12.dll", "D3D12Core.dll",
+            "D3D12SDKLayers.dll", "amd_ags_x64.dll", "conpty.dll",
+            "OpenConsole.exe", "explorer_command_injector.dll"
+          )
+
+          # Check for potentially missing non-system DLLs
+          $missing = @()
+          foreach ($dep in $dependencies) {
+            $isSystem = $systemDlls -contains $dep
+            $isBundled = $bundledDlls -contains $dep
+            if (-not $isSystem -and -not $isBundled) {
+              $missing += $dep
+            }
+          }
+
+          if ($missing.Count -gt 0) {
+            Write-Warning "Potentially missing DLLs (not bundled, not known system DLLs):"
+            $missing | ForEach-Object { Write-Warning "  - $_" }
+          } else {
+            Write-Host "`nOK: All non-system DLL dependencies are either bundled or are known system DLLs"
+          }
+
+          # Verify critical bundled DLLs exist
+          $criticalDlls = @("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll")
+          foreach ($dll in $criticalDlls) {
+            $path = Join-Path $collectDir $dll
+            if (Test-Path $path) {
+              $size = (Get-Item $path).Length / 1KB
+              Write-Host "OK: $dll ($([math]::Round($size, 1)) KB)"
+            } else {
+              Write-Error "CRITICAL: $dll is missing from artifact"
+              exit 1
+            }
+          }
+
+          Write-Host "`nDLL dependency validation passed"
+
       - name: Validate packaged runtime contents
-        if: github.event.inputs.artifact_mode == 'full_with_cef'
         run: |
           $arch = "${{ github.event.inputs.architecture }}"
           $artifactMode = "${{ github.event.inputs.artifact_mode }}"

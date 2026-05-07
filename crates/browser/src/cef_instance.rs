@@ -15,12 +15,10 @@ use cef::{
     wrap_browser_process_handler,
 };
 use parking_lot::Mutex;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Instant;
-
-#[cfg(target_os = "macos")]
-use std::path::PathBuf;
 
 use crate::page_chrome::PageChromeRenderProcessHandlerBuilder;
 
@@ -29,6 +27,8 @@ static CEF_INITIALIZED: AtomicBool = AtomicBool::new(false);
 static CEF_CONTEXT_READY: AtomicBool = AtomicBool::new(false);
 static CEF_INSTANCE: Mutex<Option<Arc<CefInstance>>> = Mutex::new(None);
 static CEF_APP: Mutex<Option<cef::App>> = Mutex::new(None);
+#[cfg(target_os = "windows")]
+static WINDOWS_CEF_RUNTIME_ROOT: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 #[cfg(target_os = "macos")]
 static CEF_LIBRARY_LOADER: Mutex<Option<cef::library_loader::LibraryLoader>> = Mutex::new(None);
@@ -226,6 +226,118 @@ fn load_cef_framework_from_dir(cef_dir: &std::path::Path) -> bool {
     unsafe { cef::load_library(Some(&*path_cstr.as_ptr().cast())) == 1 }
 }
 
+#[cfg(target_os = "windows")]
+fn contains_windows_cef_runtime(root: &Path) -> bool {
+    root.join("libcef.dll").exists()
+}
+
+#[cfg(target_os = "windows")]
+fn canonicalize_if_exists(path: &Path) -> Option<PathBuf> {
+    if path.exists() {
+        path.canonicalize().ok()
+    } else {
+        None
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn is_trusted_runtime_root(runtime_root: &Path, exe_dir: &Path) -> bool {
+    let canonical_runtime = canonicalize_if_exists(runtime_root);
+    let canonical_exe_dir = canonicalize_if_exists(exe_dir);
+    match (canonical_runtime, canonical_exe_dir) {
+        (Some(runtime), Some(exe)) => runtime == exe || runtime.starts_with(&exe),
+        _ => false,
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_windows_cef_runtime_root() -> Option<PathBuf> {
+    if let Some(existing) = WINDOWS_CEF_RUNTIME_ROOT.lock().clone() {
+        return Some(existing);
+    }
+
+    let exe_path = std::env::current_exe().ok()?;
+    let exe_dir = exe_path.parent()?.to_path_buf();
+    let canonical_exe_dir = canonicalize_if_exists(&exe_dir)?;
+    if contains_windows_cef_runtime(&exe_dir) {
+        *WINDOWS_CEF_RUNTIME_ROOT.lock() = Some(canonical_exe_dir.clone());
+        return Some(canonical_exe_dir);
+    }
+
+    let staged_runtime = exe_dir.join("cef_runtime");
+    if contains_windows_cef_runtime(&staged_runtime) {
+        let canonical_staged = canonicalize_if_exists(&staged_runtime)?;
+        *WINDOWS_CEF_RUNTIME_ROOT.lock() = Some(canonical_staged.clone());
+        return Some(canonical_staged);
+    }
+
+    if let Ok(cef_path) = std::env::var("CEF_PATH") {
+        let from_env = PathBuf::from(cef_path);
+        if contains_windows_cef_runtime(&from_env) {
+            if is_trusted_runtime_root(&from_env, &exe_dir) {
+                let canonical_env = canonicalize_if_exists(&from_env)?;
+                *WINDOWS_CEF_RUNTIME_ROOT.lock() = Some(canonical_env.clone());
+                return Some(canonical_env);
+            }
+            log::warn!(
+                "[browser::cef_instance] Ignoring untrusted CEF_PATH runtime root on Windows: {}",
+                from_env.display()
+            );
+        }
+    }
+
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn has_required_windows_runtime_layout(runtime_root: &Path) -> bool {
+    let required_files = ["libcef.dll", "chrome_elf.dll", "icudtl.dat"];
+    for file_name in required_files {
+        if !runtime_root.join(file_name).exists() {
+            return false;
+        }
+    }
+    runtime_root.join("locales").is_dir() && runtime_root.join("swiftshader").is_dir()
+}
+
+#[cfg(target_os = "windows")]
+fn ensure_runtime_on_path(runtime_root: &Path) {
+    let current_path = std::env::var_os("PATH").unwrap_or_default();
+    let mut path_entries = std::env::split_paths(&current_path).collect::<Vec<_>>();
+    if !path_entries.iter().any(|entry| entry == runtime_root) {
+        path_entries.insert(0, runtime_root.to_path_buf());
+        if let Ok(joined_path) = std::env::join_paths(path_entries) {
+            unsafe {
+                std::env::set_var("PATH", joined_path);
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn log_windows_runtime_layout(runtime_root: &Path) {
+    let required_files = ["libcef.dll", "chrome_elf.dll", "icudtl.dat"];
+    for file_name in required_files {
+        let file_path = runtime_root.join(file_name);
+        if !file_path.exists() {
+            log::warn!(
+                "[browser::cef_instance] Missing required CEF runtime file: {}",
+                file_path.display()
+            );
+        }
+    }
+
+    for dir_name in ["locales", "swiftshader"] {
+        let dir_path = runtime_root.join(dir_name);
+        if !dir_path.exists() {
+            log::warn!(
+                "[browser::cef_instance] Missing required CEF runtime directory: {}",
+                dir_path.display()
+            );
+        }
+    }
+}
+
 // ── CefInstance ──────────────────────────────────────────────────────
 
 pub struct CefInstance {}
@@ -288,6 +400,29 @@ impl CefInstance {
                         }
                     }
                 }
+            }
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(runtime_root) = resolve_windows_cef_runtime_root() {
+                log::info!(
+                    "[browser::cef_instance] Windows CEF runtime root: {}",
+                    runtime_root.display()
+                );
+                if has_required_windows_runtime_layout(&runtime_root) {
+                    ensure_runtime_on_path(&runtime_root);
+                } else {
+                    log::warn!(
+                        "[browser::cef_instance] Runtime root is missing required Windows CEF files: {}",
+                        runtime_root.display()
+                    );
+                }
+            } else {
+                log::warn!(
+                    "[browser::cef_instance] Unable to resolve Windows CEF runtime root. \
+                     Expected libcef.dll in executable directory or executable-directory/cef_runtime."
+                );
             }
         }
 
@@ -360,11 +495,23 @@ impl CefInstance {
         // stable yet, and Google's sign-in endpoints reject unrecognized
         // browser versions with 400 errors on the browserinfo fingerprint
         // check. Using Chrome 145's stable UA keeps auth flows working.
-        settings.user_agent = cef::CefString::from(
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
-             AppleWebKit/537.36 (KHTML, like Gecko) \
-             Chrome/145.0.7632.75 Safari/537.36",
-        );
+        #[cfg(target_os = "windows")]
+        {
+            settings.user_agent = cef::CefString::from(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+                 AppleWebKit/537.36 (KHTML, like Gecko) \
+                 Chrome/145.0.7632.75 Safari/537.36",
+            );
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            settings.user_agent = cef::CefString::from(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
+                 AppleWebKit/537.36 (KHTML, like Gecko) \
+                 Chrome/145.0.7632.75 Safari/537.36",
+            );
+        }
 
         #[cfg(target_os = "macos")]
         {
@@ -390,6 +537,47 @@ impl CefInstance {
                         }
                     }
                 }
+            }
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(exe_path) = std::env::current_exe() {
+                if let Some(exe_path_str) = exe_path.to_str() {
+                    settings.browser_subprocess_path = cef::CefString::from(exe_path_str);
+                }
+            }
+
+            if let Some(runtime_root) = resolve_windows_cef_runtime_root() {
+                log::info!(
+                    "[browser::cef_instance] Initializing CEF using runtime root: {}",
+                    runtime_root.display()
+                );
+                if !has_required_windows_runtime_layout(&runtime_root) {
+                    log_windows_runtime_layout(&runtime_root);
+                    return Err(anyhow!(
+                        "Windows CEF runtime root is missing required files/directories: {}",
+                        runtime_root.display()
+                    ));
+                }
+                ensure_runtime_on_path(&runtime_root);
+                log_windows_runtime_layout(&runtime_root);
+
+                if let Some(runtime_root_str) = runtime_root.to_str() {
+                    settings.resources_dir_path = cef::CefString::from(runtime_root_str);
+                }
+
+                let locales_dir = runtime_root.join("locales");
+                if let Some(locales_dir_str) = locales_dir.to_str() {
+                    settings.locales_dir_path = cef::CefString::from(locales_dir_str);
+                }
+            } else {
+                log::warn!(
+                    "[browser::cef_instance] CEF runtime root could not be resolved during initialize_cef()."
+                );
+                return Err(anyhow!(
+                    "Windows CEF runtime root could not be resolved during initialize_cef()."
+                ));
             }
         }
 
@@ -527,6 +715,10 @@ impl CefInstance {
         log::info!("[browser::cef_instance] shutdown: cef::shutdown() returned");
 
         *CEF_APP.lock() = None;
+        #[cfg(target_os = "windows")]
+        {
+            *WINDOWS_CEF_RUNTIME_ROOT.lock() = None;
+        }
     }
 }
 

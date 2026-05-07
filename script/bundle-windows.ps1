@@ -121,6 +121,68 @@ function BuildZedAndItsFriends {
     Copy-Item -Path ".\$CargoOutDir\explorer_command_injector.dll" -Destination "$innoDir\zed_explorer_command_injector.dll" -Force
 }
 
+function StageCefRuntime {
+    $targetDirectory = ".\target\$target\release"
+    if (-not (Test-Path $targetDirectory)) {
+        Write-Error "Expected target directory not found for CEF runtime staging: $targetDirectory"
+        exit 1
+    }
+
+    $stagedRuntimeDirectory = & powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\stage-windows-cef-runtime.ps1" -TargetDirectory $targetDirectory
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "stage-windows-cef-runtime.ps1 failed with exit code $LASTEXITCODE"
+        exit 1
+    }
+    if (-not $stagedRuntimeDirectory) {
+        Write-Error "Failed to stage Windows CEF runtime."
+        exit 1
+    }
+    $stagedRuntimeDirectory = $stagedRuntimeDirectory.Trim()
+    if (-not (Test-Path $stagedRuntimeDirectory)) {
+        Write-Error "Staged Windows CEF runtime directory does not exist: $stagedRuntimeDirectory"
+        exit 1
+    }
+
+    Write-Output "Copying staged CEF runtime from $stagedRuntimeDirectory to $innoDir"
+    Copy-Item -Path "$stagedRuntimeDirectory\*" -Destination "$innoDir" -Recurse -Force
+
+    $requiredFiles = @("libcef.dll", "chrome_elf.dll", "icudtl.dat")
+    foreach ($fileName in $requiredFiles) {
+        $filePath = Join-Path $innoDir $fileName
+        if (-not (Test-Path $filePath)) {
+            Write-Error "Missing required CEF runtime file after staging: $fileName"
+            exit 1
+        }
+    }
+
+    $requiredDirectories = @("locales", "swiftshader")
+    foreach ($directoryName in $requiredDirectories) {
+        $directoryPath = Join-Path $innoDir $directoryName
+        if (-not (Test-Path $directoryPath -PathType Container)) {
+            Write-Error "Missing required CEF runtime directory after staging: $directoryName"
+            exit 1
+        }
+    }
+
+    $installerRequiredFiles = @(
+        "libcef.dll",
+        "chrome_elf.dll",
+        "icudtl.dat",
+        "snapshot_blob.bin",
+        "v8_context_snapshot.bin",
+        "resources.pak",
+        "chrome_100_percent.pak",
+        "chrome_200_percent.pak"
+    )
+    foreach ($fileName in $installerRequiredFiles) {
+        $filePath = Join-Path $innoDir $fileName
+        if (-not (Test-Path $filePath -PathType Leaf)) {
+            Write-Error "Missing installer-required CEF file after staging: $fileName"
+            exit 1
+        }
+    }
+}
+
 function BuildRemoteServer {
     Write-Output "Building remote_server for $target"
     cargo build --release --package remote_server --target $target
@@ -369,6 +431,7 @@ CheckEnvironmentVariables
 PrepareForBundle
 GenerateLicenses
 BuildZedAndItsFriends
+StageCefRuntime
 BuildRemoteServer
 MakeAppx
 SignZedAndItsFriends
