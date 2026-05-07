@@ -260,10 +260,11 @@ wrap_render_handler! {
                     device_ctx.CopyResource(&staging, &shared_texture);
                 }
 
+                let mut mapped_sub = D3D11_MAPPED_SUBRESOURCE::default();
                 let mapped = match unsafe {
-                    device_ctx.Map(&staging, 0, D3D11_MAP_READ, 0)
+                    device_ctx.Map(&staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped_sub))
                 } {
-                    Ok(m) => m,
+                    Ok(()) => mapped_sub,
                     Err(e) => {
                         log::error!("[browser::render_handler] Map failed: {}", e);
                         return;
@@ -316,7 +317,7 @@ wrap_render_handler! {
 fn create_capture_device() -> anyhow::Result<windows::Win32::Graphics::Direct3D11::ID3D11Device1> {
     use windows::Win32::Graphics::Direct3D::*;
     use windows::Win32::Graphics::Direct3D11::*;
-    use windows_core::Interface;
+    use windows::core::Interface;
 
     let mut device: Option<ID3D11Device> = None;
     let mut context: Option<ID3D11DeviceContext> = None;

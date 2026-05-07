@@ -1,3 +1,4 @@
+#[cfg(target_os = "macos")]
 use gpui::surface;
 use gpui::{
     Context, Corner, ElementInputHandler, IntoElement, MouseButton, NativeImageScaling,
@@ -364,16 +365,7 @@ impl BrowserView {
         let has_frame = current_frame.is_some();
 
         #[cfg(target_os = "windows")]
-        let current_frame = self.active_tab().and_then(|t| {
-            let tab = t.read(cx);
-            tab.current_frame().map(|f| {
-                gpui::BgraFrame {
-                    data: f.data,
-                    width: f.width,
-                    height: f.height,
-                }
-            })
-        });
+        let current_frame = self.active_tab().and_then(|t| t.read(cx).current_frame());
         #[cfg(target_os = "windows")]
         let has_frame = current_frame.is_some();
 
@@ -519,7 +511,19 @@ impl BrowserView {
 
         #[cfg(target_os = "windows")]
         let content = content.when_some(current_frame, |this, frame| {
-            this.child(surface(frame).size_full().object_fit(ObjectFit::Fill))
+            let bgra_data = frame.data.clone();
+            let img_w = frame.width;
+            let img_h = frame.height;
+            this.child(
+                canvas(move |_bounds, _state, window, _cx| {
+                    let bounds = gpui::Bounds {
+                        origin: gpui::Point::default(),
+                        size: gpui::size(gpui::px(img_w as f32), gpui::px(img_h as f32)),
+                    };
+                    window.paint_surface_rgba(bounds, bgra_data.clone(), img_w, img_h);
+                })
+                .size_full(),
+            )
         });
 
         content.into_any_element()
