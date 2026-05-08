@@ -223,8 +223,8 @@ impl BrowserTab {
                 BrowserEvent::LoadingProgress(progress) => {
                     self.loading_progress = progress;
                 }
-                #[cfg(any(target_os = "macos", target_os = "windows"))]
                 BrowserEvent::FrameReady => {
+                    #[cfg(any(target_os = "macos", target_os = "windows"))]
                     cx.emit(TabEvent::FrameReady);
                 }
                 BrowserEvent::BrowserCreated => {}
@@ -678,6 +678,11 @@ impl BrowserTab {
     #[cfg(target_os = "windows")]
     pub fn current_frame(&self) -> Option<crate::render_handler::WindowsFrame> {
         self.render_state.lock().current_frame.clone()
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    pub fn current_frame(&self) -> Option<()> {
+        None
     }
 
     pub fn url(&self) -> &str {

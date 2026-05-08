@@ -1,5 +1,7 @@
 param(
-    [string]$TargetDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) "target\debug")
+    [string]$TargetDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) "target\debug"),
+    [ValidateSet("x86_64", "aarch64")]
+    [string]$Architecture = "x86_64"
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,7 +15,8 @@ function Resolve-CefRuntimeSource {
 
     $candidates = Get-ChildItem -Path (Join-Path $ResolvedTargetDirectory "build") -Directory -Filter "cef-dll-sys-*" -ErrorAction SilentlyContinue |
         ForEach-Object {
-            $runtimePath = Join-Path $_.FullName "out\cef_windows_x86_64"
+            $cefArch = if ($Architecture -eq "aarch64") { "aarch64" } else { "x86_64" }
+            $runtimePath = Join-Path $_.FullName "out\cef_windows_$cefArch"
             if (Test-Path (Join-Path $runtimePath "libcef.dll")) {
                 [pscustomobject]@{
                     RuntimePath   = $runtimePath

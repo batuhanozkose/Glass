@@ -170,9 +170,10 @@ jobs:
         shell: pwsh
 
       - name: Stage Windows CEF runtime
+        if: github.event.inputs.artifact_mode == 'full_with_cef'
         run: |
           $target = "${{ github.event.inputs.architecture }}-pc-windows-msvc"
-          $runtimeOutput = pwsh -ExecutionPolicy Bypass -File .\script\stage-windows-cef-runtime.ps1 -TargetDirectory ".\target\$target\release"
+          $runtimeOutput = pwsh -ExecutionPolicy Bypass -File .\script\stage-windows-cef-runtime.ps1 -TargetDirectory ".\target\$target\release" -Architecture "${{ github.event.inputs.architecture }}"
           if ($LASTEXITCODE -ne 0) {
             Write-Error "CEF runtime staging script failed with exit code $LASTEXITCODE"
             exit 1
@@ -206,11 +207,13 @@ jobs:
           Copy-Item "$outDir\explorer_command_injector.dll" "$collectDir\explorer_command_injector.dll" -Force
           Copy-Item "$outDir\remote_server.exe" "$collectDir\remote_server.exe" -Force
 
-          if (-not $env:STAGED_CEF_RUNTIME -or -not (Test-Path $env:STAGED_CEF_RUNTIME -PathType Container)) {
-            Write-Error "STAGED_CEF_RUNTIME is not set or invalid"
-            exit 1
+          if ($artifactMode -eq "full_with_cef") {
+            if (-not $env:STAGED_CEF_RUNTIME -or -not (Test-Path $env:STAGED_CEF_RUNTIME -PathType Container)) {
+              Write-Error "STAGED_CEF_RUNTIME is not set or invalid"
+              exit 1
+            }
+            Copy-Item -Path (Join-Path $env:STAGED_CEF_RUNTIME "*") -Destination $collectDir -Recurse -Force
           }
-          Copy-Item -Path (Join-Path $env:STAGED_CEF_RUNTIME "*") -Destination $collectDir -Recurse -Force
 
           if ($arch -eq "x86_64") {
             New-Item -ItemType Directory -Force -Path "$collectDir\x64" | Out-Null
@@ -350,8 +353,9 @@ jobs:
           }
 
           if ($missing.Count -gt 0) {
-            Write-Warning "Potentially missing DLLs (not bundled, not known system DLLs):"
-            $missing | ForEach-Object { Write-Warning "  - $_" }
+            Write-Error "Missing DLLs (not bundled, not known system DLLs):"
+            $missing | ForEach-Object { Write-Error "  - $_" }
+            exit 1
           } else {
             Write-Host "`nOK: All non-system DLL dependencies are either bundled or are known system DLLs"
           }
@@ -372,6 +376,7 @@ jobs:
           Write-Host "`nDLL dependency validation passed"
 
       - name: Validate packaged runtime contents
+        if: github.event.inputs.artifact_mode == 'full_with_cef'
         run: |
           $arch = "${{ github.event.inputs.architecture }}"
           $artifactMode = "${{ github.event.inputs.artifact_mode }}"
@@ -381,7 +386,11 @@ jobs:
             "Glass.exe",
             "libcef.dll",
             "chrome_elf.dll",
-            "icudtl.dat"
+            "icudtl.dat",
+            "resources.pak",
+            "chrome_100_percent.pak",
+            "chrome_200_percent.pak",
+            "v8_context_snapshot.bin"
           )
           foreach ($fileName in $requiredFiles) {
             $path = Join-Path $collectDir $fileName

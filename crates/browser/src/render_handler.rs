@@ -276,6 +276,18 @@ wrap_render_handler! {
 
                 let src = mapped.pData as *const u8;
                 let dst_width_bytes = (width * 4) as usize;
+                debug_assert!(row_pitch >= dst_width_bytes);
+                if row_pitch < dst_width_bytes {
+                    log::error!(
+                        "[browser::render_handler] mapped texture row pitch {} is smaller than row width {}",
+                        row_pitch,
+                        dst_width_bytes
+                    );
+                    unsafe {
+                        device_ctx.Unmap(&staging, 0);
+                    }
+                    return;
+                }
                 for y in 0..height as usize {
                     let src_row = unsafe { src.add(y * row_pitch) };
                     let dst_row = &mut pixel_data[y * dst_width_bytes..(y + 1) * dst_width_bytes];

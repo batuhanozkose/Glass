@@ -1,4 +1,4 @@
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use gpui::surface;
 use gpui::{
     Context, Corner, ElementInputHandler, IntoElement, MouseButton, NativeImageScaling,
@@ -511,21 +511,14 @@ impl BrowserView {
 
         #[cfg(target_os = "windows")]
         let content = content.when_some(current_frame, |this, frame| {
-            let bgra_data = frame.data.clone();
-            let img_w = frame.width;
-            let img_h = frame.height;
             this.child(
-                canvas(
-                    |_bounds, _window, _cx| {},
-                    move |_bounds, _state, window, _cx| {
-                        let bounds = gpui::Bounds {
-                            origin: gpui::Point::default(),
-                            size: gpui::size(gpui::px(img_w as f32), gpui::px(img_h as f32)),
-                        };
-                        window.paint_surface_rgba(bounds, bgra_data.clone(), img_w, img_h);
-                    },
-                )
-                .size_full(),
+                surface(gpui::BgraFrame {
+                    data: frame.data.clone(),
+                    width: frame.width,
+                    height: frame.height,
+                })
+                .size_full()
+                .object_fit(ObjectFit::Fill),
             )
         });
 

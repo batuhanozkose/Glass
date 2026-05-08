@@ -232,21 +232,29 @@ fn contains_windows_cef_runtime(root: &Path) -> bool {
 }
 
 #[cfg(target_os = "windows")]
+fn required_windows_runtime_files() -> &'static [&'static str] {
+    &[
+        "libcef.dll",
+        "chrome_elf.dll",
+        "icudtl.dat",
+        "resources.pak",
+        "chrome_100_percent.pak",
+        "chrome_200_percent.pak",
+        "v8_context_snapshot.bin",
+    ]
+}
+
+#[cfg(target_os = "windows")]
+fn required_windows_runtime_dirs() -> &'static [&'static str] {
+    &["locales", "swiftshader"]
+}
+
+#[cfg(target_os = "windows")]
 fn canonicalize_if_exists(path: &Path) -> Option<PathBuf> {
     if path.exists() {
         path.canonicalize().ok()
     } else {
         None
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn is_trusted_runtime_root(runtime_root: &Path, exe_dir: &Path) -> bool {
-    let canonical_runtime = canonicalize_if_exists(runtime_root);
-    let canonical_exe_dir = canonicalize_if_exists(exe_dir);
-    match (canonical_runtime, canonical_exe_dir) {
-        (Some(runtime), Some(exe)) => runtime == exe || runtime.starts_with(&exe),
-        _ => false,
     }
 }
 
@@ -259,13 +267,13 @@ fn resolve_windows_cef_runtime_root() -> Option<PathBuf> {
     let exe_path = std::env::current_exe().ok()?;
     let exe_dir = exe_path.parent()?.to_path_buf();
     let canonical_exe_dir = canonicalize_if_exists(&exe_dir)?;
-    if contains_windows_cef_runtime(&exe_dir) {
+    if has_required_windows_runtime_layout(&exe_dir) {
         *WINDOWS_CEF_RUNTIME_ROOT.lock() = Some(canonical_exe_dir.clone());
         return Some(canonical_exe_dir);
     }
 
     let staged_runtime = exe_dir.join("cef_runtime");
-    if contains_windows_cef_runtime(&staged_runtime) {
+    if has_required_windows_runtime_layout(&staged_runtime) {
         let canonical_staged = canonicalize_if_exists(&staged_runtime)?;
         *WINDOWS_CEF_RUNTIME_ROOT.lock() = Some(canonical_staged.clone());
         return Some(canonical_staged);
@@ -273,14 +281,14 @@ fn resolve_windows_cef_runtime_root() -> Option<PathBuf> {
 
     if let Ok(cef_path) = std::env::var("CEF_PATH") {
         let from_env = PathBuf::from(cef_path);
+        if has_required_windows_runtime_layout(&from_env) {
+            let canonical_env = canonicalize_if_exists(&from_env)?;
+            *WINDOWS_CEF_RUNTIME_ROOT.lock() = Some(canonical_env.clone());
+            return Some(canonical_env);
+        }
         if contains_windows_cef_runtime(&from_env) {
-            if is_trusted_runtime_root(&from_env, &exe_dir) {
-                let canonical_env = canonicalize_if_exists(&from_env)?;
-                *WINDOWS_CEF_RUNTIME_ROOT.lock() = Some(canonical_env.clone());
-                return Some(canonical_env);
-            }
             log::warn!(
-                "[browser::cef_instance] Ignoring untrusted CEF_PATH runtime root on Windows: {}",
+                "[browser::cef_instance] Ignoring incomplete CEF_PATH runtime root on Windows: {}",
                 from_env.display()
             );
         }
@@ -290,14 +298,22 @@ fn resolve_windows_cef_runtime_root() -> Option<PathBuf> {
 }
 
 #[cfg(target_os = "windows")]
+pub fn has_windows_cef_runtime() -> bool {
+    resolve_windows_cef_runtime_root()
+        .as_deref()
+        .is_some_and(has_required_windows_runtime_layout)
+}
+
+#[cfg(target_os = "windows")]
 fn has_required_windows_runtime_layout(runtime_root: &Path) -> bool {
-    let required_files = ["libcef.dll", "chrome_elf.dll", "icudtl.dat"];
-    for file_name in required_files {
+    for file_name in required_windows_runtime_files() {
         if !runtime_root.join(file_name).exists() {
             return false;
         }
     }
-    runtime_root.join("locales").is_dir() && runtime_root.join("swiftshader").is_dir()
+    required_windows_runtime_dirs()
+        .iter()
+        .all(|dir_name| runtime_root.join(dir_name).is_dir())
 }
 
 #[cfg(target_os = "windows")]
@@ -316,8 +332,7 @@ fn ensure_runtime_on_path(runtime_root: &Path) {
 
 #[cfg(target_os = "windows")]
 fn log_windows_runtime_layout(runtime_root: &Path) {
-    let required_files = ["libcef.dll", "chrome_elf.dll", "icudtl.dat"];
-    for file_name in required_files {
+    for file_name in required_windows_runtime_files() {
         let file_path = runtime_root.join(file_name);
         if !file_path.exists() {
             log::warn!(
@@ -327,7 +342,7 @@ fn log_windows_runtime_layout(runtime_root: &Path) {
         }
     }
 
-    for dir_name in ["locales", "swiftshader"] {
+    for dir_name in required_windows_runtime_dirs() {
         let dir_path = runtime_root.join(dir_name);
         if !dir_path.exists() {
             log::warn!(

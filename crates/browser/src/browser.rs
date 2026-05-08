@@ -38,6 +38,11 @@ pub use cef_instance::CefInstance;
 pub use cef_instance::build_cef_app;
 pub use tab::BrowserTab;
 
+#[cfg(target_os = "windows")]
+pub fn has_windows_cef_runtime() -> bool {
+    cef_instance::has_windows_cef_runtime()
+}
+
 /// Handle CEF subprocess execution. This MUST be called very early in main(),
 /// before any GUI initialization. See CefInstance::handle_subprocess() for details.
 pub fn handle_cef_subprocess() -> anyhow::Result<()> {

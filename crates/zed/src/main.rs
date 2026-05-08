@@ -176,29 +176,8 @@ fn fail_to_open_window(e: anyhow::Error, _cx: &mut App) {
 static STARTUP_TIME: OnceLock<Instant> = OnceLock::new();
 
 #[cfg(target_os = "windows")]
-fn has_windows_cef_runtime_layout(root: &Path) -> bool {
-    let required_files = ["libcef.dll", "chrome_elf.dll", "icudtl.dat"];
-    let required_dirs = ["locales", "swiftshader"];
-
-    required_files
-        .iter()
-        .all(|file_name| root.join(file_name).exists())
-        && required_dirs
-            .iter()
-            .all(|dir_name| root.join(dir_name).is_dir())
-}
-
-#[cfg(target_os = "windows")]
 fn has_windows_cef_runtime() -> bool {
-    let Ok(exe_path) = std::env::current_exe() else {
-        return false;
-    };
-    let Some(exe_dir) = exe_path.parent() else {
-        return false;
-    };
-
-    has_windows_cef_runtime_layout(exe_dir)
-        || has_windows_cef_runtime_layout(&exe_dir.join("cef_runtime"))
+    browser::has_windows_cef_runtime()
 }
 
 fn main() {
@@ -226,7 +205,7 @@ fn main() {
         }
     } else {
         eprintln!(
-            "CEF runtime not found next to Glass.exe (or Glass.exe/cef_runtime). \
+            "CEF runtime not found next to Glass.exe, Glass.exe/cef_runtime, or CEF_PATH. \
              Starting in editor-only mode."
         );
     }

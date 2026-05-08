@@ -29,16 +29,20 @@ try {
     }
 
     $configContents = @"
-[patch."https://github.com/Glass-HQ/gpui.git"]
+[patch."https://github.com/batuhanozkose/gpui.git"]
 collections = { path = "$gpuiRootNormalized/crates/collections" }
 derive_refineable = { path = "$gpuiRootNormalized/crates/refineable/derive_refineable" }
 gpui = { path = "$gpuiRootNormalized/crates/gpui" }
+gpui_linux = { path = "$gpuiRootNormalized/crates/gpui_linux" }
 gpui_macos = { path = "$gpuiRootNormalized/crates/gpui_macos" }
 gpui_macros = { path = "$gpuiRootNormalized/crates/gpui_macros" }
 gpui_metal = { path = "$gpuiRootNormalized/crates/gpui_metal" }
 gpui_platform = { path = "$gpuiRootNormalized/crates/gpui_platform" }
 gpui_tokio = { path = "$gpuiRootNormalized/crates/gpui_tokio" }
 gpui_util = { path = "$gpuiRootNormalized/crates/gpui_util" }
+gpui_web = { path = "$gpuiRootNormalized/crates/gpui_web" }
+gpui_wgpu = { path = "$gpuiRootNormalized/crates/gpui_wgpu" }
+gpui_windows = { path = "$gpuiRootNormalized/crates/gpui_windows" }
 http_client = { path = "$gpuiRootNormalized/crates/http_client" }
 http_client_tls = { path = "$gpuiRootNormalized/crates/http_client_tls" }
 media = { path = "$gpuiRootNormalized/crates/media" }
