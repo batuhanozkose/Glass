@@ -515,13 +515,16 @@ impl BrowserView {
             let img_w = frame.width;
             let img_h = frame.height;
             this.child(
-                canvas(move |_bounds, _state, window, _cx| {
-                    let bounds = gpui::Bounds {
-                        origin: gpui::Point::default(),
-                        size: gpui::size(gpui::px(img_w as f32), gpui::px(img_h as f32)),
-                    };
-                    window.paint_surface_rgba(bounds, bgra_data.clone(), img_w, img_h);
-                })
+                canvas(
+                    |_bounds, _window, _cx| {},
+                    move |_bounds, _state, window, _cx| {
+                        let bounds = gpui::Bounds {
+                            origin: gpui::Point::default(),
+                            size: gpui::size(gpui::px(img_w as f32), gpui::px(img_h as f32)),
+                        };
+                        window.paint_surface_rgba(bounds, bgra_data.clone(), img_w, img_h);
+                    },
+                )
                 .size_full(),
             )
         });

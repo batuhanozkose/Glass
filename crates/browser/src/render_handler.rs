@@ -328,7 +328,7 @@ fn create_capture_device() -> anyhow::Result<windows::Win32::Graphics::Direct3D1
         D3D11CreateDevice(
             Default::default(),
             D3D_DRIVER_TYPE_HARDWARE,
-            None,
+            windows::Win32::Foundation::HMODULE::default(),
             flags,
             Some(&[D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1]),
             D3D11_SDK_VERSION,
