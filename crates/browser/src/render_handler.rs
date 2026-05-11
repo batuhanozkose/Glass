@@ -333,6 +333,7 @@ wrap_render_handler! {
 fn create_capture_device() -> anyhow::Result<windows::Win32::Graphics::Direct3D11::ID3D11Device1> {
     use windows::Win32::Graphics::Direct3D::*;
     use windows::Win32::Graphics::Direct3D11::*;
+    use windows::Win32::Graphics::Dxgi::IDXGIAdapter;
     use windows::core::Interface;
 
     let mut device: Option<ID3D11Device> = None;
@@ -342,7 +343,7 @@ fn create_capture_device() -> anyhow::Result<windows::Win32::Graphics::Direct3D1
 
     unsafe {
         D3D11CreateDevice(
-            Default::default(),
+            None::<&IDXGIAdapter>,
             D3D_DRIVER_TYPE_HARDWARE,
             windows::Win32::Foundation::HMODULE::default(),
             flags,
