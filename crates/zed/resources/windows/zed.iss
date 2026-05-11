@@ -2,10 +2,10 @@
 AppId={#AppId}
 AppName={#AppName}
 AppVerName={#AppDisplayName}
-AppPublisher=Zed Industries
-AppPublisherURL=https://www.zed.dev/
-AppSupportURL=https://www.zed.dev/
-AppUpdatesURL=https://www.zed.dev/
+AppPublisher=Glass HQ
+AppPublisherURL=https://glass.dev/
+AppSupportURL=https://glass.dev/
+AppUpdatesURL=https://glass.dev/
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 DisableReadyPage=yes
@@ -65,7 +65,7 @@ Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Other}"
 Name: "{app}"; AfterInstall: DisableAppDirInheritance
 
 [Files]
-Source: "{#ResourcesDir}\Zed.exe"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
+Source: "{#ResourcesDir}\Glass.exe"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
 ; CEF runtime files required by Glass browser mode on Windows
 Source: "{#ResourcesDir}\libcef.dll"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
 Source: "{#ResourcesDir}\chrome_elf.dll"; DestDir: "{code:GetInstallDir}"; Flags: ignoreversion
