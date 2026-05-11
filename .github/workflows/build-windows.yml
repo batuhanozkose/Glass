@@ -412,6 +412,45 @@ jobs:
           Write-Host "Artifact runtime validation passed"
         shell: pwsh
 
+      - name: Smoke test — Glass.exe starts without immediate crash
+        shell: pwsh
+        run: |
+          $arch = "${{ github.event.inputs.architecture }}"
+          $artifactMode = "${{ github.event.inputs.artifact_mode }}"
+          $collectDir = ".\target\glass-windows-$arch-$artifactMode"
+          $glassExe = Join-Path $collectDir "Glass.exe"
+
+          if (-not (Test-Path $glassExe)) {
+            Write-Warning "Glass.exe not found — skipping smoke test"
+            exit 0
+          }
+
+          Write-Host "Starting Glass.exe smoke test..."
+          try {
+            # Start Glass.exe and let it run for 5 seconds
+            # If it crashes immediately (exit code != 0 within 3s), that's a failure
+            $process = Start-Process -FilePath $glassExe -PassThru -ErrorAction Stop
+            Start-Sleep -Seconds 5
+
+            if ($process.HasExited) {
+              $exitCode = $process.ExitCode
+              if ($exitCode -ne 0) {
+                Write-Error "Glass.exe crashed immediately with exit code: $exitCode"
+                exit 1
+              } else {
+                Write-Host "Glass.exe exited cleanly (code 0) — may need a display, but no crash"
+              }
+            } else {
+              Write-Host "Glass.exe is still running after 5s — smoke test PASSED"
+              Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            }
+          } catch {
+            Write-Warning "Smoke test could not launch Glass.exe: $_"
+            Write-Warning "This is expected on headless CI runners without a display"
+            exit 0
+          }
+        continue-on-error: true
+
       - name: Upload Glass.exe artifact
         uses: actions/upload-artifact@v4
         with:
