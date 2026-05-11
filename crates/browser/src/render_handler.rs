@@ -29,6 +29,8 @@ pub struct RenderState {
     pub current_frame: Option<CVPixelBuffer>,
     #[cfg(target_os = "windows")]
     pub current_frame: Option<WindowsFrame>,
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    pub current_frame: Option<()>,
 }
 
 #[cfg(target_os = "windows")]
@@ -48,6 +50,8 @@ impl Default for RenderState {
             #[cfg(target_os = "macos")]
             current_frame: None,
             #[cfg(target_os = "windows")]
+            current_frame: None,
+            #[cfg(not(any(target_os = "macos", target_os = "windows")))]
             current_frame: None,
         }
     }
