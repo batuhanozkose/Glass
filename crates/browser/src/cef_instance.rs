@@ -246,7 +246,7 @@ fn required_windows_runtime_files() -> &'static [&'static str] {
 
 #[cfg(target_os = "windows")]
 fn required_windows_runtime_dirs() -> &'static [&'static str] {
-    &["locales", "swiftshader"]
+    &["locales"]
 }
 
 #[cfg(target_os = "windows")]

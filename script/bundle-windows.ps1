@@ -155,7 +155,7 @@ function StageCefRuntime {
         }
     }
 
-    $requiredDirectories = @("locales", "swiftshader")
+    $requiredDirectories = @("locales")
     foreach ($directoryName in $requiredDirectories) {
         $directoryPath = Join-Path $innoDir $directoryName
         if (-not (Test-Path $directoryPath -PathType Container)) {
