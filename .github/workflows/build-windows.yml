@@ -345,15 +345,24 @@ jobs:
             "psapi.dll", "PSAPI.dll",
             "dwrite.dll",
             "msdmo.dll", "MSDMO.dll",
+            "SspiCli.dll", "sspicli.dll",
             "icuuc.dll", "icuin.dll", "icudt.dll",
             "vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll"
           )
+
+          # CEF runtime DLL — only expected in full_with_cef mode
+          # In editor_only mode, CEF is not staged, so libcef.dll won't be bundled
+          $cefOnlyDlls = @("libcef.dll", "chrome_elf.dll")
 
           # Check for potentially missing non-system DLLs
           $missing = @()
           foreach ($dep in $dependencies) {
             # api-ms-win-* are Windows API Set contracts — always present on Windows 10+
             if ($dep -match '^api-ms-win-') {
+              continue
+            }
+            # CEF runtime DLLs are only expected in full_with_cef mode
+            if ($artifactMode -ne 'full_with_cef' -and $cefOnlyDlls -contains $dep) {
               continue
             }
             $isSystem = $systemDlls -contains $dep
