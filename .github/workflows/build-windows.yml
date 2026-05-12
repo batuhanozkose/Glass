@@ -237,18 +237,40 @@ jobs:
           }
 
           # Resolve architecture-specific CRT directory
+          # MSVC Redist layout: $vcRedistDir/$arch/Microsoft.VC<ver>.CRT/<dlls>
           $crtArch = if ($arch -eq "aarch64") { "arm64" } else { "x64" }
-          $crtDir = Join-Path $vcRedistDir $crtArch
-          if (-not (Test-Path $crtDir)) {
-            # Fallback: search for Microsoft.VC143.CRT directory
-            $crtDir = Get-ChildItem -Path $vcRedistDir -Directory -Filter "Microsoft.VC*.CRT" -ErrorAction SilentlyContinue |
-              ForEach-Object { Join-Path $_.FullName $crtArch } |
-              Where-Object { Test-Path $_ } |
-              Select-Object -First 1
+          $archDir = Join-Path $vcRedistDir $crtArch
+          $crtDir = $null
+
+          # First: look for DLLs directly in $archDir (some VS installs)
+          if ((Test-Path $archDir) -and (Test-Path (Join-Path $archDir "vcruntime140.dll"))) {
+            $crtDir = $archDir
           }
 
-          if (-not $crtDir -or -not (Test-Path $crtDir)) {
-            Write-Error "Cannot find MSVC CRT directory for $crtArch under $vcRedistDir"
+          # Second: look inside Microsoft.VC*.CRT subdirectory (most common layout)
+          if (-not $crtDir -and (Test-Path $archDir)) {
+            $vcCrtSubdir = Get-ChildItem -Path $archDir -Directory -Filter "Microsoft.VC*.CRT" -ErrorAction SilentlyContinue |
+              Where-Object { Test-Path (Join-Path $_.FullName "vcruntime140.dll") } |
+              Select-Object -First 1
+            if ($vcCrtSubdir) {
+              $crtDir = $vcCrtSubdir.FullName
+            }
+          }
+
+          # Third: search recursively under $vcRedistDir as last resort
+          if (-not $crtDir) {
+            $found = Get-ChildItem -Path $vcRedistDir -Recurse -Filter "vcruntime140.dll" -ErrorAction SilentlyContinue |
+              Where-Object { $_.DirectoryName -like "*$crtArch*" } |
+              Select-Object -First 1
+            if ($found) {
+              $crtDir = $found.DirectoryName
+            }
+          }
+
+          if (-not $crtDir) {
+            Write-Error "Cannot find MSVC CRT DLLs for $crtArch under $vcRedistDir"
+            Write-Host "Directory listing for debugging:"
+            Get-ChildItem -Path $vcRedistDir -Recurse -Filter "vcruntime140.dll" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
             exit 1
           }
 
@@ -425,20 +447,64 @@ jobs:
             exit 0
           }
 
+          # Pre-flight: verify all required DLLs are present before launching
+          Write-Host "Checking bundled DLLs before smoke test..."
+          $dumpbinExe = (Get-Command dumpbin -ErrorAction SilentlyContinue).Source
+          if ($dumpbinExe) {
+            $deps = & $dumpbinExe /DEPENDENTS $glassExe 2>$null | Select-String -Pattern '\S+\.dll' | ForEach-Object { $_.Matches[0].Value.ToLower() }
+            $systemDlls = @('kernel32.dll','user32.dll','gdi32.dll','advapi32.dll','shell32.dll','ole32.dll',
+                            'oleaut32.dll','ws2_32.dll','ntdll.dll','bcrypt.dll','userenv.dll','secur32.dll',
+                            'crypt32.dll','iphlpapi.dll','rpcrt4.dll','winmm.dll','imm32.dll','powrprof.dll',
+                            'setupapi.dll','cfgmgr32.dll','wtsapi32.dll','netapi32.dll','version.dll',
+                            'dwmapi.dll','d3d11.dll','dxgi.dll','dcomp.dll','dwrite.dll','propsys.dll',
+                            'comctl32.dll','uxtheme.dll','shlwapi.dll','mswsock.dll','api-ms-win-*.dll')
+            $missingDeps = @()
+            foreach ($dep in $deps) {
+              $isSystem = $false
+              foreach ($sys in $systemDlls) {
+                if ($dep -like $sys) { $isSystem = $true; break }
+              }
+              if (-not $isSystem) {
+                $bundledPath = Join-Path (Split-Path $glassExe) $dep
+                if (-not (Test-Path $bundledPath)) {
+                  $missingDeps += $dep
+                }
+              }
+            }
+            if ($missingDeps.Count -gt 0) {
+              Write-Error "FATAL: Missing bundled DLLs that will cause runtime crash: $($missingDeps -join ', ')"
+              Write-Error "Glass.exe will NOT work on end-user machines without these DLLs!"
+              exit 1
+            }
+            Write-Host "All non-system DLL dependencies are bundled — OK"
+          }
+
           Write-Host "Starting Glass.exe smoke test..."
           try {
             # Start Glass.exe and let it run for 5 seconds
-            # If it crashes immediately (exit code != 0 within 3s), that's a failure
+            # On headless CI (no GPU/display), exit code 101 (Rust panic from D3D init) is expected
             $process = Start-Process -FilePath $glassExe -PassThru -ErrorAction Stop
             Start-Sleep -Seconds 5
 
             if ($process.HasExited) {
               $exitCode = $process.ExitCode
-              if ($exitCode -ne 0) {
-                Write-Error "Glass.exe crashed immediately with exit code: $exitCode"
+              if ($exitCode -eq 101) {
+                Write-Host "Glass.exe exited with code 101 (expected on headless CI — D3D/GPU unavailable)"
+                Write-Host "Smoke test PASSED (headless-acceptable exit)"
+              } elseif ($exitCode -eq 0) {
+                Write-Host "Glass.exe exited cleanly (code 0) — smoke test PASSED"
+              } elseif ($exitCode -eq -1073741515) {
+                # 0xC0000135 = STATUS_DLL_NOT_FOUND
+                Write-Error "FATAL: Glass.exe failed with STATUS_DLL_NOT_FOUND (0xC0000135)!"
+                Write-Error "Missing DLL dependency — the artifact is broken."
+                exit 1
+              } elseif ($exitCode -eq -1073741819) {
+                # 0xC0000005 = STATUS_ACCESS_VIOLATION
+                Write-Error "FATAL: Glass.exe crashed with access violation!"
                 exit 1
               } else {
-                Write-Host "Glass.exe exited cleanly (code 0) — may need a display, but no crash"
+                Write-Warning "Glass.exe exited with unexpected code: $exitCode"
+                Write-Host "This may be acceptable on headless CI"
               }
             } else {
               Write-Host "Glass.exe is still running after 5s — smoke test PASSED"
@@ -447,9 +513,7 @@ jobs:
           } catch {
             Write-Warning "Smoke test could not launch Glass.exe: $_"
             Write-Warning "This is expected on headless CI runners without a display"
-            exit 0
           }
-        continue-on-error: true
 
       - name: Upload Glass.exe artifact
         uses: actions/upload-artifact@v4

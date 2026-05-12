@@ -178,6 +178,51 @@ static STARTUP_TIME: OnceLock<Instant> = OnceLock::new();
 fn main() {
     STARTUP_TIME.get_or_init(|| Instant::now());
 
+    // On Windows release builds, install a panic hook that shows a MessageBox
+    // so users see an error message instead of the app silently disappearing.
+    #[cfg(all(not(debug_assertions), target_os = "windows"))]
+    {
+        let default_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            // Call the default hook first (for crash reporters, stderr, etc.)
+            default_hook(info);
+
+            // Show a user-visible error dialog
+            let message = format!(
+                "Glass crashed unexpectedly.\n\n\
+                 Error: {}\n\n\
+                 Please report this issue at:\n\
+                 https://github.com/Glass-HQ/Glass/issues\n\n\
+                 Common causes:\n\
+                 - Missing Visual C++ Redistributable 2015-2022\n\
+                 - Outdated GPU drivers\n\
+                 - Missing DLL files next to Glass.exe",
+                info
+            );
+            // Use raw Win32 API to avoid any further panics
+            unsafe {
+                use std::ffi::OsStr;
+                use std::os::windows::ffi::OsStrExt;
+                let title: Vec<u16> = OsStr::new("Glass - Fatal Error")
+                    .encode_wide()
+                    .chain(std::iter::once(0))
+                    .collect();
+                let msg: Vec<u16> = OsStr::new(&message)
+                    .encode_wide()
+                    .chain(std::iter::once(0))
+                    .collect();
+                // MB_OK | MB_ICONERROR = 0x10
+                windows::Win32::UI::WindowsAndMessaging::MessageBoxW(
+                    None,
+                    windows::core::PCWSTR(msg.as_ptr()),
+                    windows::core::PCWSTR(title.as_ptr()),
+                    windows::Win32::UI::WindowsAndMessaging::MB_OK
+                        | windows::Win32::UI::WindowsAndMessaging::MB_ICONERROR,
+                );
+            }
+        }));
+    }
+
     // Handle CEF subprocess execution VERY early, before any other initialization.
     // If this is a CEF subprocess, it will not return (calls process::exit).
     if let Err(e) = browser::handle_cef_subprocess() {
@@ -329,6 +374,9 @@ fn main() {
 
     #[cfg(windows)]
     check_for_conpty_dll();
+
+    #[cfg(windows)]
+    verify_runtime_dependencies();
 
     let app = gpui_platform::application().with_assets(Assets);
 
@@ -1907,5 +1955,88 @@ fn check_for_conpty_dll() {
         }
     } else {
         log::warn!("Failed to load conpty.dll. Terminal will work with reduced functionality.");
+    }
+}
+
+/// Verify that critical runtime DLLs can be loaded.
+/// Logs warnings for missing optional DLLs, errors for critical ones.
+/// This helps diagnose startup failures on end-user machines.
+#[cfg(windows)]
+fn verify_runtime_dependencies() {
+    use windows::{
+        Win32::{Foundation::FreeLibrary, System::LibraryLoader::LoadLibraryW},
+        core::w,
+    };
+
+    // Critical DLLs — Glass won't function without these
+    let critical_dlls: &[(&str, windows::core::PCWSTR)] = &[
+        ("d3d11.dll", w!("d3d11.dll")),
+        ("dxgi.dll", w!("dxgi.dll")),
+        ("dcomp.dll", w!("dcomp.dll")),
+        ("dwrite.dll", w!("dwrite.dll")),
+    ];
+
+    let mut missing_critical = Vec::new();
+
+    for &(name, wide_name) in critical_dlls {
+        match unsafe { LoadLibraryW(wide_name) } {
+            Ok(hmodule) => {
+                unsafe { let _ = FreeLibrary(hmodule); }
+            }
+            Err(_) => {
+                log::error!("Critical DLL missing: {}. Glass requires DirectX 11 support.", name);
+                missing_critical.push(name);
+            }
+        }
+    }
+
+    if !missing_critical.is_empty() {
+        let msg = format!(
+            "Glass cannot start: missing critical system DLLs: {}.\n\n\
+             Please ensure your Windows installation has DirectX 11 support\n\
+             and your GPU drivers are up to date.",
+            missing_critical.join(", ")
+        );
+        log::error!("{}", msg);
+
+        #[cfg(not(debug_assertions))]
+        {
+            unsafe {
+                use std::ffi::OsStr;
+                use std::os::windows::ffi::OsStrExt;
+                let title: Vec<u16> = OsStr::new("Glass - Missing Dependencies")
+                    .encode_wide()
+                    .chain(std::iter::once(0))
+                    .collect();
+                let wmsg: Vec<u16> = OsStr::new(&msg)
+                    .encode_wide()
+                    .chain(std::iter::once(0))
+                    .collect();
+                windows::Win32::UI::WindowsAndMessaging::MessageBoxW(
+                    None,
+                    windows::core::PCWSTR(wmsg.as_ptr()),
+                    windows::core::PCWSTR(title.as_ptr()),
+                    windows::Win32::UI::WindowsAndMessaging::MB_OK
+                        | windows::Win32::UI::WindowsAndMessaging::MB_ICONERROR,
+                );
+            }
+            std::process::exit(1);
+        }
+    }
+
+    // Optional DLLs — nice to have but not fatal
+    let optional_dlls: &[(&str, windows::core::PCWSTR)] = &[
+        ("conpty.dll", w!("conpty.dll")),
+    ];
+
+    for &(name, wide_name) in optional_dlls {
+        match unsafe { LoadLibraryW(wide_name) } {
+            Ok(hmodule) => {
+                unsafe { let _ = FreeLibrary(hmodule); }
+            }
+            Err(_) => {
+                log::warn!("Optional DLL not available: {}. Some features may be limited.", name);
+            }
+        }
     }
 }
