@@ -11,14 +11,7 @@ on:
         options:
           - x86_64
           - aarch64
-      artifact_mode:
-        description: "Artifact mode"
-        required: true
-        default: "full_with_cef"
-        type: choice
-        options:
-          - full_with_cef
-          - editor_only
+
 
 env:
   CARGO_TERM_COLOR: always
@@ -170,7 +163,6 @@ jobs:
         shell: pwsh
 
       - name: Stage Windows CEF runtime
-        if: github.event.inputs.artifact_mode == 'full_with_cef'
         run: |
           $target = "${{ github.event.inputs.architecture }}-pc-windows-msvc"
           $runtimeOutput = pwsh -ExecutionPolicy Bypass -File .\script\stage-windows-cef-runtime.ps1 -TargetDirectory ".\target\$target\release" -Architecture "${{ github.event.inputs.architecture }}"
@@ -195,10 +187,9 @@ jobs:
       - name: Collect build artifacts
         run: |
           $arch = "${{ github.event.inputs.architecture }}"
-          $artifactMode = "${{ github.event.inputs.artifact_mode }}"
           $target = "$arch-pc-windows-msvc"
           $outDir = ".\target\$target\release"
-          $collectDir = ".\target\glass-windows-$arch-$artifactMode"
+          $collectDir = ".\target\glass-windows-$arch"
           New-Item -ItemType Directory -Force -Path $collectDir | Out-Null
 
           Copy-Item "$outDir\zed.exe" "$collectDir\Glass.exe" -Force
@@ -207,13 +198,11 @@ jobs:
           Copy-Item "$outDir\explorer_command_injector.dll" "$collectDir\explorer_command_injector.dll" -Force
           Copy-Item "$outDir\remote_server.exe" "$collectDir\remote_server.exe" -Force
 
-          if ($artifactMode -eq "full_with_cef") {
-            if (-not $env:STAGED_CEF_RUNTIME -or -not (Test-Path $env:STAGED_CEF_RUNTIME -PathType Container)) {
-              Write-Error "STAGED_CEF_RUNTIME is not set or invalid"
-              exit 1
-            }
-            Copy-Item -Path (Join-Path $env:STAGED_CEF_RUNTIME "*") -Destination $collectDir -Recurse -Force
+          if (-not $env:STAGED_CEF_RUNTIME -or -not (Test-Path $env:STAGED_CEF_RUNTIME -PathType Container)) {
+            Write-Error "STAGED_CEF_RUNTIME is not set or invalid"
+            exit 1
           }
+          Copy-Item -Path (Join-Path $env:STAGED_CEF_RUNTIME "*") -Destination $collectDir -Recurse -Force
 
           if ($arch -eq "x86_64") {
             New-Item -ItemType Directory -Force -Path "$collectDir\x64" | Out-Null
@@ -238,8 +227,7 @@ jobs:
         shell: pwsh
         run: |
           $arch = "${{ github.event.inputs.architecture }}"
-          $artifactMode = "${{ github.event.inputs.artifact_mode }}"
-          $collectDir = ".\target\glass-windows-$arch-$artifactMode"
+          $collectDir = ".\target\glass-windows-$arch"
 
           # Find MSVC runtime DLLs from the CI runner's VS installation
           $vcRedistDir = $env:VCToolsRedistDir
@@ -297,8 +285,7 @@ jobs:
         shell: pwsh
         run: |
           $arch = "${{ github.event.inputs.architecture }}"
-          $artifactMode = "${{ github.event.inputs.artifact_mode }}"
-          $collectDir = ".\target\glass-windows-$arch-$artifactMode"
+          $collectDir = ".\target\glass-windows-$arch"
           $glassExe = Join-Path $collectDir "Glass.exe"
 
           if (-not (Test-Path $glassExe)) {
@@ -350,19 +337,11 @@ jobs:
             "vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll"
           )
 
-          # CEF runtime DLL — only expected in full_with_cef mode
-          # In editor_only mode, CEF is not staged, so libcef.dll won't be bundled
-          $cefOnlyDlls = @("libcef.dll", "chrome_elf.dll")
-
           # Check for potentially missing non-system DLLs
           $missing = @()
           foreach ($dep in $dependencies) {
             # api-ms-win-* are Windows API Set contracts — always present on Windows 10+
             if ($dep -match '^api-ms-win-') {
-              continue
-            }
-            # CEF runtime DLLs are only expected in full_with_cef mode
-            if ($artifactMode -ne 'full_with_cef' -and $cefOnlyDlls -contains $dep) {
               continue
             }
             $isSystem = $systemDlls -contains $dep
@@ -400,11 +379,9 @@ jobs:
           Write-Host "`nDLL dependency validation passed"
 
       - name: Validate packaged runtime contents
-        if: github.event.inputs.artifact_mode == 'full_with_cef'
         run: |
           $arch = "${{ github.event.inputs.architecture }}"
-          $artifactMode = "${{ github.event.inputs.artifact_mode }}"
-          $collectDir = ".\target\glass-windows-$arch-$artifactMode"
+          $collectDir = ".\target\glass-windows-$arch"
 
           $requiredFiles = @(
             "Glass.exe",
@@ -440,8 +417,7 @@ jobs:
         shell: pwsh
         run: |
           $arch = "${{ github.event.inputs.architecture }}"
-          $artifactMode = "${{ github.event.inputs.artifact_mode }}"
-          $collectDir = ".\target\glass-windows-$arch-$artifactMode"
+          $collectDir = ".\target\glass-windows-$arch"
           $glassExe = Join-Path $collectDir "Glass.exe"
 
           if (-not (Test-Path $glassExe)) {
@@ -478,8 +454,8 @@ jobs:
       - name: Upload Glass.exe artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Glass-windows-${{ github.event.inputs.architecture }}-${{ github.event.inputs.artifact_mode }}
-          path: target/glass-windows-${{ github.event.inputs.architecture }}-${{ github.event.inputs.artifact_mode }}/
+          name: Glass-windows-${{ github.event.inputs.architecture }}
+          path: target/glass-windows-${{ github.event.inputs.architecture }}/
           if-no-files-found: error
 
       - name: Upload remote_server artifact

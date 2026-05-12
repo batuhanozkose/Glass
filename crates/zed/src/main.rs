@@ -175,38 +175,15 @@ fn fail_to_open_window(e: anyhow::Error, _cx: &mut App) {
 }
 static STARTUP_TIME: OnceLock<Instant> = OnceLock::new();
 
-#[cfg(target_os = "windows")]
-fn has_windows_cef_runtime() -> bool {
-    browser::has_windows_cef_runtime()
-}
-
 fn main() {
     STARTUP_TIME.get_or_init(|| Instant::now());
 
     // Handle CEF subprocess execution VERY early, before any other initialization.
     // If this is a CEF subprocess, it will not return (calls process::exit).
-    #[cfg(target_os = "macos")]
     if let Err(e) = browser::handle_cef_subprocess() {
-        // Log error but don't fail - CEF might not be available (not running from bundle)
         eprintln!(
             "CEF subprocess handling warning: {}. Browser mode may be unavailable until CEF runtime is resolved.",
             e
-        );
-    }
-    #[cfg(target_os = "windows")]
-    let has_cef_runtime = has_windows_cef_runtime();
-    #[cfg(target_os = "windows")]
-    if has_cef_runtime {
-        if let Err(e) = browser::handle_cef_subprocess() {
-            eprintln!(
-                "CEF subprocess handling warning: {}. Browser mode may be unavailable until CEF runtime is resolved.",
-                e
-            );
-        }
-    } else {
-        eprintln!(
-            "CEF runtime not found next to Glass.exe, Glass.exe/cef_runtime, or CEF_PATH. \
-             Starting in editor-only mode."
         );
     }
 
@@ -764,11 +741,6 @@ fn main() {
         });
         vim::init(cx);
         terminal_view::init(cx);
-        #[cfg(target_os = "windows")]
-        if has_cef_runtime {
-            browser::init(cx);
-        }
-        #[cfg(not(target_os = "windows"))]
         browser::init(cx);
         encoding_selector::init(cx);
         language_selector::init(cx);
