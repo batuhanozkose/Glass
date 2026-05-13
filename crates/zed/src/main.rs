@@ -206,6 +206,7 @@ fn main() {
     startup_trace(&format!("args: {:?}", std::env::args().collect::<Vec<_>>()));
     startup_trace(&format!("cwd: {:?}", std::env::current_dir()));
 
+    startup_trace(">> installing panic hook...");
     // On Windows release builds, install a panic hook that shows a MessageBox
     // so users see an error message instead of the app silently disappearing.
     #[cfg(all(not(debug_assertions), target_os = "windows"))]
@@ -250,6 +251,7 @@ fn main() {
             }
         }));
     }
+    startup_trace("<< panic hook installed");
 
     // Handle CEF subprocess execution VERY early, before any other initialization.
     // If this is a CEF subprocess, it will not return (calls process::exit).
@@ -268,9 +270,10 @@ fn main() {
     #[cfg(unix)]
     util::prevent_root_execution();
 
-    startup_trace(">> parsing args...");
+    startup_trace(">> Args::parse()...");
     let args = Args::parse();
-    startup_trace(&format!("<< args parsed. dev_server_token: {:?}", args.dev_server_token.is_some()));
+    startup_trace(&format!("<< Args::parse() done. foreground={}, dev_server_token={}",
+        args.foreground, args.dev_server_token.is_some()));
 
     // `zed --askpass` Makes zed operate in nc/netcat mode for use with askpass
     #[cfg(not(target_os = "windows"))]
@@ -281,12 +284,14 @@ fn main() {
 
     // `zed --crash-handler` Makes zed operate in minidump crash handler mode
     if let Some(socket) = &args.crash_handler {
+        startup_trace("early exit: --crash-handler mode");
         crashes::crash_server(socket.as_path());
         return;
     }
 
     #[cfg(target_os = "windows")]
     if args.record_etw_trace {
+        startup_trace("EXIT: --record-etw-trace mode");
         let zed_pid = args
             .etw_zed_pid
             .and_then(|pid| if pid >= 0 { Some(pid as u32) } else { None });
@@ -310,7 +315,9 @@ fn main() {
     }
 
     // `zed --nc` Makes zed operate in nc/netcat mode for use with MCP
+    startup_trace("past etw_trace check");
     if let Some(socket) = &args.nc {
+        startup_trace("early exit: --nc mode");
         match nc::main(socket) {
             Ok(()) => return,
             Err(err) => {
@@ -325,44 +332,61 @@ fn main() {
         use windows::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole};
 
         if args.foreground {
+            startup_trace("attaching parent console (--foreground)");
             let _ = AttachConsole(ATTACH_PARENT_PROCESS);
         }
     }
 
     // `zed --printenv` Outputs environment variables as JSON to stdout
     if args.printenv {
+        startup_trace("early exit: --printenv");
         util::shell_env::print_env();
         return;
     }
 
     if args.dump_all_actions {
+        startup_trace("early exit: --dump-all-actions");
         dump_all_gpui_actions();
         return;
     }
 
+    startup_trace("past early-exit flags");
+
     // Set custom data directory.
     if let Some(dir) = &args.user_data_dir {
+        startup_trace(&format!("custom data dir: {:?}", dir));
         paths::set_custom_data_dir(dir);
     }
 
+    startup_trace(">> get_zed_cli_path...");
     #[cfg(target_os = "windows")]
     match util::get_zed_cli_path() {
-        Ok(path) => askpass::set_askpass_program(path),
+        Ok(path) => {
+            startup_trace(&format!("<< cli path: {:?}", path));
+            askpass::set_askpass_program(path);
+        }
         Err(err) => {
+            startup_trace(&format!("<< cli path ERROR: {}", err));
             eprintln!("Error: {}", err);
             if std::option_env!("ZED_BUNDLE").is_some() {
+                startup_trace("EXIT: ZED_BUNDLE set + cli path failed");
                 process::exit(1);
             }
         }
     }
 
+    startup_trace(">> init_paths...");
     let file_errors = init_paths();
     if !file_errors.is_empty() {
+        startup_trace(&format!("FATAL: init_paths failed: {:?}", file_errors));
         files_not_created_on_launch(file_errors);
         return;
     }
+    startup_trace("<< init_paths ok");
 
+    startup_trace(">> zlog::init...");
     zlog::init();
+    startup_trace("<< zlog::init done");
 
     if stdout_is_a_pty() {
         zlog::init_output_stdout();
@@ -374,6 +398,7 @@ fn main() {
         };
     }
     ztracing::init();
+    startup_trace("<< ztracing + logging fully active");
 
     let version = option_env!("ZED_BUILD_ID");
     let app_commit_sha =
@@ -381,6 +406,7 @@ fn main() {
     let app_version = AppVersion::load(env!("CARGO_PKG_VERSION"), version, app_commit_sha.clone());
 
     if args.system_specs {
+        startup_trace("early exit: --system-specs");
         let system_specs = system_specs::SystemSpecs::new_stateless(
             app_version,
             app_commit_sha,
@@ -390,12 +416,16 @@ fn main() {
         return;
     }
 
+    startup_trace(&format!("app_version={}", app_version));
+
+    startup_trace(">> rayon::build_global...");
     rayon::ThreadPoolBuilder::new()
         .num_threads(std::thread::available_parallelism().map_or(1, |n| n.get().div_ceil(2)))
         .stack_size(10 * 1024 * 1024)
         .thread_name(|ix| format!("RayonWorker{}", ix))
         .build_global()
         .unwrap();
+    startup_trace("<< rayon thread pool ok");
 
     log::info!(
         "========== starting zed version {}, sha {} ==========",
@@ -407,17 +437,23 @@ fn main() {
             .unwrap_or("unknown"),
     );
 
+    startup_trace(">> check_for_conpty_dll...");
     #[cfg(windows)]
     check_for_conpty_dll();
+    startup_trace("<< check_for_conpty_dll done");
 
+    startup_trace(">> verify_runtime_dependencies...");
     #[cfg(windows)]
     verify_runtime_dependencies();
+    startup_trace("<< verify_runtime_dependencies done");
 
-    startup_trace(">> creating gpui application...");
+    startup_trace(">> gpui_platform::application()...");
     let app = gpui_platform::application().with_assets(Assets);
-    startup_trace("<< gpui application created");
+    startup_trace("<< gpui_platform::application() OK");
 
+    startup_trace(">> AppDatabase::new...");
     let app_db = db::AppDatabase::new();
+    startup_trace("<< AppDatabase OK");
     let system_id = app.background_executor().spawn(system_id());
     let installation_id = app
         .background_executor()
@@ -428,6 +464,7 @@ fn main() {
         KeyValueStore::from_app_db(&app_db),
     ));
 
+    startup_trace(">> crashes::init...");
     crashes::init(
         InitCrashHandler {
             session_id,
@@ -450,6 +487,9 @@ fn main() {
         },
     );
 
+    startup_trace("<< crashes::init done");
+
+    startup_trace(">> OpenListener + single instance check...");
     let (open_listener, mut open_rx) = OpenListener::new();
 
     let failed_single_instance_check = if *zed_env_vars::ZED_STATELESS
@@ -473,11 +513,15 @@ fn main() {
             ensure_only_instance() != IsOnlyInstance::Yes
         }
     };
+    startup_trace(&format!("single_instance_check failed={}", failed_single_instance_check));
     if failed_single_instance_check {
+        startup_trace("EXIT: another instance already running");
         println!("another instance is already running");
         return;
     }
+    startup_trace("single instance OK");
 
+    startup_trace(">> git hosting + fs + config watchers...");
     let git_hosting_provider_registry = Arc::new(GitHostingProviderRegistry::new());
     let git_binary_path =
         if cfg!(target_os = "macos") && option_env!("ZED_BUNDLE").as_deref() == Some("true") {
@@ -491,6 +535,7 @@ fn main() {
         log::info!("Using git binary path: {:?}", git_binary_path);
     }
 
+    startup_trace(">> RealFs + config watchers...");
     let fs = Arc::new(RealFs::new(git_binary_path, app.background_executor()));
     let (user_settings_file_rx, user_settings_watcher) = watch_config_file(
         &app.background_executor(),
@@ -508,6 +553,7 @@ fn main() {
         paths::keymap_file().clone(),
     );
 
+    startup_trace("<< config watchers created");
     let (shell_env_loaded_tx, shell_env_loaded_rx) = oneshot::channel();
     if !stdout_is_a_pty() {
         app.background_executor()
@@ -545,7 +591,10 @@ fn main() {
         }
     });
 
+    startup_trace(">> app.run() — entering main event loop");
     app.run(move |cx| {
+        startup_trace("inside app.run closure — event loop started");
+        startup_trace(">> set_global(app_db)...");
         cx.set_global(app_db);
         let db_trusted_paths = match workspace::WorkspaceDb::global(cx).fetch_trusted_worktrees() {
             Ok(trusted_paths) => trusted_paths,
@@ -554,15 +603,18 @@ fn main() {
                 HashMap::default()
             }
         };
+        startup_trace(">> init sequence: trusted_worktrees, menu, zed_actions...");
         trusted_worktrees::init(db_trusted_paths, cx);
         menu::init();
         zed_actions::init();
 
+        startup_trace(">> release_channel + gpui_tokio init...");
         release_channel::init(app_version, cx);
         gpui_tokio::init(cx);
         if let Some(app_commit_sha) = app_commit_sha {
             AppCommitSha::set_global(app_commit_sha, cx);
         }
+        startup_trace(">> settings::init...");
         settings::init(cx);
         zlog_settings::init(cx);
         handle_settings_file_changes(
@@ -573,6 +625,7 @@ fn main() {
             cx,
         );
         handle_keymap_file_changes(user_keymap_file_rx, user_keymap_watcher, cx);
+        startup_trace("<< settings + keymap handlers registered");
 
         let user_agent = format!(
             "Zed/{} ({}; {})",
@@ -588,6 +641,7 @@ fn main() {
                 .expect("could not start HTTP client")
         };
         cx.set_http_client(Arc::new(http));
+        startup_trace("<< http client set");
 
         <dyn Fs>::set_global(fs.clone(), cx);
 
@@ -657,6 +711,7 @@ fn main() {
             languages.clone(),
         );
 
+        startup_trace(">> Client::set_global + language_extension...");
         Client::set_global(client.clone(), cx);
 
         zed::init(cx);
@@ -664,6 +719,7 @@ fn main() {
         debugger_ui::init(cx);
         debugger_tools::init(cx);
         client::init(&client, cx);
+        startup_trace("<< core init done, resolving system_id/session...");
 
         let system_id = cx.foreground_executor().block_on(system_id).ok();
         let installation_id = cx.foreground_executor().block_on(installation_id).ok();
@@ -721,6 +777,7 @@ fn main() {
         });
         AppState::set_global(app_state.clone(), cx);
 
+        startup_trace(">> auto_update + extension_host + theme...");
         auto_update::init(client.clone(), cx);
         dap_adapters::init(cx);
         auto_update_ui::init(cx);
@@ -733,6 +790,7 @@ fn main() {
             cx,
         );
 
+        startup_trace(">> theme_settings::init...");
         theme_settings::init(theme::LoadThemes::All(Box::new(Assets)), cx);
         eager_load_active_theme_and_icon_theme(fs.clone(), cx);
         theme_extension::init(
@@ -740,6 +798,7 @@ fn main() {
             ThemeRegistry::global(cx),
             cx.background_executor().clone(),
         );
+        startup_trace(">> command_palette + copilot + language_model...");
         command_palette::init(cx);
         let copilot_chat_configuration = copilot_chat::CopilotChatConfiguration {
             enterprise_uri: language::language_settings::all_language_settings(None, cx)
@@ -790,6 +849,7 @@ fn main() {
         recent_projects::init(cx);
         dev_container::init(cx);
 
+        startup_trace(">> load_embedded_fonts + editor + workspace...");
         load_embedded_fonts(cx);
 
         editor::init(cx);
@@ -797,9 +857,11 @@ fn main() {
         repl::notebook::init(cx);
         diagnostics::init(cx);
 
+        startup_trace(">> audio + workspace::init...");
         audio::init(cx);
         workspace_modes::init(cx);
         workspace::init(app_state.clone(), cx);
+        startup_trace("<< workspace::init done");
         app_runtime_ui::init(cx);
         service_hub_ui::init(cx);
         ui_prompt::init(cx);
@@ -916,10 +978,13 @@ fn main() {
         #[cfg(debug_assertions)]
         watch_languages(fs.clone(), app_state.languages.clone(), cx);
 
+        startup_trace(">> set_menus + initialize_workspace...");
         let menus = app_menus(cx);
         cx.set_menus(menus);
         initialize_workspace(app_state.clone(), prompt_builder, cx);
+        startup_trace("<< initialize_workspace done");
 
+        startup_trace(">> cx.activate(true) — bringing window to front...");
         cx.activate(true);
 
         cx.spawn({
@@ -960,15 +1025,18 @@ fn main() {
             })
         }
 
+        startup_trace(">> open_rx check — restore or create workspace...");
         match open_rx
             .try_recv()
             .ok()
             .and_then(|request| OpenRequest::parse(request, cx).log_err())
         {
             Some(request) => {
+                startup_trace("handling open request from args/pipe");
                 handle_open_request(request, app_state.clone(), cx);
             }
             None => {
+                startup_trace("no open request — restoring or creating workspace");
                 cx.spawn({
                     let app_state = app_state.clone();
                     async move |cx| {
@@ -996,6 +1064,7 @@ fn main() {
         })
         .detach();
     });
+    startup_trace("<< app.run() returned — Glass is shutting down");
 }
 
 fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &mut App) {

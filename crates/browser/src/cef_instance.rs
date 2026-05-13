@@ -22,6 +22,24 @@ use std::time::Instant;
 
 use crate::page_chrome::PageChromeRenderProcessHandlerBuilder;
 
+/// File-based startup trace for diagnosing silent-exit issues on Windows.
+/// Writes to Glass_startup.log next to the executable.
+#[cfg(target_os = "windows")]
+fn cef_trace(msg: &str) {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true)
+                .open(dir.join("Glass_startup.log")) {
+                use std::io::Write;
+                let _ = writeln!(f, "[{:?}] [cef] {}", std::time::SystemTime::now(), msg);
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn cef_trace(_msg: &str) {}
+
 static CEF_SUBPROCESS_HANDLED: AtomicBool = AtomicBool::new(false);
 static CEF_INITIALIZED: AtomicBool = AtomicBool::new(false);
 static CEF_CONTEXT_READY: AtomicBool = AtomicBool::new(false);
@@ -420,20 +438,28 @@ impl CefInstance {
 
         #[cfg(target_os = "windows")]
         {
+            cef_trace("resolve_windows_cef_runtime_root...")
             if let Some(runtime_root) = resolve_windows_cef_runtime_root() {
+                cef_trace(&format!("CEF runtime root found: {}", runtime_root.display()));
                 log::info!(
                     "[browser::cef_instance] Windows CEF runtime root: {}",
                     runtime_root.display()
                 );
-                if has_required_windows_runtime_layout(&runtime_root) {
+                let layout_ok = has_required_windows_runtime_layout(&runtime_root);
+                cef_trace(&format!("has_required_windows_runtime_layout: {}", layout_ok));
+                if layout_ok {
                     ensure_runtime_on_path(&runtime_root);
+                    cef_trace("ensure_runtime_on_path done");
                 } else {
+                    cef_trace("runtime root MISSING required files");
+                    log_windows_runtime_layout(&runtime_root);
                     log::warn!(
                         "[browser::cef_instance] Runtime root is missing required Windows CEF files: {}",
                         runtime_root.display()
                     );
                 }
             } else {
+                cef_trace("CEF runtime root NOT FOUND (libcef.dll missing or layout incomplete)");
                 log::warn!(
                     "[browser::cef_instance] Unable to resolve Windows CEF runtime root. \
                      Expected libcef.dll in executable directory or executable-directory/cef_runtime."
@@ -441,24 +467,19 @@ impl CefInstance {
             }
         }
 
+        cef_trace(">> api_hash check...");
         let _ = api_hash(sys::CEF_API_VERSION_LAST, 0);
+        cef_trace("<< api_hash done");
 
+        cef_trace(">> cef::args::Args::new()...");
         let args = cef::args::Args::new();
-        let mut app = build_cef_app();
+        cef_trace("<< Args created");
 
-        // Trace to file for debugging silent-exit issues on Windows
-        #[cfg(target_os = "windows")]
-        {
-            if let Ok(exe) = std::env::current_exe() {
-                if let Some(dir) = exe.parent() {
-                    let log_path = dir.join("Glass_startup.log");
-                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
-                        use std::io::Write;
-                        let _ = writeln!(f, "[{:?}] CEF execute_process about to call", std::time::SystemTime::now());
-                    }
-                }
-            }
-        }
+        cef_trace(">> build_cef_app()...");
+        let mut app = build_cef_app();
+        cef_trace("<< build_cef_app done");
+
+        cef_trace(">> cef::execute_process() — if ret>=0, this process is a CEF subprocess and will exit...");
 
         let ret = cef::execute_process(
             Some(args.as_main_args()),
@@ -466,34 +487,14 @@ impl CefInstance {
             std::ptr::null_mut(),
         );
 
-        #[cfg(target_os = "windows")]
-        {
-            if let Ok(exe) = std::env::current_exe() {
-                if let Some(dir) = exe.parent() {
-                    let log_path = dir.join("Glass_startup.log");
-                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
-                        use std::io::Write;
-                        let _ = writeln!(f, "[{:?}] CEF execute_process returned: {}", std::time::SystemTime::now(), ret);
-                    }
-                }
-            }
-        }
+        cef_trace(&format!("<< cef::execute_process returned: {}", ret));
 
         if ret >= 0 {
-            #[cfg(target_os = "windows")]
-            {
-                if let Ok(exe) = std::env::current_exe() {
-                    if let Some(dir) = exe.parent() {
-                        let log_path = dir.join("Glass_startup.log");
-                        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
-                            use std::io::Write;
-                            let _ = writeln!(f, "[{:?}] CEF says we are a subprocess (ret={}), calling process::exit", std::time::SystemTime::now(), ret);
-                        }
-                    }
-                }
-            }
+            cef_trace(&format!("SUBPROCESS DETECTED (ret={}). Calling process::exit({}). This is normal for CEF helper processes.", ret, ret));
             std::process::exit(ret);
         }
+
+        cef_trace("Main browser process confirmed (ret < 0). Continuing startup.");
 
         *CEF_APP.lock() = Some(app);
         CEF_SUBPROCESS_HANDLED.store(true, Ordering::SeqCst);
