@@ -446,13 +446,52 @@ impl CefInstance {
         let args = cef::args::Args::new();
         let mut app = build_cef_app();
 
+        // Trace to file for debugging silent-exit issues on Windows
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(dir) = exe.parent() {
+                    let log_path = dir.join("Glass_startup.log");
+                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+                        use std::io::Write;
+                        let _ = writeln!(f, "[{:?}] CEF execute_process about to call", std::time::SystemTime::now());
+                    }
+                }
+            }
+        }
+
         let ret = cef::execute_process(
             Some(args.as_main_args()),
             Some(&mut app),
             std::ptr::null_mut(),
         );
 
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(dir) = exe.parent() {
+                    let log_path = dir.join("Glass_startup.log");
+                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+                        use std::io::Write;
+                        let _ = writeln!(f, "[{:?}] CEF execute_process returned: {}", std::time::SystemTime::now(), ret);
+                    }
+                }
+            }
+        }
+
         if ret >= 0 {
+            #[cfg(target_os = "windows")]
+            {
+                if let Ok(exe) = std::env::current_exe() {
+                    if let Some(dir) = exe.parent() {
+                        let log_path = dir.join("Glass_startup.log");
+                        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+                            use std::io::Write;
+                            let _ = writeln!(f, "[{:?}] CEF says we are a subprocess (ret={}), calling process::exit", std::time::SystemTime::now(), ret);
+                        }
+                    }
+                }
+            }
             std::process::exit(ret);
         }
 

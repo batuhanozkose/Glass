@@ -175,8 +175,36 @@ fn fail_to_open_window(e: anyhow::Error, _cx: &mut App) {
 }
 static STARTUP_TIME: OnceLock<Instant> = OnceLock::new();
 
+/// Write a debug trace line to `Glass_startup.log` next to the executable.
+/// This works even before logging is initialized and even for GUI subsystem apps
+/// where stderr is not connected.
+#[cfg(target_os = "windows")]
+fn startup_trace(msg: &str) {
+    use std::io::Write;
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let log_path = dir.join("Glass_startup.log");
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_path)
+            {
+                let _ = writeln!(f, "[{:?}] {}", std::time::SystemTime::now(), msg);
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn startup_trace(_msg: &str) {}
+
 fn main() {
     STARTUP_TIME.get_or_init(|| Instant::now());
+
+    startup_trace("=== Glass startup begin ===");
+    startup_trace(&format!("exe: {:?}", std::env::current_exe()));
+    startup_trace(&format!("args: {:?}", std::env::args().collect::<Vec<_>>()));
+    startup_trace(&format!("cwd: {:?}", std::env::current_dir()));
 
     // On Windows release builds, install a panic hook that shows a MessageBox
     // so users see an error message instead of the app silently disappearing.
@@ -225,17 +253,24 @@ fn main() {
 
     // Handle CEF subprocess execution VERY early, before any other initialization.
     // If this is a CEF subprocess, it will not return (calls process::exit).
-    if let Err(e) = browser::handle_cef_subprocess() {
-        eprintln!(
-            "CEF subprocess handling warning: {}. Browser mode may be unavailable until CEF runtime is resolved.",
-            e
-        );
+    startup_trace(">> calling handle_cef_subprocess...");
+    match browser::handle_cef_subprocess() {
+        Ok(()) => startup_trace("<< handle_cef_subprocess returned Ok"),
+        Err(e) => {
+            startup_trace(&format!("<< handle_cef_subprocess returned Err: {}", e));
+            eprintln!(
+                "CEF subprocess handling warning: {}. Browser mode may be unavailable until CEF runtime is resolved.",
+                e
+            );
+        }
     }
 
     #[cfg(unix)]
     util::prevent_root_execution();
 
+    startup_trace(">> parsing args...");
     let args = Args::parse();
+    startup_trace(&format!("<< args parsed. dev_server_token: {:?}", args.dev_server_token.is_some()));
 
     // `zed --askpass` Makes zed operate in nc/netcat mode for use with askpass
     #[cfg(not(target_os = "windows"))]
@@ -378,7 +413,9 @@ fn main() {
     #[cfg(windows)]
     verify_runtime_dependencies();
 
+    startup_trace(">> creating gpui application...");
     let app = gpui_platform::application().with_assets(Assets);
+    startup_trace("<< gpui application created");
 
     let app_db = db::AppDatabase::new();
     let system_id = app.background_executor().spawn(system_id());
