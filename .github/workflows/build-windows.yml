@@ -447,37 +447,26 @@ jobs:
             exit 0
           }
 
-          # Pre-flight: verify all required DLLs are present before launching
-          Write-Host "Checking bundled DLLs before smoke test..."
-          $dumpbinExe = (Get-Command dumpbin -ErrorAction SilentlyContinue).Source
-          if ($dumpbinExe) {
-            $deps = & $dumpbinExe /DEPENDENTS $glassExe 2>$null | Select-String -Pattern '\S+\.dll' | ForEach-Object { $_.Matches[0].Value.ToLower() }
-            $systemDlls = @('kernel32.dll','user32.dll','gdi32.dll','advapi32.dll','shell32.dll','ole32.dll',
-                            'oleaut32.dll','ws2_32.dll','ntdll.dll','bcrypt.dll','userenv.dll','secur32.dll',
-                            'crypt32.dll','iphlpapi.dll','rpcrt4.dll','winmm.dll','imm32.dll','powrprof.dll',
-                            'setupapi.dll','cfgmgr32.dll','wtsapi32.dll','netapi32.dll','version.dll',
-                            'dwmapi.dll','d3d11.dll','dxgi.dll','dcomp.dll','dwrite.dll','propsys.dll',
-                            'comctl32.dll','uxtheme.dll','shlwapi.dll','mswsock.dll','api-ms-win-*.dll')
-            $missingDeps = @()
-            foreach ($dep in $deps) {
-              $isSystem = $false
-              foreach ($sys in $systemDlls) {
-                if ($dep -like $sys) { $isSystem = $true; break }
-              }
-              if (-not $isSystem) {
-                $bundledPath = Join-Path (Split-Path $glassExe) $dep
-                if (-not (Test-Path $bundledPath)) {
-                  $missingDeps += $dep
-                }
-              }
+          # Pre-flight: verify critical bundled DLLs exist on disk
+          # (Full dependency analysis is already done by "Validate DLL dependencies" step)
+          Write-Host "Pre-flight: checking critical bundled DLLs..."
+          $criticalBundled = @('vcruntime140.dll', 'msvcp140.dll', 'libcef.dll')
+          $artifactDir = Split-Path $glassExe
+          $prefightFail = $false
+          foreach ($dll in $criticalBundled) {
+            $path = Join-Path $artifactDir $dll
+            if (Test-Path $path) {
+              Write-Host "  OK: $dll present"
+            } else {
+              Write-Error "  MISSING: $dll — Glass.exe will not start without this!"
+              $prefightFail = $true
             }
-            if ($missingDeps.Count -gt 0) {
-              Write-Error "FATAL: Missing bundled DLLs that will cause runtime crash: $($missingDeps -join ', ')"
-              Write-Error "Glass.exe will NOT work on end-user machines without these DLLs!"
-              exit 1
-            }
-            Write-Host "All non-system DLL dependencies are bundled — OK"
           }
+          if ($prefightFail) {
+            Write-Error "FATAL: Critical DLLs missing from artifact. Aborting."
+            exit 1
+          }
+          Write-Host "Pre-flight passed."
 
           Write-Host "Starting Glass.exe smoke test..."
           try {
